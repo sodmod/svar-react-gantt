@@ -40,6 +40,27 @@ Upstream ancestry is preserved, never rewritten. `git rebase` of upstream
 commits is forbidden: it destroys the merge-base, which is the thing that proves
 where this code came from.
 
+### Fresh clone / bootstrap
+
+A plain `git clone` of this repository creates `origin` only — it has no
+`upstream` remote yet. `git fetch upstream --tags`, used above and needed by
+`tools/planner-verify.mjs` (check 1 resolves `v2.7.1` against `upstream`'s
+tags), fails on a fresh clone until `upstream` is added.
+
+After cloning, run once — safe to re-run, since it only adds `upstream` when
+it is not already there:
+
+```bash
+git remote get-url upstream >/dev/null 2>&1 || \
+  git remote add upstream https://github.com/svar-widgets/react-gantt.git
+git fetch upstream --tags
+```
+
+After that, `node tools/planner-verify.mjs` runs with no further setup. A
+`node_modules` install (`npm install` / `npm ci`) is also needed before the
+package build step (`prepare`) runs, exactly as for any other consumer of
+this package — that is ordinary npm behaviour, not fork-specific.
+
 ## What this project owns here
 
 ```bash

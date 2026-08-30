@@ -11,8 +11,9 @@
  *
  *   1  UPSTREAM BASE   the recorded upstream tag is still an ancestor of HEAD,
  *                      and still names the recorded commit
- *   2  LICENCE         upstream's own license.txt is present and byte-identical
- *                      to the upstream base
+ *   2  LICENCE         the committed license.txt blob at HEAD is byte-identical
+ *                      to the upstream base blob, and no staged or unstaged
+ *                      tracked modification exists against it
  *   3  OWNED DIFF      every upstream file this project changed is declared
  *                      here, with a reason; every other changed path is a file
  *                      this project added
@@ -142,20 +143,84 @@ if (tagCommit === UPSTREAM_COMMIT) {
 
 /* 2 -- LICENCE ------------------------------------------------------------ */
 
-const licensePath = resolve(repoRoot, 'license.txt');
+/*
+ * Git-aware by design, not a raw byte comparison of the worktree file:
+ *
+ *   (a) the committed blob at HEAD is compared to the committed blob at the
+ *       upstream base commit, via git's own content-addressed blob identity
+ *       (`git rev-parse <rev>:<path>`) — this is immune to how the working
+ *       tree happens to be materialised (LF, or CRLF under a normal Windows
+ *       `core.autocrlf=true` checkout), because it never reads worktree
+ *       bytes at all;
+ *
+ *   (b) `git status --porcelain` on the path proves there is no staged or
+ *       unstaged tracked modification, using the same attribute-aware
+ *       comparison git already applies for `git diff` — so a real edit
+ *       (a changed character, added trailing whitespace, an added trailing
+ *       line, or a staged-only change) still fails, while a CRLF checkout
+ *       that git itself considers clean still passes.
+ *
+ * A previous version compared `readFileSync(...).trimEnd()` against
+ * `git show`, which both false-failed on an ordinary CRLF checkout (the
+ * comparison never went through git's own line-ending handling) and
+ * false-passed a real trailing-whitespace or trailing-newline edit (trimEnd
+ * silently discards exactly the bytes that would have caught it).
+ */
+
+const LICENSE_PATH = 'license.txt';
+const licensePath = resolve(repoRoot, LICENSE_PATH);
+
 if (!existsSync(licensePath)) {
-  fail("upstream's license.txt is missing");
+  fail(`${LICENSE_PATH} is missing from the working tree`);
+} else if (!tagCommit) {
+  fail(
+    `${LICENSE_PATH} could not be verified: the upstream base commit is not ` +
+      `resolvable in this clone (see check 1) — this is a prerequisite failure, ` +
+      `not a pass`,
+  );
 } else {
-  const current = readFileSync(licensePath, 'utf8');
-  const base = git('show', `${UPSTREAM_COMMIT}:license.txt`);
-  if (current.trimEnd() !== base.trimEnd()) {
-    fail('license.txt differs from the upstream base — it must stay untouched');
-  } else if (!/MIT/.test(current) || !/XB Software/.test(current)) {
-    fail('license.txt no longer carries the upstream MIT notice and copyright');
-  } else {
-    note(
-      'ok    license.txt is present and byte-identical to the upstream base',
+  let headBlob = '';
+  let baseBlob = '';
+  try {
+    headBlob = git('rev-parse', `HEAD:${LICENSE_PATH}`);
+  } catch {
+    fail(`${LICENSE_PATH} is not a tracked file at HEAD`);
+  }
+  try {
+    baseBlob = git('rev-parse', `${UPSTREAM_COMMIT}:${LICENSE_PATH}`);
+  } catch {
+    fail(`the upstream base commit does not contain ${LICENSE_PATH}`);
+  }
+
+  const identityOk = Boolean(headBlob) && headBlob === baseBlob;
+  if (headBlob && baseBlob && !identityOk) {
+    fail(
+      `${LICENSE_PATH} at HEAD (blob ${headBlob}) is not byte-identical to the ` +
+        `upstream base blob (${baseBlob}) — it must stay untouched`,
     );
+  }
+
+  const dirty = git('status', '--porcelain', '--', LICENSE_PATH);
+  if (dirty) {
+    fail(
+      `${LICENSE_PATH} has a staged and/or unstaged tracked modification ` +
+        `against HEAD — it must stay untouched:\n         ` +
+        dirty.split('\n').join('\n         '),
+    );
+  }
+
+  if (identityOk && !dirty) {
+    const committedContent = git('show', `HEAD:${LICENSE_PATH}`);
+    if (!/MIT/.test(committedContent) || !/XB Software/.test(committedContent)) {
+      fail(
+        `${LICENSE_PATH} no longer carries the upstream MIT notice and copyright`,
+      );
+    } else {
+      note(
+        `ok    ${LICENSE_PATH} at HEAD is byte-identical to the upstream base ` +
+          `blob, with no staged or unstaged tracked modification`,
+      );
+    }
   }
 }
 
@@ -172,7 +237,13 @@ const undeclared = changed.filter(
   (file) => !isProjectAdded(file) && !(file in OWNED_UPSTREAM_FILES),
 );
 
-if (undeclared.length > 0) {
+if (!tagCommit) {
+  fail(
+    'owned-diff could not be checked: the upstream base commit is not ' +
+      'resolvable in this clone (see check 1) — this is a prerequisite ' +
+      'failure, not a pass',
+  );
+} else if (undeclared.length > 0) {
   for (const file of undeclared) {
     fail(
       `${file} is changed against the upstream base but is not declared in ` +
@@ -222,7 +293,13 @@ for (const line of addedLines) {
   }
 }
 
-if (drift.length > 0) {
+if (!tagCommit) {
+  fail(
+    'PRO drift could not be checked: the upstream base commit is not ' +
+      'resolvable in this clone (see check 1) — this is a prerequisite ' +
+      'failure, not a pass',
+  );
+} else if (drift.length > 0) {
   for (const hit of drift) {
     fail(
       `added line mentions PRO identifier "${hit.name}": ${hit.line.trim()}`,
