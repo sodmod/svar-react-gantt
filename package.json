@@ -30,7 +30,7 @@
     "build:full-css": "BUILD_FULL_CSS=true vite build",
     "lint": "eslint . --report-unused-disable-directives",
     "preview": "vite preview",
-    "prepare": "husky",
+    "prepare": "node tools/planner-build.mjs",
     "prettier": "prettier --write ./src/ ./demos/"
   },
   "exports": {
