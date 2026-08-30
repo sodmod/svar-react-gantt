@@ -300,8 +300,29 @@ function Bars(props) {
           const task = api.getTask(id);
           const dx = clientX - x;
           const minWidth = Math.round(lengthUnitWidth) || 1;
+          // SVAR-M2 (SVAR Production Planner): 20 -> 4.
+          //
+          // How many physical pointer pixels a bar gesture must travel from
+          // pointerdown before it counts as a drag at all. Below the threshold
+          // this handler returns before doing anything: no visual update, no
+          // state write, no update-task. On the first move that clears it the
+          // bar jumps straight to the full accumulated offset in one frame, so
+          // at the day widths this project renders, 20px read as the bar being
+          // magnetised to the day grid — measured identical at cellWidth 17, 34
+          // and 68, so it was never a date or grid rule, just this constant.
+          //
+          // 4px is the classic desktop click-vs-drag tolerance (Win32's own
+          // SM_CXDRAG/SM_CYDRAG default). It keeps this gate's only real job —
+          // stopping mouse jitter on a plain click from starting a MOVE — and
+          // drops both the dead zone and the one-time jump below perception.
+          //
+          // No date, snapping or duration rule is touched: the gate is a
+          // pixel test, and rounding to whole days still happens once, on
+          // pointerup. The same condition gates MOVE and both RESIZE edges, so
+          // all three change together; that is upstream's own structure here,
+          // not a widening of this change.
           if (
-            (!start && Math.abs(dx) < 20) ||
+            (!start && Math.abs(dx) < 4) ||
             (mode === 'start' && w - dx < minWidth) ||
             (mode === 'end' && w + dx < minWidth) ||
             (mode === 'move' &&
