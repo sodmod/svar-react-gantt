@@ -72,6 +72,16 @@ const OWNED_UPSTREAM_FILES = {
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold',
+  'src/components/Gantt.jsx':
+    'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx',
+  'src/components/Layout.jsx':
+    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through',
+  'src/components/chart/Chart.jsx':
+    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through',
+  'src/components/chart/TimeScale.jsx':
+    'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label',
+  'types/index.d.ts':
+    'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':

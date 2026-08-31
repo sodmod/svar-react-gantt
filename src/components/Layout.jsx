@@ -16,7 +16,15 @@ import './Layout.css';
 import { flushSync } from 'react-dom';
 
 function Layout(props) {
-  const { taskTemplate, readonly, onTableAPIChange, onGanttWidthChange } = props;
+  // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
+  // `taskTemplate` on this same line — see `Gantt.jsx` for what it is.
+  const {
+    taskTemplate,
+    scaleCellAriaLabel,
+    readonly,
+    onTableAPIChange,
+    onGanttWidthChange,
+  } = props;
 
   const api = useContext(storeContext);
 
@@ -202,6 +210,7 @@ function Layout(props) {
                 fullWidth={fullWidth}
                 fullHeight={fullHeight}
                 taskTemplate={taskTemplate}
+                scaleCellAriaLabel={scaleCellAriaLabel}
               />
             </div>
           </div>

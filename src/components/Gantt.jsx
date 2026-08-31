@@ -89,6 +89,18 @@ const Gantt = forwardRef(function Gantt(
     baselines = false,
     rollups = false,
     highlightTime = null,
+    // SVAR-M3 (SVAR Production Planner): new optional prop, purely additive.
+    //
+    // A generic accessible-name seam for scale cells (month/day/week/... —
+    // whatever `scales` renders), modelled on `highlightTime` immediately
+    // above: a plain function prop, called per cell with the same
+    // `(date, unit)` this renderer already reads off the cell, undefined by
+    // default so nothing changes for a consumer that does not pass it. This
+    // component has no dictionary, no working-day/date-business logic and no
+    // notion of language — it only forwards whatever string the caller's
+    // function returns to the DOM as that cell's `aria-label`. See
+    // `src/components/chart/TimeScale.jsx` for where it is applied.
+    scaleCellAriaLabel = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -349,6 +361,7 @@ const Gantt = forwardRef(function Gantt(
       <StoreContext.Provider value={storeApi}>
         <Layout
           taskTemplate={taskTemplate}
+          scaleCellAriaLabel={scaleCellAriaLabel}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

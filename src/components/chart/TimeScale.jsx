@@ -26,7 +26,11 @@ function mapRow(row, xFrom, xEnd) {
 }
 
 function TimeScale(props) {
-  const { api } = props;
+  // SVAR-M3 (SVAR Production Planner): `scaleCellAriaLabel`, a plain React
+  // prop (not store state, unlike `highlightTime` below) — see `Gantt.jsx`
+  // for what it is and why. `undefined` by default: nothing below changes
+  // for a consumer that never passes it.
+  const { api, scaleCellAriaLabel } = props;
 
   const scales = useStore(api, '_scales');
   const xArea = useStore(api, 'xArea');
@@ -65,10 +69,21 @@ function TimeScale(props) {
               : '';
             const className =
               'wx-cell ' + (cell.css || '') + ' ' + (extraClass || '');
+            // SVAR-M3 (SVAR Production Planner): the only line this change
+            // adds inside the cell itself. `scaleCellAriaLabel` is called
+            // with exactly the two values `highlightTime` above already
+            // reads off the same `cell` — this component never inspects,
+            // stores or interprets the string it gets back, it only forwards
+            // it to the DOM. `undefined`/`''` leaves `aria-label` off, same
+            // as today.
+            const ariaLabel = scaleCellAriaLabel
+              ? scaleCellAriaLabel(cell.date, cell.unit, cell.value)
+              : undefined;
             return (
               <div
                 className={'wx-ZkvhDKir ' + className}
                 style={{ width: `${cell.width}px` }}
+                aria-label={ariaLabel || undefined}
                 key={cellIdx}
               >
                 <span

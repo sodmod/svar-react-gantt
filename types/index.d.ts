@@ -45,6 +45,15 @@ export declare const Gantt: ForwardRefExoticComponent<
     readonly?: boolean;
     cellBorders?: 'column' | 'full';
     highlightTime?: (date: Date, unit: 'day' | 'hour') => string;
+    // SVAR-M3 (SVAR Production Planner): a generic accessible-name seam for
+    // scale cells (any `scales` unit — month/week/day/hour/...), modelled on
+    // `highlightTime` above. Called per rendered cell; the returned string
+    // (or undefined/'' for no override) becomes that cell's `aria-label`.
+    scaleCellAriaLabel?: (
+      date: Date,
+      unit: string,
+      value: string,
+    ) => string | undefined;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

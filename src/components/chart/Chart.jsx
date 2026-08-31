@@ -19,7 +19,10 @@ import { createZoomWheelHandler } from '../../helpers/zoom';
 import { useRenderTime } from '../../helpers/debug.js';
 
 function Chart(props) {
-  const { readonly, fullWidth, fullHeight, taskTemplate } = props;
+  // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
+  // `taskTemplate` on this same line — see `Gantt.jsx` for what it is.
+  const { readonly, fullWidth, fullHeight, taskTemplate, scaleCellAriaLabel } =
+    props;
 
   const api = useContext(storeContext);
 
@@ -274,7 +277,7 @@ function Chart(props) {
       ref={chartRef}
       onScroll={onScroll}
     >
-      <TimeScales api={api} />
+      <TimeScales api={api} scaleCellAriaLabel={scaleCellAriaLabel} />
       {markers && markers.length ? (
         <div
           className="wx-mR7v2Xag wx-markers"
