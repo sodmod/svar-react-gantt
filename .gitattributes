@@ -1,0 +1,12 @@
+# ADDED BY THE SVAR PRODUCTION PLANNER PROJECT.
+# NOT part of the upstream SVAR sources.
+#
+# The web fonts under planner-assets/fonts/ are checked against recorded
+# sha256 values at build time (tools/planner-fonts.mjs), so a checkout that
+# altered a single byte would stop the build rather than ship a broken face.
+# Git's own binary detection already prevents that, but this project builds
+# the same commit on Windows workstations where core.autocrlf is commonly on,
+# and a guarantee worth having is worth stating rather than inheriting from a
+# heuristic.
+planner-assets/fonts/*.woff  binary
+planner-assets/fonts/*.woff2 binary

@@ -1,0 +1,486 @@
+{
+  "$comment": "ADDED BY THE SVAR PRODUCTION PLANNER PROJECT. Local replacement for the @font-face rules that @svar-ui/react-core states against https://cdn.svar.dev/fonts/. Families, styles and weights are unchanged; only where the bytes come from changes. Generated once and committed; tools/planner-fonts.mjs reads it and never rewrites it.",
+  "acquired": {
+    "date": "2026-08-31",
+    "via": "https://fonts.googleapis.com/css2 (Google Fonts), binaries from https://fonts.gstatic.com",
+    "note": "woff2 URLs are requested with a current Chrome UA, woff URLs with a Chrome 40 UA; Google serves the same faces in both formats."
+  },
+  "licences": [
+    {
+      "family": "Open Sans",
+      "spdx": "OFL-1.1",
+      "file": "OFL-OpenSans.txt",
+      "copyright": "Copyright 2020 The Open Sans Project Authors (https://github.com/googlefonts/opensans)",
+      "reservedFontName": null,
+      "sourceRepo": "https://github.com/googlefonts/opensans",
+      "sourceCommit": "bd7e37632246368c60fdcbd374dbf9bad11969b6",
+      "sha256": "01cd5ffb3a528c219a86e49a814c6c53bd8a69b9a3c305dd237074ba1c811af7"
+    },
+    {
+      "family": "Roboto",
+      "spdx": "OFL-1.1",
+      "file": "OFL-Roboto.txt",
+      "copyright": "Copyright 2011 The Roboto Project Authors (https://github.com/googlefonts/roboto-classic)",
+      "reservedFontName": null,
+      "sourceRepo": "https://github.com/googlefonts/roboto-classic",
+      "sourceCommit": "5166f3d07889bf7d3732fb72e09623d7e52f862b",
+      "sha256": "061402327a96aadb0bfb694a960ed289ecd38d383e396243831ab81feb109c41"
+    }
+  ],
+  "subsets": [
+    "latin",
+    "latin-ext",
+    "cyrillic",
+    "cyrillic-ext"
+  ],
+  "replaces": [
+    {
+      "family": "Roboto",
+      "weight": 400,
+      "woff2": "https://cdn.svar.dev/fonts/roboto/regular.woff2",
+      "woff": "https://cdn.svar.dev/fonts/roboto/regular.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 500,
+      "woff2": "https://cdn.svar.dev/fonts/roboto/500.woff2",
+      "woff": "https://cdn.svar.dev/fonts/roboto/500.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 500,
+      "woff2": "https://cdn.svar.dev/fonts/open-sans/500.woff2",
+      "woff": "https://cdn.svar.dev/fonts/open-sans/500.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 400,
+      "woff2": "https://cdn.svar.dev/fonts/open-sans/regular.woff2",
+      "woff": "https://cdn.svar.dev/fonts/open-sans/regular.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 600,
+      "woff2": "https://cdn.svar.dev/fonts/open-sans/600.woff2",
+      "woff": "https://cdn.svar.dev/fonts/open-sans/600.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 700,
+      "woff2": "https://cdn.svar.dev/fonts/open-sans/700.woff2",
+      "woff": "https://cdn.svar.dev/fonts/open-sans/700.woff"
+    }
+  ],
+  "files": [
+    {
+      "name": "open-sans-cyrillic-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4kaVQGxA.woff",
+      "sha256": "3659a98e7ae70a50b41737d05dfdea3e071b256045a24b46d664e0291419b58f",
+      "bytes": 13348
+    },
+    {
+      "name": "open-sans-cyrillic-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjr0B4kaVQGxA.woff",
+      "sha256": "270737abad0462754848f4084b7934ae73f9d50bd7a19b14063cd33113f3d975",
+      "bytes": 13364
+    },
+    {
+      "name": "open-sans-cyrillic-600-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsgH1x4kaVQGxA.woff",
+      "sha256": "82d26c7a4ec46e68bcdd1a288df2bd3ce976c7c28809bafaabad0badf7486381",
+      "bytes": 13308
+    },
+    {
+      "name": "open-sans-cyrillic-700-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsg-1x4kaVQGxA.woff",
+      "sha256": "f06515777bb7867ff2124b00712e25e26a177afb0c2b7dbf54144153c695e17b",
+      "bytes": 13044
+    },
+    {
+      "name": "open-sans-cyrillic-ext-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4taVQGxA.woff",
+      "sha256": "b0d991cc2bb56c1d886547af8559c62de88ea451d6b6545db817d83b1dcab4c9",
+      "bytes": 21848
+    },
+    {
+      "name": "open-sans-cyrillic-ext-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjr0B4taVQGxA.woff",
+      "sha256": "a4685aa1e4096a361d6173bdc783a09ae271020e3167dfaf0ef940e34dafc15e",
+      "bytes": 21896
+    },
+    {
+      "name": "open-sans-cyrillic-ext-600-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsgH1x4taVQGxA.woff",
+      "sha256": "77413cdcb3a1cd74b63d93cf0078bb06720ab1a01c9ec305c3223963c0449535",
+      "bytes": 21848
+    },
+    {
+      "name": "open-sans-cyrillic-ext-700-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsg-1x4taVQGxA.woff",
+      "sha256": "2b004816ee08e670173485895871257f486d13b4cb861c6937fbe74c98eabc70",
+      "bytes": 21156
+    },
+    {
+      "name": "open-sans-cyrillic-ext-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSKmu1aB.woff2",
+      "sha256": "95dd03b930aca04ab393f625101f7367e3abc83b3b09e6074de1fc081ba6fd1c",
+      "bytes": 49268
+    },
+    {
+      "name": "open-sans-cyrillic-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSumu1aB.woff2",
+      "sha256": "2809606237a64bd9c1461e727f369ddfd77a350e4900fffe64e8bfe16a2b3454",
+      "bytes": 26588
+    },
+    {
+      "name": "open-sans-latin-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4gaVQ.woff",
+      "sha256": "078719d2a38dfaf60a26fad3e8f99e810206ad61d36b1341a92ec55377740ef6",
+      "bytes": 22904
+    },
+    {
+      "name": "open-sans-latin-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjr0B4gaVQ.woff",
+      "sha256": "d66d36a2eedcb57f9bb6b8d6f16e6c2acc5eed2c2f46f911c0c7652170d8e7b2",
+      "bytes": 23000
+    },
+    {
+      "name": "open-sans-latin-600-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsgH1x4gaVQ.woff",
+      "sha256": "d763e1d252860e33f705de2bd7991795e74cfe1825646d275635c8b6677f5292",
+      "bytes": 22836
+    },
+    {
+      "name": "open-sans-latin-700-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsg-1x4gaVQ.woff",
+      "sha256": "6ba08bdd4dff39eb2e78f619d6361ce5cde716b74cc818deea601a7036a038da",
+      "bytes": 22332
+    },
+    {
+      "name": "open-sans-latin-ext-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjZ0B4uaVQGxA.woff",
+      "sha256": "50122d72d6d199d9a65b8e26a561e6e024a9c7b67f4876179a4d6d01263ff8da",
+      "bytes": 18508
+    },
+    {
+      "name": "open-sans-latin-ext-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsjr0B4uaVQGxA.woff",
+      "sha256": "789916451a5759df4bb4a7918f1ccff49e438c69ad717cccc83bc69421fb1360",
+      "bytes": 18536
+    },
+    {
+      "name": "open-sans-latin-ext-600-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsgH1x4uaVQGxA.woff",
+      "sha256": "121c98ebaabaffa263aa007bd61e010021ed6885cce524074b1c3d178d53e5c7",
+      "bytes": 18420
+    },
+    {
+      "name": "open-sans-latin-ext-700-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memSYaGs126MiZpBA-UvWbX2vVnXBbObj2OVZyOOSr4dVJWUgsg-1x4uaVQGxA.woff",
+      "sha256": "26124623e6f256829e6f0d2092c58953ced86ccdfcb9c0f0f213a21e6cf34ed6",
+      "bytes": 18128
+    },
+    {
+      "name": "open-sans-latin-ext-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSGmu1aB.woff2",
+      "sha256": "d5bab8e28732fe3d10dcef4f77b9c248605bbb2a87d289a2539251ceafab536a",
+      "bytes": 35156
+    },
+    {
+      "name": "open-sans-latin-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS-muw.woff2",
+      "sha256": "d8e4fe0452aa2076429a9bb5d8757d00a994dd95986cf950e9a1a371b9a072a0",
+      "bytes": 48320
+    },
+    {
+      "name": "roboto-cyrillic-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmQiAzmlw.woff",
+      "sha256": "b0292b5d13238ccbf5ae71453540b057d967896db60710dd707cf4376a188813",
+      "bytes": 14652
+    },
+    {
+      "name": "roboto-cyrillic-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWub2bVmQiAzmlw.woff",
+      "sha256": "1229228c8da15459a51559b041536f4fe9c29a35793630232093578b834bb02f",
+      "bytes": 14944
+    },
+    {
+      "name": "roboto-cyrillic-ext-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmZiAzmlw.woff",
+      "sha256": "b0f142f06e119e3792be5c9a8b8bfe8556ba4dcc4b2baeab61e2c2666502d422",
+      "bytes": 21060
+    },
+    {
+      "name": "roboto-cyrillic-ext-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWub2bVmZiAzmlw.woff",
+      "sha256": "ebdd58e41b990592afb3e14afea907a15ffce94e04cbac3c827db47839687680",
+      "bytes": 21372
+    },
+    {
+      "name": "roboto-cyrillic-ext-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3GUBGEe.woff2",
+      "sha256": "01f94d674db55952c35898fa4da22c3e7065c3cc4dbbcc9cb7beb8b6b017fbc9",
+      "bytes": 36652
+    },
+    {
+      "name": "roboto-cyrillic-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3iUBGEe.woff2",
+      "sha256": "481dd0c01e6bbb129fd147eb5d8571016193cba141c4627ca60ceabdb5a46ea8",
+      "bytes": 23664
+    },
+    {
+      "name": "roboto-latin-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmUiAw.woff",
+      "sha256": "353a81f4e5a0177c70d76f044afa7049356329a6750b37c6c20087e44742e8ba",
+      "bytes": 26684
+    },
+    {
+      "name": "roboto-latin-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWub2bVmUiAw.woff",
+      "sha256": "a7763b6a2bc64c3fef86cc8b464848ea1a8fb74ddafc99bf35bec1dfe6630a5f",
+      "bytes": 26924
+    },
+    {
+      "name": "roboto-latin-ext-400-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWubEbVmaiAzmlw.woff",
+      "sha256": "64caadacb00f091b5d021a8b1eceabb547d101f0ff3c533921e39d5fb275931a",
+      "bytes": 18240
+    },
+    {
+      "name": "roboto-latin-ext-500-normal.woff",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFOMCnqEu92Fr1ME7kSn66aGLdTylUAMQXC89YmC2DPNWub2bVmaiAzmlw.woff",
+      "sha256": "7022000b93dc9317031008a7371e04b2b5f3c46c98aef5cb1eb059c71b2226aa",
+      "bytes": 18456
+    },
+    {
+      "name": "roboto-latin-ext-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3KUBGEe.woff2",
+      "sha256": "cedb374b05a35034cf96db185db4eeb8f8ce49e1a56197673702ff11b5533d6e",
+      "bytes": 29392
+    },
+    {
+      "name": "roboto-latin-wght-normal.woff2",
+      "sourceUrl": "https://fonts.gstatic.com/s/roboto/v51/KFO7CnqEu92Fr1ME7kSn66aGLdTylUAMa3yUBA.woff2",
+      "sha256": "1404ca348bd75ef836f4dd8b6f2cc719458642d1237c368296b2fc652dca47dc",
+      "bytes": 43136
+    }
+  ],
+  "rules": [
+    {
+      "family": "Open Sans",
+      "weight": 400,
+      "subset": "latin",
+      "style": "normal",
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "woff2": "open-sans-latin-wght-normal.woff2",
+      "woff": "open-sans-latin-400-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 400,
+      "subset": "latin-ext",
+      "style": "normal",
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "woff2": "open-sans-latin-ext-wght-normal.woff2",
+      "woff": "open-sans-latin-ext-400-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 400,
+      "subset": "cyrillic",
+      "style": "normal",
+      "unicodeRange": "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+      "woff2": "open-sans-cyrillic-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-400-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 400,
+      "subset": "cyrillic-ext",
+      "style": "normal",
+      "unicodeRange": "U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F",
+      "woff2": "open-sans-cyrillic-ext-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-ext-400-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 500,
+      "subset": "latin",
+      "style": "normal",
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "woff2": "open-sans-latin-wght-normal.woff2",
+      "woff": "open-sans-latin-500-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 500,
+      "subset": "latin-ext",
+      "style": "normal",
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "woff2": "open-sans-latin-ext-wght-normal.woff2",
+      "woff": "open-sans-latin-ext-500-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 500,
+      "subset": "cyrillic",
+      "style": "normal",
+      "unicodeRange": "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+      "woff2": "open-sans-cyrillic-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-500-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 500,
+      "subset": "cyrillic-ext",
+      "style": "normal",
+      "unicodeRange": "U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F",
+      "woff2": "open-sans-cyrillic-ext-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-ext-500-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 600,
+      "subset": "latin",
+      "style": "normal",
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "woff2": "open-sans-latin-wght-normal.woff2",
+      "woff": "open-sans-latin-600-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 600,
+      "subset": "latin-ext",
+      "style": "normal",
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "woff2": "open-sans-latin-ext-wght-normal.woff2",
+      "woff": "open-sans-latin-ext-600-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 600,
+      "subset": "cyrillic",
+      "style": "normal",
+      "unicodeRange": "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+      "woff2": "open-sans-cyrillic-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-600-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 600,
+      "subset": "cyrillic-ext",
+      "style": "normal",
+      "unicodeRange": "U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F",
+      "woff2": "open-sans-cyrillic-ext-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-ext-600-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 700,
+      "subset": "latin",
+      "style": "normal",
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "woff2": "open-sans-latin-wght-normal.woff2",
+      "woff": "open-sans-latin-700-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 700,
+      "subset": "latin-ext",
+      "style": "normal",
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "woff2": "open-sans-latin-ext-wght-normal.woff2",
+      "woff": "open-sans-latin-ext-700-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 700,
+      "subset": "cyrillic",
+      "style": "normal",
+      "unicodeRange": "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+      "woff2": "open-sans-cyrillic-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-700-normal.woff"
+    },
+    {
+      "family": "Open Sans",
+      "weight": 700,
+      "subset": "cyrillic-ext",
+      "style": "normal",
+      "unicodeRange": "U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F",
+      "woff2": "open-sans-cyrillic-ext-wght-normal.woff2",
+      "woff": "open-sans-cyrillic-ext-700-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 400,
+      "subset": "latin",
+      "style": "normal",
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "woff2": "roboto-latin-wght-normal.woff2",
+      "woff": "roboto-latin-400-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 400,
+      "subset": "latin-ext",
+      "style": "normal",
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "woff2": "roboto-latin-ext-wght-normal.woff2",
+      "woff": "roboto-latin-ext-400-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 400,
+      "subset": "cyrillic",
+      "style": "normal",
+      "unicodeRange": "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+      "woff2": "roboto-cyrillic-wght-normal.woff2",
+      "woff": "roboto-cyrillic-400-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 400,
+      "subset": "cyrillic-ext",
+      "style": "normal",
+      "unicodeRange": "U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F",
+      "woff2": "roboto-cyrillic-ext-wght-normal.woff2",
+      "woff": "roboto-cyrillic-ext-400-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 500,
+      "subset": "latin",
+      "style": "normal",
+      "unicodeRange": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+      "woff2": "roboto-latin-wght-normal.woff2",
+      "woff": "roboto-latin-500-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 500,
+      "subset": "latin-ext",
+      "style": "normal",
+      "unicodeRange": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF",
+      "woff2": "roboto-latin-ext-wght-normal.woff2",
+      "woff": "roboto-latin-ext-500-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 500,
+      "subset": "cyrillic",
+      "style": "normal",
+      "unicodeRange": "U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116",
+      "woff2": "roboto-cyrillic-wght-normal.woff2",
+      "woff": "roboto-cyrillic-500-normal.woff"
+    },
+    {
+      "family": "Roboto",
+      "weight": 500,
+      "subset": "cyrillic-ext",
+      "style": "normal",
+      "unicodeRange": "U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F",
+      "woff2": "roboto-cyrillic-ext-wght-normal.woff2",
+      "woff": "roboto-cyrillic-ext-500-normal.woff"
+    }
+  ]
+}

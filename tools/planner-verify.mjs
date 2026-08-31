@@ -75,7 +75,12 @@ const OWNED_UPSTREAM_FILES = {
 };
 
 /** Path prefixes of files this project ADDED (they have no upstream version). */
-const PROJECT_ADDED = ['tools/planner-', 'PLANNER_FORK.md'];
+const PROJECT_ADDED = [
+	'tools/planner-',
+	'planner-assets/',
+	'PLANNER_FORK.md',
+	'.gitattributes',
+];
 
 /**
  * The Community/PRO reset exactly as `DataStore.init()` in

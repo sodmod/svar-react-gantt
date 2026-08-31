@@ -70,3 +70,15 @@ for (const step of steps) {
     process.exit(1);
   }
 }
+
+/*
+ * The full-CSS artefact inlines `@svar-ui/react-core`'s stylesheet, which
+ * declares this renderer's web fonts against `https://cdn.svar.dev/fonts/...`.
+ * Serving them from the consumer's own origin instead is part of producing the
+ * artefact, not a separate thing a consumer could forget to do, so it runs here
+ * — after `build:full-css` has written `dist-full/index.css` and before the
+ * package is packed. `tools/planner-fonts.mjs` is fail-closed: it exits
+ * non-zero rather than rewriting a stylesheet whose font rules it does not
+ * recognise.
+ */
+await import('./planner-fonts.mjs');

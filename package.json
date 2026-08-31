@@ -52,7 +52,8 @@
     "types",
     "licenses",
     "package.json",
-    "dist-full/index.css"
+    "dist-full/index.css",
+    "dist-full/fonts"
   ],
   "peerDependencies": {
     "react": ">=18",

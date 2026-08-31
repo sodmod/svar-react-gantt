@@ -72,10 +72,61 @@ Two kinds of change, deliberately kept in separate commits:
 
 1. **Build/delivery tooling** — `tools/planner-build.mjs` (`prepare` builds the
    package, because a git dependency has no publish step),
-   `tools/planner-verify.mjs` (fork-local provenance and boundary checks), and
-   this file. No renderer behaviour.
+   `tools/planner-verify.mjs` (fork-local provenance and boundary checks),
+   `tools/planner-fonts.mjs` + `planner-assets/fonts/` (the web fonts are served
+   from the package instead of a third-party CDN — see below), and this file.
+   No renderer behaviour.
 2. **Renderer behaviour** — currently exactly one change, `SVAR-M2`, in
    `src/components/chart/Bars.jsx`: the drag-activation pixel threshold.
+
+### Local web fonts instead of `cdn.svar.dev`
+
+`dist-full/index.css` (the `./all.css` export) inlines `@svar-ui/react-core`'s
+stylesheet, and upstream declares this renderer's text faces against a
+third-party host:
+
+```text
+Open Sans 400 / 500 / 600 / 700      https://cdn.svar.dev/fonts/open-sans/…
+Roboto    400 / 500                  https://cdn.svar.dev/fonts/roboto/…
+```
+
+Six `@font-face` rules, twelve URLs. In a firewalled or offline deployment every
+one of them fails and the theme falls back to whatever sans-serif the browser
+happens to have. `tools/planner-fonts.mjs` rewrites exactly those six rules to
+name font files shipped inside this package (`dist-full/fonts/`), leaving every
+other rule in the stylesheet byte-identical — 915 non-`@font-face` rules,
+measured. Families, styles and weights are unchanged; only where the bytes come
+from changes.
+
+`package.json`'s `files` gains `dist-full/fonts` beside the stylesheet it
+already published. It deliberately does NOT publish all of `dist-full`:
+`dist-full/index.js` is a by-product of the full-CSS build that nothing can
+import (`exports` maps `./all.css` to the stylesheet alone), and shipping it
+would put a bundled copy of `@svar-ui/react-core` — icon-CDN URLs and all —
+into every consumer's `node_modules` for no reason.
+
+The binaries live in `planner-assets/fonts/`, committed, with their licences and
+with the exact source URL and sha256 of each file in `fonts.json`. Both families
+are **SIL Open Font License 1.1** with no Reserved Font Name, taken from Google
+Fonts — their authoritative distributor. `OFL-OpenSans.txt` and `OFL-Roboto.txt`
+are the upstream licence files, copied unchanged. Coverage is the `latin`,
+`latin-ext`, `cyrillic` and `cyrillic-ext` subsets, because the product's
+interface language is Russian and English.
+
+The step is fail-closed in both directions: it refuses to rewrite a stylesheet
+whose font rules it does not recognise (so a future upstream intake that changes
+them stops the build instead of being absorbed silently), and it refuses to
+finish if any `cdn.svar.dev` reference survives.
+
+**Not covered here, deliberately.** `@svar-ui/react-core`'s theme components
+also inject, at run time, `<link rel="stylesheet"
+href="https://cdn.svar.dev/fonts/wxi/wx-icons.css">` — the **wxi icon font**.
+That asset is published on that CDN only: it is in no npm package and in no
+public SVAR repository, so no redistribution licence for it could be
+established. Vendoring it would be a licence guess and dropping it would remove
+icons the product currently shows, so this fork leaves it exactly as upstream
+wrote it. Resolving it is a product decision of the Planner project, not a
+build-tooling change.
 
 ## Community / PRO boundary
 
