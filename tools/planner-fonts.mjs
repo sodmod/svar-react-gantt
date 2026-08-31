@@ -41,6 +41,16 @@
  * This step re-checks every sha256 before copying, so a corrupted or swapped
  * binary fails the build instead of shipping.
  *
+ * SVAR-LOCAL-ASSETS: the licence TEXTS ship too, not just the binaries they
+ * cover. `package.json`'s `files` has named a `licenses/` directory since the
+ * fonts were added, but nothing wrote one — `npm pack` silently drops a `files`
+ * entry that does not exist rather than failing, so the installed consumer
+ * package carried the OFL binaries with no OFL text next to them. This step
+ * copies the exact committed licence files there (re-checking their sha256 the
+ * same way it already does for the binaries), so that defect cannot recur
+ * silently: a missing or renamed licence file now fails the build instead of
+ * failing to pack.
+ *
  * WHAT IT DOES NOT COVER (deliberately)
  *
  * `@svar-ui/react-core`'s theme components also inject, at run time,
@@ -82,6 +92,23 @@ for (const file of spec.files) {
 			`planner-assets/fonts/${file.name} is ${bytes.length} bytes, fonts.json records ${file.bytes}`
 		);
 	}
+}
+
+/* 1.5. The committed licence texts are the ones fonts.json recorded, and they
+ *      ship in a real `licenses/` directory — the one `package.json`'s `files`
+ *      already names. --------------------------------------------------- */
+
+const licensesOut = join(packageRoot, 'licenses');
+mkdirSync(licensesOut, { recursive: true });
+for (const licence of spec.licences) {
+	const bytes = readFileSync(join(assetsDir, licence.file));
+	const sha256 = createHash('sha256').update(bytes).digest('hex');
+	if (sha256 !== licence.sha256) {
+		fail(
+			`planner-assets/fonts/${licence.file} sha256 is ${sha256}, fonts.json records ${licence.sha256}`
+		);
+	}
+	copyFileSync(join(assetsDir, licence.file), join(licensesOut, licence.file));
 }
 
 /* 2. The built stylesheet declares exactly the rules we expect to replace. --- */
@@ -169,4 +196,8 @@ console.log(
 	`planner-fonts: ${remoteRules.length} remote @font-face rules -> ` +
 		`${spec.rules.length} local rules over ${spec.files.length} files ` +
 		`(${spec.subsets.join(', ')})`
+);
+console.log(
+	`planner-fonts: ${spec.licences.length} licence file(s) verified and shipped to licenses/ ` +
+		`(${spec.licences.map((l) => l.file).join(', ')})`
 );

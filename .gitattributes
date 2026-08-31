@@ -1,6 +1,40 @@
 # ADDED BY THE SVAR PRODUCTION PLANNER PROJECT.
 # NOT part of the upstream SVAR sources.
 #
+# SVAR-LOCAL-ASSETS: repository-wide LF normalization for text files.
+#
+# Independently demonstrated, not assumed: on a checkout with
+# `core.autocrlf=true` (a common Windows Git default — this project's own
+# workstations are not all configured the same way), planner-assets/fonts/
+# OFL-OpenSans.txt and OFL-Roboto.txt check out as CRLF, while the sha256
+# values tools/planner-fonts.mjs verifies them against were recorded from the
+# LF bytes actually committed (`git show HEAD:<path>` — the blob itself is
+# LF-only; only the working-tree checkout varied). That mismatch fails the
+# build closed, which is correct behaviour for a corrupted file but wrong here
+# — the file was never corrupted, only reformatted by checkout. The same class
+# of drift reaches `.jsx` sources too: their bytes end up inside the shipped
+# sourcemap (`dist/index.es.js.map`) as `sourcesContent`, and a checkout that
+# silently changed them changes what that map records, even though it does
+# not change what `dist/index.es.js` executes.
+#
+# `text=auto eol=lf` makes every text file in this repository normalize to LF
+# in the index and check out as LF regardless of `core.autocrlf`, so the same
+# commit produces the same working-tree bytes on every machine. It does NOT
+# by itself explain or fix the sourcemap `sources`-path non-determinism fixed
+# in vite.config.js (`sourcemapPathTransform`) — that was a different defect,
+# caused by an ephemeral install-time directory path leaking into the map, not
+# by line endings; measured directly, this machine's own default git
+# configuration already checked those particular files out as LF with no
+# CRLF present, and the map hash still varied between installs until the
+# separate fix. The two are independent hardenings, kept in the same commit
+# only because both touch the identity of the same shipped sourcemap.
+#
+# The `binary` rules below are unaffected: git attribute precedence gives the
+# LAST matching pattern the win for a given path, so these more specific,
+# later rules keep the font binaries marked `binary` (which also implies
+# `-text`) regardless of the blanket rule above them.
+* text=auto eol=lf
+
 # The web fonts under planner-assets/fonts/ are checked against recorded
 # sha256 values at build time (tools/planner-fonts.mjs), so a checkout that
 # altered a single byte would stop the build rather than ship a broken face.
