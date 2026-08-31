@@ -72,6 +72,12 @@ const OWNED_UPSTREAM_FILES = {
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold',
+  'src/themes/Willow.jsx':
+    'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
+  'src/themes/WillowDark.jsx':
+    'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
+  'src/themes/Material.jsx':
+    'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
 };
 
 /** Path prefixes of files this project ADDED (they have no upstream version). */

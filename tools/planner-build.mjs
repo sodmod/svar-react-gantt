@@ -82,3 +82,13 @@ for (const step of steps) {
  * recognise.
  */
 await import('./planner-fonts.mjs');
+
+/*
+ * And the icons, for the same reason and in the same artefact: upstream draws
+ * them with a font fetched from the same third-party host. `planner-icons.mjs`
+ * appends one CSS block that draws them from this project's own SVG files
+ * instead, inlined, so the stylesheet needs nothing at run time. It runs after
+ * the font step because both write `dist-full/index.css` and this one appends
+ * to whatever the font step produced.
+ */
+await import('./planner-icons.mjs');

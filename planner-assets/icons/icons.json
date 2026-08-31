@@ -1,0 +1,61 @@
+{
+  "$comment": "ADDED BY THE SVAR PRODUCTION PLANNER PROJECT. The renderer's icons, authored by this project as plain SVG and inlined into dist-full/index.css by tools/planner-icons.mjs. They replace the wxi icon FONT that @svar-ui/react-core loaded from https://cdn.svar.dev/fonts/wxi/wx-icons.css, which is published on that CDN only and carries no redistribution licence this project could establish. Nothing here is copied from that font or from any third-party icon set: the paths are chevrons, a plus and a cross drawn from scratch on one 24-unit grid with one stroke weight.",
+  "authorship": {
+    "author": "SVAR Production Planner project",
+    "licence": "same as this repository's own added files",
+    "thirdPartyPathData": "none",
+    "thirdPartyDependencies": "none"
+  },
+  "grid": {
+    "viewBox": "0 0 24 24",
+    "strokeWidth": 2.5,
+    "linecap": "round",
+    "linejoin": "round",
+    "inkInset": "5.25-6.4 units, so the ink is about 0.55em of the 1em glyph box an icon font would have drawn"
+  },
+  "icons": [
+    {
+      "class": "wxi-menu-down",
+      "file": "wxi-menu-down.svg",
+      "meaning": "this group is expanded \u2014 activate to collapse it",
+      "role": "interactive",
+      "state": "expanded half of the grid row toggle (pairs with wxi-menu-right)",
+      "usedBy": "i.wx-toggle-icon[data-action=open-task] in the grid's task-name cell",
+      "builtBy": "wxi-menu-${open ? \"down\" : \"right\"}",
+      "stem": "wxi-menu-",
+      "stemReason": "The grid row toggle composes its class from a template literal, so \"wxi-menu-down\" never appears verbatim in the built renderer. The drift check looks for this stem instead \u2014 deliberately weaker, and recorded here rather than tolerated silently."
+    },
+    {
+      "class": "wxi-menu-right",
+      "file": "wxi-menu-right.svg",
+      "meaning": "this group is collapsed \u2014 activate to expand it; also the resizer handle that reveals the chart",
+      "role": "interactive",
+      "state": "collapsed half of the grid row toggle (pairs with wxi-menu-down)",
+      "usedBy": "i.wx-toggle-icon[data-action=open-task]; i inside .wx-button-expand-right"
+    },
+    {
+      "class": "wxi-menu-left",
+      "file": "wxi-menu-left.svg",
+      "meaning": "reveal the grid side of the splitter",
+      "role": "interactive",
+      "state": "single",
+      "usedBy": "i inside .wx-button-expand-left, visible only while the resizer is hovered"
+    },
+    {
+      "class": "wxi-plus",
+      "file": "wxi-plus.svg",
+      "meaning": "add a task",
+      "role": "interactive",
+      "state": "single",
+      "usedBy": "i.wx-action-icon[data-action=add-task] in the grid's action column and header"
+    },
+    {
+      "class": "wxi-close",
+      "file": "wxi-close.svg",
+      "meaning": "remove \u2014 delete the selected dependency link",
+      "role": "interactive",
+      "state": "single",
+      "usedBy": "i.wx-delete-button-icon inside the link delete button"
+    }
+  ]
+}

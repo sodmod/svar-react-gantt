@@ -74,10 +74,16 @@ Two kinds of change, deliberately kept in separate commits:
    package, because a git dependency has no publish step),
    `tools/planner-verify.mjs` (fork-local provenance and boundary checks),
    `tools/planner-fonts.mjs` + `planner-assets/fonts/` (the web fonts are served
-   from the package instead of a third-party CDN — see below), and this file.
+   from the package instead of a third-party CDN — see below),
+   `tools/planner-icons.mjs` + `planner-assets/icons/` (this project's own SVG
+   icons, replacing the CDN icon font — see below), and this file.
    No renderer behaviour.
 2. **Renderer behaviour** — currently exactly one change, `SVAR-M2`, in
    `src/components/chart/Bars.jsx`: the drag-activation pixel threshold.
+3. **Asset delivery inside upstream components** — the three theme wrappers
+   (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
+   `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
+   `<link>`s. Nothing else about them changes.
 
 ### Local web fonts instead of `cdn.svar.dev`
 
@@ -118,15 +124,54 @@ whose font rules it does not recognise (so a future upstream intake that changes
 them stops the build instead of being absorbed silently), and it refuses to
 finish if any `cdn.svar.dev` reference survives.
 
-**Not covered here, deliberately.** `@svar-ui/react-core`'s theme components
-also inject, at run time, `<link rel="stylesheet"
-href="https://cdn.svar.dev/fonts/wxi/wx-icons.css">` — the **wxi icon font**.
-That asset is published on that CDN only: it is in no npm package and in no
-public SVAR repository, so no redistribution licence for it could be
-established. Vendoring it would be a licence guess and dropping it would remove
-icons the product currently shows, so this fork leaves it exactly as upstream
-wrote it. Resolving it is a product decision of the Planner project, not a
-build-tooling change.
+### Local SVG icons instead of the `wxi` icon font
+
+The same `<link>`s carried a second asset: `wx-icons.css`, the **wxi icon
+font**, which is what gave `.wxi-plus`, `.wxi-close` and the row toggle their
+`content:"\eNNN"` glyphs. That font is published on `cdn.svar.dev` only — it
+ships in no npm package and in no public SVAR repository — so no redistribution
+licence for it could be established and it could not be vendored. Without it,
+measured in a real browser, the controls are not merely unstyled but
+**zero-sized**: the add-task icon is 0 px wide and the link-delete icon 0 px
+tall.
+
+The Planner project's owner decided that this fork should draw those icons
+itself, as new original artwork, rather than reproduce the vendor's glyphs.
+`planner-assets/icons/` holds five hand-written SVG files — the complete set
+this renderer actually puts on screen, measured rather than guessed:
+
+```text
+wxi-menu-down    grid row toggle, expanded — activate to collapse
+wxi-menu-right   grid row toggle, collapsed — activate to expand;
+                 also the splitter handle that reveals the chart
+wxi-menu-left    splitter handle that reveals the grid
+wxi-plus         add a task
+wxi-close        remove the selected dependency link
+```
+
+They are chevrons, a plus and a cross drawn from scratch on one 24-unit grid
+with a single 2.5-unit round stroke. **No third-party path data, no icon
+package, no font was used**, and none of the vendor's glyphs was traced;
+`icons.json` records that alongside each icon's meaning, role and states.
+
+`tools/planner-icons.mjs` inlines them into `dist-full/index.css` as `data:`
+URIs on a `::before` pseudo-element, painted with
+`background-color: currentColor` through `mask-image`. That is deliberate on
+three counts: inlined bytes cannot 404 or be blocked, `currentColor` keeps
+every existing colour rule working (`--wx-gantt-icon-color`, the disabled and
+danger colours, `:hover{color:…}`) exactly as the font did, and a mask does not
+collide with `.wx-button-expand-content i`, which paints its own
+`background-color`. The step is fail-closed: a missing SVG, an SVG that
+references anything external, a duplicate class, or a class the built renderer
+no longer emits stops the build.
+
+Sizing is stated per usage rather than in one blanket rule, so every box keeps
+the height upstream gave it — 16 px for the grid toggle and the action icon,
+14 px for the link delete button, 24 px for the splitter handle. The one
+element that gains a size is `.wx-action-icon.wxi-plus`, which upstream never
+gave a width because the font glyph's own advance supplied it; it is restored
+to `1em`, centred.
+
 
 ## Community / PRO boundary
 
