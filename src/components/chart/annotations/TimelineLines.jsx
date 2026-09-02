@@ -4,8 +4,10 @@
  *
  * The chart-body half of a timeline annotation's vertical line: one
  * full-height element per line, striped with one 2 px stripe per annotation
- * sharing that x (at most three), rendered inside `.wx-area` after the cell
- * grid and before the bars so it paints above the grid and below every bar.
+ * sharing that line's SEMANTIC identity — the consumer-supplied technical date,
+ * never the rounded pixel the date projects to — at most three stripes,
+ * rendered inside `.wx-area` after the cell grid and before the bars so it
+ * paints above the grid and below every bar.
  *
  * WHY IT LIVES INSIDE `.wx-area`
  *

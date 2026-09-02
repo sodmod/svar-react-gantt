@@ -23,8 +23,9 @@
   pointer-events: none;
 }
 
-/* One stripe per annotation sharing the line's x; the consumer's `css` class
-   on the stripe sets the colour through the public custom property. */
+/* One stripe per annotation in the line's group — the annotations sharing one
+   consumer-supplied technical date, not one rounded x; the consumer's `css`
+   class on the stripe sets the colour through the public custom property. */
 .wx-timeline-line-stripe {
   flex: 0 0 var(--wx-gantt-timeline-annotation-stripe-width, 2px);
   width: var(--wx-gantt-timeline-annotation-stripe-width, 2px);
