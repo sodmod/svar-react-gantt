@@ -62,6 +62,20 @@ export interface ITimelineAnnotation {
    * gesture itself. Absent outside a gesture.
    */
   previewDate?: Date;
+  /**
+   * SVAR-M7: this annotation's chip claims the LAST (bottom) row of the
+   * annotation lane. Every other annotation is placed first, by the ordinary
+   * top-down first-fit rule; this one is placed afterwards, into that row if
+   * its interval is free there or into one new row below everything
+   * otherwise — a colliding chip is therefore never itself moved, it simply
+   * already sits in the row directly above. Its own composite line also
+   * draws its LANE segment only below this chip, never above or behind it;
+   * the chart-body segment is unaffected. What "bottom-anchored" MEANS
+   * (e.g. "this is today") is the consumer's business, never this package's.
+   * Absent = ordinary first-fit placement, unaffected by any other
+   * annotation's flag. Default false.
+   */
+  bottomAnchored?: boolean;
 }
 
 /**

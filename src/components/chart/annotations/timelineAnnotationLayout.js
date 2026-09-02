@@ -34,6 +34,18 @@
  *     range width, never against the viewport, so panning cannot flip a side;
  *   - placement order is deterministic: by x, then by input order for equal x.
  *     Input order is the consumer's display order and is preserved as such;
+ *   - an annotation flagged `bottomAnchored` (the consumer's own decision —
+ *     this module attaches no meaning to it) claims the LAST row of the lane:
+ *     every other ("normal") annotation is placed first, by the ordinary
+ *     first-fit rule above; a bottom-anchored annotation is then placed into
+ *     that normal layout's own last row if its interval is free there, or
+ *     into one brand-new row below everything otherwise. A normal chip that
+ *     collides with it is therefore never moved — it simply already sits in
+ *     the row directly above, because that is where first-fit put it before
+ *     the bottom-anchored chip ever looked for a row. Two bottom-anchored
+ *     annotations are placed in input order by the same rule, each looking at
+ *     the (possibly just-grown) last row again; this repository ships exactly
+ *     one (Today), so that case is untested by the consumer today;
  *   - annotations sharing one composite line are grouped by their SEMANTIC
  *     identity — the consumer-supplied technical `date` (an exact millisecond
  *     instant, one owner's deterministic projection of a canonical LocalDate,
@@ -46,6 +58,17 @@
  *     most three stripes, in input order — the fourth and later annotations
  *     keep their chips but add no stripe;
  *   - the lane is as tall as the rows it needs; there is no row cap.
+ *
+ * BOTTOM-ANCHORED ROWS AND LANE-SEGMENT EXTENT (SVAR-M7)
+ *
+ * A composite line whose group contains a bottom-anchored annotation draws
+ * its LANE segment only from that chip's own bottom edge down to the lane's
+ * bottom edge — never from the lane's top, unlike every other line, which
+ * still spans the lane's full height as before. `laneTop` on such a line
+ * model carries that offset; a normal line's `laneTop` is always `0`. This
+ * governs the lane segment only: the chart-body segment (`TimelineLines.jsx`,
+ * inside `.wx-area`) is unaffected — it already starts below the lane
+ * entirely, for every line alike.
  *
  * TRANSIENT DRAG PREVIEW (SVAR-M5)
  *
@@ -80,12 +103,22 @@
 export const ANNOTATION_CHIP_HEIGHT = 22;
 /** Vertical distance between two rows of chips, in px. */
 export const ANNOTATION_ROW_GAP = 4;
-/** Padding above the first row and below the last one, in px. */
-export const ANNOTATION_LANE_PADDING = 4;
+/** Padding above the first (topmost) row, in px. */
+export const ANNOTATION_LANE_PADDING_TOP = 4;
+/**
+ * Padding below the last (bottom) row, in px. Kept small and stable so the
+ * bottom-anchored (Today) chip stays visually close to the Gantt body it
+ * sits directly above — the product's own target, not a generic default.
+ */
+export const ANNOTATION_LANE_PADDING_BOTTOM = 2;
 /** Minimum horizontal distance between two chips sharing a row, in px. */
 export const ANNOTATION_CHIP_GAP = 6;
-/** Horizontal gap between a line and a chip placed beside it, in px. */
-export const ANNOTATION_LINE_GAP = 6;
+/**
+ * Horizontal gap between a line and a chip placed beside it, in px — measured
+ * from the line's OWN OUTER edge (not its centre `x`), so a wide composite
+ * line still leaves exactly this much empty space before the chip starts.
+ */
+export const ANNOTATION_LINE_GAP = 2;
 /** A chip is never wider than this; longer labels are clipped with an ellipsis. */
 export const ANNOTATION_CHIP_MAX_WIDTH = 240;
 /** One colour stripe of a composite line, in px. */
@@ -182,6 +215,9 @@ export function placeAnnotations(annotations, scales, cellWidth, dragPreview) {
       title,
       labelPosition: annotation.labelPosition === 'center' ? 'center' : 'after',
       css: annotation.css || '',
+      // The consumer's own decision (row placement, §"the lane" above); this
+      // module attaches no meaning to it beyond the placement rule it drives.
+      bottomAnchored: annotation.bottomAnchored === true,
     });
   }
   return placed;
@@ -205,7 +241,8 @@ function overlaps(left, right, row) {
 export function laneHeightForRows(rowCount) {
   if (rowCount <= 0) return 0;
   return (
-    ANNOTATION_LANE_PADDING * 2 +
+    ANNOTATION_LANE_PADDING_TOP +
+    ANNOTATION_LANE_PADDING_BOTTOM +
     rowCount * ANNOTATION_CHIP_HEIGHT +
     (rowCount - 1) * ANNOTATION_ROW_GAP
   );
@@ -214,7 +251,7 @@ export function laneHeightForRows(rowCount) {
 /** The top offset of a chip in `row`, inside the lane. */
 export function chipTopForRow(row) {
   return (
-    ANNOTATION_LANE_PADDING +
+    ANNOTATION_LANE_PADDING_TOP +
     row * (ANNOTATION_CHIP_HEIGHT + ANNOTATION_ROW_GAP)
   );
 }
@@ -267,8 +304,19 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
       stripes,
       ids: group.members.map((member) => member.id),
       dragged: group.dragged === true,
+      // A group containing a bottom-anchored member is itself bottom-anchored
+      // (in practice: solo, since a bottom-anchored annotation never shares a
+      // composite line — a different `dateTime` identity — with a normal one).
+      bottomAnchored: group.members.some(
+        (member) => member.bottomAnchored === true,
+      ),
+      // The lane-segment top offset, in px. `0` (the lane's own top) for
+      // every ordinary line; recomputed below, once rows are known, for a
+      // bottom-anchored line — it starts at its own chip's bottom edge.
+      laneTop: 0,
     };
   });
+  const lineWidthByKey = new Map(lineModels.map((line) => [line.key, line.width]));
 
   const measured =
     labelWidths instanceof Map &&
@@ -282,9 +330,10 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
     .map((item, index) => ({ item, index }))
     .sort((a, b) => a.item.x - b.item.x || a.index - b.index);
 
-  const rows = [];
-  const chips = [];
-  for (const { item } of order) {
+  // A chip's own geometry (width/side/left/right) depends only on itself and
+  // the composite line it is beside — never on which row it lands in — so it
+  // is computed once, up front, for every item alike.
+  function chipGeometry(item) {
     const natural = labelWidths.get(item.label);
     const width = Math.min(
       ANNOTATION_CHIP_MAX_WIDTH,
@@ -298,38 +347,92 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
       if (left + width > range) left = range - width;
       if (left < 0) left = 0;
     } else {
+      // The gap is measured from the line's own OUTER edge, not its centre
+      // `x` — so a wide composite line still leaves exactly ANNOTATION_LINE_GAP
+      // of empty space before the chip starts (product decision, §7 gap).
+      const key = `${item.anchor}@${item.dateTime}`;
+      const halfLineWidth =
+        (lineWidthByKey.get(key) ?? ANNOTATION_STRIPE_WIDTH) / 2;
       side = 'right';
-      left = item.x + ANNOTATION_LINE_GAP;
+      left = item.x + halfLineWidth + ANNOTATION_LINE_GAP;
       if (left + width > range) {
         side = 'left';
-        left = item.x - ANNOTATION_LINE_GAP - width;
+        left = item.x - halfLineWidth - ANNOTATION_LINE_GAP - width;
         if (left < 0) left = 0;
       }
     }
-    const right = left + width;
+    return { natural, width, side, left, right: left + width };
+  }
+
+  // Row assignment happens in two passes over the same x-sorted order:
+  // normal annotations first (ordinary top-down first-fit, unchanged), then
+  // bottom-anchored ones (Today) — each claiming the LAST row that phase one
+  // produced if it is free there, or one new row below everything otherwise.
+  // A normal chip is never moved to make room: if it collides with a
+  // bottom-anchored chip, it is already sitting in the row directly above,
+  // because first-fit placed it there before the bottom-anchored chip ever
+  // looked for a row (product decision, §3 bottom-anchored Today).
+  const rows = [];
+  const geometryByIndex = new Map();
+  const rowByIndex = new Map();
+  for (const { item, index } of order) {
+    if (item.bottomAnchored === true) continue;
+    const geom = chipGeometry(item);
+    geometryByIndex.set(index, geom);
     let row = 0;
-    while (row < rows.length && overlaps(left, right, rows[row])) row += 1;
+    while (row < rows.length && overlaps(geom.left, geom.right, rows[row])) {
+      row += 1;
+    }
     if (row === rows.length) rows.push([]);
-    rows[row].push([left, right]);
-    chips.push({
+    rows[row].push([geom.left, geom.right]);
+    rowByIndex.set(index, row);
+  }
+  for (const { item, index } of order) {
+    if (item.bottomAnchored !== true) continue;
+    const geom = chipGeometry(item);
+    geometryByIndex.set(index, geom);
+    let row = rows.length > 0 ? rows.length - 1 : 0;
+    if (rows.length > 0 && overlaps(geom.left, geom.right, rows[row])) {
+      row = rows.length;
+    }
+    if (row === rows.length) rows.push([]);
+    rows[row].push([geom.left, geom.right]);
+    rowByIndex.set(index, row);
+  }
+
+  const rowCount = rows.length;
+  if (rowCount > 0) {
+    const bottomChipBottom = chipTopForRow(rowCount - 1) + ANNOTATION_CHIP_HEIGHT;
+    for (const line of lineModels) {
+      if (line.bottomAnchored) line.laneTop = bottomChipBottom;
+    }
+  }
+
+  // Output order follows the same x-then-input-order rule as placement,
+  // regardless of which of the two passes above assigned a chip its row.
+  const chips = order.map(({ item, index }) => {
+    const geom = geometryByIndex.get(index);
+    const row = rowByIndex.get(index);
+    return {
       id: item.id,
       label: item.label,
       title: item.title,
       css: item.css,
-      x: left,
-      width,
+      x: geom.left,
+      width: geom.width,
       row,
-      side,
+      side: geom.side,
       lineX: item.x,
       dragged: item.dragged === true,
-      clipped: natural > ANNOTATION_CHIP_MAX_WIDTH,
-    });
-  }
+      bottomAnchored: item.bottomAnchored === true,
+      clipped: geom.natural > ANNOTATION_CHIP_MAX_WIDTH,
+    };
+  });
 
   return {
     lines: lineModels,
     chips,
-    rowCount: rows.length,
-    laneHeight: laneHeightForRows(rows.length),
+    rowCount,
+    laneHeight: laneHeightForRows(rowCount),
   };
 }

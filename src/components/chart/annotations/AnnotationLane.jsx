@@ -9,8 +9,9 @@
  * vertical scroll and scrolls with the timeline under horizontal scroll, with
  * no code of its own for either.
  *
- * Rows, sides and lane height come from `timelineAnnotationLayout.js`; this
- * component renders what it is handed and decides nothing.
+ * Rows, sides, lane height and each line's lane-segment top (`laneTop`) come
+ * from `timelineAnnotationLayout.js`; this component renders what it is
+ * handed and decides nothing.
  *
  * Accessibility: the lane is a list; each chip is a list item whose accessible
  * name is the annotation's full title, so a screen reader hears the full name
@@ -49,6 +50,11 @@ function AnnotationLane(props) {
           style={{
             left: `${line.x - line.width / 2}px`,
             width: `${line.width}px`,
+            // Every ordinary line still spans the lane's full height via the
+            // stylesheet's `top: 0`. A bottom-anchored (Today) line overrides
+            // it: its lane segment starts at its own chip's bottom edge, not
+            // the lane's top — no line drawn above or behind that chip.
+            ...(line.bottomAnchored ? { top: `${line.laneTop}px` } : null),
           }}
         >
           {line.stripes.map((stripe) => (

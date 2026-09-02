@@ -19,9 +19,12 @@ import {
   ANNOTATION_CHIP_GAP,
   ANNOTATION_CHIP_HEIGHT,
   ANNOTATION_CHIP_MAX_WIDTH,
-  ANNOTATION_LANE_PADDING,
+  ANNOTATION_LANE_PADDING_BOTTOM,
+  ANNOTATION_LANE_PADDING_TOP,
   ANNOTATION_LINE_GAP,
+  ANNOTATION_MAX_STRIPES,
   ANNOTATION_ROW_GAP,
+  ANNOTATION_STRIPE_WIDTH,
   chipTopForRow,
   laneHeightForRows,
   layoutTimelineAnnotations,
@@ -30,6 +33,12 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 const CELL = 34;
+
+// A single, ungrouped annotation is always a solo 1-stripe (2 px) line, so
+// its chip sits this many px from the line's own centre `x` — half the
+// line's width, plus the flat gap from its OUTER edge (product decision, R3
+// §7: the gap is measured from the line's outer edge, not its centre).
+const SOLO_LINE_GAP = ANNOTATION_STRIPE_WIDTH / 2 + ANNOTATION_LINE_GAP;
 
 function day(offset) {
   return new Date(2026, 0, 1 + offset);
@@ -166,19 +175,22 @@ test('layout: a chip goes to the right of its line with the line gap; the lane i
   assert.equal(layout.chips.length, 1);
   const [chip] = layout.chips;
   assert.equal(chip.side, 'right');
-  assert.equal(chip.x, 10 * CELL + ANNOTATION_LINE_GAP);
+  assert.equal(chip.x, 10 * CELL + SOLO_LINE_GAP);
   assert.equal(chip.width, 60);
   assert.equal(chip.row, 0);
   assert.equal(layout.rowCount, 1);
   assert.equal(layout.laneHeight, laneHeightForRows(1));
   assert.equal(
     laneHeightForRows(1),
-    ANNOTATION_LANE_PADDING * 2 + ANNOTATION_CHIP_HEIGHT,
+    ANNOTATION_LANE_PADDING_TOP +
+      ANNOTATION_LANE_PADDING_BOTTOM +
+      ANNOTATION_CHIP_HEIGHT,
   );
-  assert.equal(chipTopForRow(0), ANNOTATION_LANE_PADDING);
+  assert.equal(chipTopForRow(0), ANNOTATION_LANE_PADDING_TOP);
   assert.equal(
     chipTopForRow(2),
-    ANNOTATION_LANE_PADDING + 2 * (ANNOTATION_CHIP_HEIGHT + ANNOTATION_ROW_GAP),
+    ANNOTATION_LANE_PADDING_TOP +
+      2 * (ANNOTATION_CHIP_HEIGHT + ANNOTATION_ROW_GAP),
   );
 });
 
@@ -224,8 +236,8 @@ test('layout: two chips whose intervals would overlap in one row go to two rows;
   assert.equal(byId.a.row, 0);
   assert.equal(byId.b.row, 1);
   // Neither chip moved sideways: each still starts at its own line plus the gap.
-  assert.equal(byId.a.x, 10 * CELL + ANNOTATION_LINE_GAP);
-  assert.equal(byId.b.x, 11 * CELL + ANNOTATION_LINE_GAP);
+  assert.equal(byId.a.x, 10 * CELL + SOLO_LINE_GAP);
+  assert.equal(byId.b.x, 11 * CELL + SOLO_LINE_GAP);
   assert.equal(layout.rowCount, 2);
   assert.equal(layout.laneHeight, laneHeightForRows(2));
   assertNoOverlap(layout.chips);
@@ -264,9 +276,27 @@ test('layout: many chips never overlap within a row, whatever the input order', 
   const layout = layoutTimelineAnnotations(placed, measured, SCALES.width);
   assert.equal(layout.chips.length, annotations.length);
   assertNoOverlap(layout.chips);
-  // Every chip keeps its own line as its horizontal anchor.
-  for (const chip of layout.chips) {
-    assert.equal(chip.x, chip.lineX + ANNOTATION_LINE_GAP);
+  // Every chip keeps its own line as its horizontal anchor, offset by that
+  // line's own outer edge plus the gap. Some dates here repeat (3, and 60),
+  // composing into a wider capped line; every other date is solo (2 px).
+  const countByOffset = new Map();
+  for (const offset of dates) {
+    countByOffset.set(offset, (countByOffset.get(offset) ?? 0) + 1);
+  }
+  assert.ok(
+    [...countByOffset.values()].some((count) => count > 1),
+    'test setup must actually exercise a composite line',
+  );
+  for (let index = 0; index < layout.chips.length; index += 1) {
+    const chip = layout.chips[index];
+    const offset = dates[Number(chip.id.slice(1))];
+    const stripeCount = Math.min(countByOffset.get(offset), ANNOTATION_MAX_STRIPES);
+    const lineHalfWidth = (stripeCount * ANNOTATION_STRIPE_WIDTH) / 2;
+    assert.equal(
+      chip.x,
+      chip.lineX + lineHalfWidth + ANNOTATION_LINE_GAP,
+      `${chip.id}: gap must be measured from its line's own outer edge`,
+    );
   }
 });
 
@@ -327,14 +357,11 @@ test('layout: a chip that would leave the range on the right is placed on the le
   );
   const byId = Object.fromEntries(layout.chips.map((chip) => [chip.id, chip]));
   assert.equal(byId.edge.side, 'left');
-  assert.equal(
-    byId.edge.x + byId.edge.width,
-    SCALES.width - ANNOTATION_LINE_GAP,
-  );
+  assert.equal(byId.edge.x + byId.edge.width, SCALES.width - SOLO_LINE_GAP);
   assert.equal(byId.near.side, 'left');
-  assert.equal(byId.near.x + byId.near.width, 98 * CELL - ANNOTATION_LINE_GAP);
+  assert.equal(byId.near.x + byId.near.width, 98 * CELL - SOLO_LINE_GAP);
   assert.equal(byId.fits.side, 'right');
-  assert.equal(byId.fits.x, 90 * CELL + ANNOTATION_LINE_GAP);
+  assert.equal(byId.fits.x, 90 * CELL + SOLO_LINE_GAP);
   assertNoOverlap(layout.chips);
 });
 
@@ -776,4 +803,317 @@ test('SVAR-M5: a preview never removes a marker from the layout, and a garbage p
       `a preview of ${JSON.stringify(nonsense)} must not move anything`,
     );
   }
+});
+
+/* ------------------------------------------------------------------------ *
+ * SVAR-M7 — bottom-anchored rows (R3 §3) and the bottom-anchored line's
+ * lane-segment extent (R3 §4). `bottomAnchored: true` on an annotation is a
+ * generic capability this module attaches no meaning to; the Planner sets it
+ * on exactly one annotation, Today. These tests still name it "Today" for
+ * readability, matching the product scenario it exists for.
+ * ------------------------------------------------------------------------ */
+
+function today(id, offset, extra) {
+  return {
+    id,
+    date: day(offset),
+    anchor: 'unit-center',
+    label: 'Today',
+    labelPosition: 'center',
+    bottomAnchored: true,
+    ...extra,
+  };
+}
+
+function milestone(id, offset, label, extra) {
+  return { id, date: day(offset), label: label ?? id, ...extra };
+}
+
+test('SVAR-M7: Today alone is row 0 — trivially the bottom (and only) row', () => {
+  const placed = placeAnnotations([today('today', 10)], SCALES, CELL);
+  const layout = layoutTimelineAnnotations(
+    placed,
+    widths({ Today: 70 }),
+    SCALES.width,
+  );
+  assert.equal(layout.rowCount, 1);
+  assert.equal(layout.chips[0].row, 0);
+  assert.equal(layout.chips[0].bottomAnchored, true);
+});
+
+test('SVAR-M7: Today plus one non-overlapping milestone share the bottom row', () => {
+  const placed = placeAnnotations(
+    [today('today', 10), milestone('m', 60, 'Milestone')],
+    SCALES,
+    CELL,
+  );
+  const layout = layoutTimelineAnnotations(
+    placed,
+    widths({ Today: 60, Milestone: 90 }),
+    SCALES.width,
+  );
+  const byId = Object.fromEntries(layout.chips.map((c) => [c.id, c]));
+  assert.equal(layout.rowCount, 1, 'no collision — one shared row');
+  assert.equal(byId.today.row, 0);
+  assert.equal(byId.m.row, 0);
+  assert.equal(byId.today.row, layout.rowCount - 1, 'Today is the bottom row');
+  assertNoOverlap(layout.chips);
+});
+
+test('SVAR-M7: a milestone that overlaps Today horizontally moves to a row ABOVE Today — Today never moves up', () => {
+  // Same date and comparable widths so the two chips would collide if placed
+  // in the same row: Today (centred on day 10) and a wide milestone chip
+  // whose line/right-placement lands squarely on Today's interval.
+  const placed = placeAnnotations(
+    [today('today', 10), milestone('m', 10, 'Milestone')],
+    SCALES,
+    CELL,
+  );
+  const layout = layoutTimelineAnnotations(
+    placed,
+    widths({ Today: 60, Milestone: 90 }),
+    SCALES.width,
+  );
+  const byId = Object.fromEntries(layout.chips.map((c) => [c.id, c]));
+  assert.equal(layout.rowCount, 2, 'Today needed its own new bottom row');
+  assert.equal(byId.today.row, 1);
+  assert.equal(byId.m.row, 0, 'the colliding milestone stayed where first-fit put it — above Today');
+  assert.equal(byId.today.row, layout.rowCount - 1, 'Today is still the bottom row');
+  assertNoOverlap(layout.chips);
+});
+
+test('SVAR-M7: Today plus two same-day milestones — Today stays bottom whichever of them collides with it', () => {
+  const placed = placeAnnotations(
+    [
+      today('today', 20),
+      milestone('m1', 20, 'Alpha'),
+      milestone('m2', 20, 'Beta'),
+    ],
+    SCALES,
+    CELL,
+  );
+  const layout = layoutTimelineAnnotations(
+    placed,
+    widths({ Today: 60, Alpha: 80, Beta: 80 }),
+    SCALES.width,
+  );
+  const byId = Object.fromEntries(layout.chips.map((c) => [c.id, c]));
+  assert.equal(byId.today.row, layout.rowCount - 1, 'Today is always the bottom row');
+  assertNoOverlap(layout.chips);
+});
+
+test('SVAR-M7: Today near several long milestone labels needing multiple rows — Today is still the very last row', () => {
+  const annotations = [
+    today('today', 30),
+    milestone('m1', 28, 'Milestone One Has A Rather Long Name'),
+    milestone('m2', 29, 'Milestone Two Also Runs Long'),
+    milestone('m3', 30, 'Milestone Three Overlaps Today Directly'),
+    milestone('m4', 31, 'Milestone Four Is Long As Well'),
+    milestone('m5', 32, 'Milestone Five Rounds It Out'),
+  ];
+  const measured = widths({
+    Today: 70,
+    'Milestone One Has A Rather Long Name': 220,
+    'Milestone Two Also Runs Long': 200,
+    'Milestone Three Overlaps Today Directly': 230,
+    'Milestone Four Is Long As Well': 210,
+    'Milestone Five Rounds It Out': 200,
+  });
+  const placed = placeAnnotations(annotations, SCALES, CELL);
+  const layout = layoutTimelineAnnotations(placed, measured, SCALES.width);
+  assert.ok(layout.rowCount >= 2, 'test setup must actually need several rows');
+  const todayChip = layout.chips.find((c) => c.id === 'today');
+  assert.equal(todayChip.row, layout.rowCount - 1, 'Today is the very last row');
+  assertNoOverlap(layout.chips);
+});
+
+test('SVAR-M7: growing and shrinking the milestone set moves Today with the bottom row, never leaving an empty row below it', () => {
+  const measured = widths({
+    Today: 60,
+    Alpha: 200,
+    Beta: 200,
+    Gamma: 200,
+  });
+  // Grows from 0 -> 3 colliding milestones, then shrinks back to 0.
+  const steps = [
+    [],
+    [milestone('m1', 30, 'Alpha')],
+    [milestone('m1', 30, 'Alpha'), milestone('m2', 30, 'Beta')],
+    [
+      milestone('m1', 30, 'Alpha'),
+      milestone('m2', 30, 'Beta'),
+      milestone('m3', 30, 'Gamma'),
+    ],
+    [milestone('m1', 30, 'Alpha')],
+    [],
+  ];
+  for (const milestones of steps) {
+    const placed = placeAnnotations(
+      [today('today', 30), ...milestones],
+      SCALES,
+      CELL,
+    );
+    const layout = layoutTimelineAnnotations(placed, measured, SCALES.width);
+    const todayChip = layout.chips.find((c) => c.id === 'today');
+    assert.equal(
+      todayChip.row,
+      layout.rowCount - 1,
+      `milestones=${milestones.length}: Today is the bottom row`,
+    );
+    // No arbitrary empty row below Today: the lane's height accounts for
+    // exactly rowCount rows, nothing more.
+    assert.equal(layout.laneHeight, laneHeightForRows(layout.rowCount));
+  }
+});
+
+test('SVAR-M7: Pan (a wider range at the same annotations) does not change which row Today lands in', () => {
+  const annotations = [today('today', 30), milestone('m', 30, 'Milestone')];
+  const measured = widths({ Today: 60, Milestone: 90 });
+  const narrow = layoutTimelineAnnotations(
+    placeAnnotations(annotations, SCALES, CELL),
+    measured,
+    SCALES.width,
+  );
+  const widerScales = { ...SCALES, end: day(400), width: 400 * CELL };
+  const wide = layoutTimelineAnnotations(
+    placeAnnotations(annotations, widerScales, CELL),
+    measured,
+    widerScales.width,
+  );
+  const rowOf = (layout, id) =>
+    layout.chips.find((c) => c.id === id).row;
+  assert.equal(rowOf(narrow, 'today'), narrow.rowCount - 1);
+  assert.equal(rowOf(wide, 'today'), wide.rowCount - 1);
+  assert.equal(narrow.rowCount, wide.rowCount);
+});
+
+test('SVAR-M7: the bottom-anchored line draws its lane segment only below its own chip — an ordinary line still spans the full lane from the top', () => {
+  const placed = placeAnnotations(
+    [today('today', 10, { date: day(10) }), milestone('m', 10, 'Milestone')],
+    SCALES,
+    CELL,
+  );
+  const layout = layoutTimelineAnnotations(
+    placed,
+    widths({ Today: 60, Milestone: 90 }),
+    SCALES.width,
+  );
+  const todayLine = layout.lines.find((l) => l.ids.includes('today'));
+  const milestoneLine = layout.lines.find((l) => l.ids.includes('m'));
+  assert.equal(todayLine.bottomAnchored, true);
+  assert.equal(milestoneLine.bottomAnchored, false);
+  assert.equal(milestoneLine.laneTop, 0, 'an ordinary line still starts at the lane top');
+  const todayChip = layout.chips.find((c) => c.id === 'today');
+  const todayChipBottom = chipTopForRow(todayChip.row) + ANNOTATION_CHIP_HEIGHT;
+  assert.equal(
+    todayLine.laneTop,
+    todayChipBottom,
+    "Today's line starts exactly at its own chip's bottom edge",
+  );
+  assert.ok(
+    todayLine.laneTop >= todayChipBottom,
+    'no part of the lane segment is drawn above the chip bottom (tolerance: none needed, exact by construction)',
+  );
+  // And the segment below it never exceeds the lane's own bottom padding.
+  assert.equal(
+    layout.laneHeight - todayLine.laneTop,
+    ANNOTATION_LANE_PADDING_BOTTOM,
+  );
+});
+
+test('SVAR-M7: the milestone chip gap is exactly ANNOTATION_LINE_GAP from the line\'s own OUTER edge, for a 2/4/6 px composite line, right and left fallback alike', () => {
+  for (const [count, expectedWidth] of [
+    [1, 2],
+    [2, 4],
+    [3, 6],
+  ]) {
+    const group = Array.from({ length: count }, (_, i) => ({
+      id: `g${i}`,
+      date: day(50),
+      label: `Group ${count}-${i}`,
+    }));
+    const measuredEntries = Object.fromEntries(
+      group.map((a) => [a.label, 80]),
+    );
+    const placedRight = placeAnnotations(group, SCALES, CELL);
+    const layoutRight = layoutTimelineAnnotations(
+      placedRight,
+      widths(measuredEntries),
+      SCALES.width,
+    );
+    assert.equal(layoutRight.lines[0].width, expectedWidth);
+    for (const chip of layoutRight.chips) {
+      assert.equal(chip.side, 'right');
+      assert.equal(
+        chip.x - chip.lineX,
+        expectedWidth / 2 + ANNOTATION_LINE_GAP,
+        `count ${count} right: gap must be ${ANNOTATION_LINE_GAP}px from the line's outer edge`,
+      );
+    }
+
+    // Force the left fallback by placing the same group right at the range
+    // edge, where a right-side chip would leave the range.
+    const edgeOffset = 100;
+    const edgeGroup = group.map((a) => ({ ...a, date: day(edgeOffset) }));
+    const placedLeft = placeAnnotations(edgeGroup, SCALES, CELL);
+    const layoutLeft = layoutTimelineAnnotations(
+      placedLeft,
+      widths(measuredEntries),
+      SCALES.width,
+    );
+    for (const chip of layoutLeft.chips) {
+      assert.equal(chip.side, 'left');
+      assert.equal(
+        chip.lineX - (chip.x + chip.width),
+        expectedWidth / 2 + ANNOTATION_LINE_GAP,
+        `count ${count} left fallback: gap must be ${ANNOTATION_LINE_GAP}px from the line's outer edge`,
+      );
+    }
+  }
+});
+
+test('SVAR-M7 negative control (NC-R3-A oracle): a Today NOT flagged bottomAnchored falls back to ordinary first-fit and can land ABOVE a colliding milestone', () => {
+  // Today's x (day 10, centred: 10*CELL + CELL/2) sorts BEFORE the
+  // milestone's x (day 11, unit-start: 11*CELL) — so plain x-then-input-order
+  // first-fit visits Today first and gives it row 0, pushing the colliding
+  // milestone to row 1. This is the exact "ordinary top/first-fit row"
+  // behaviour NC-R3-A restores; the permanent bottom-row tests above must
+  // fail against it, which is what proves they are testing the right thing.
+  const plainToday = {
+    id: 'today',
+    date: day(10),
+    anchor: 'unit-center',
+    label: 'Today',
+    labelPosition: 'center',
+  };
+  const withoutFlag = layoutTimelineAnnotations(
+    placeAnnotations([plainToday, milestone('m', 11, 'Milestone')], SCALES, CELL),
+    widths({ Today: 60, Milestone: 90 }),
+    SCALES.width,
+  );
+  const withoutFlagById = Object.fromEntries(
+    withoutFlag.chips.map((c) => [c.id, c]),
+  );
+  assert.equal(withoutFlag.rowCount, 2, 'test setup must actually force a collision');
+  assert.equal(
+    withoutFlagById.today.row,
+    0,
+    'ordinary first-fit (no flag): Today keeps the first row it fit in, which is the TOP one here',
+  );
+  assert.equal(withoutFlagById.m.row, 1, 'the milestone was pushed down instead');
+
+  // Same scenario, WITH the flag: bottom-anchored placement must reverse it.
+  const withFlag = layoutTimelineAnnotations(
+    placeAnnotations([today('today', 10), milestone('m', 11, 'Milestone')], SCALES, CELL),
+    widths({ Today: 60, Milestone: 90 }),
+    SCALES.width,
+  );
+  const withFlagById = Object.fromEntries(withFlag.chips.map((c) => [c.id, c]));
+  assert.equal(withFlag.rowCount, 2);
+  assert.equal(withFlagById.m.row, 0, 'the milestone keeps the row first-fit gave it');
+  assert.equal(
+    withFlagById.today.row,
+    withFlag.rowCount - 1,
+    'Today is pushed to a NEW bottom row instead — never the other way around',
+  );
 });
