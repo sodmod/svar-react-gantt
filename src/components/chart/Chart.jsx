@@ -8,6 +8,7 @@ import {
   useCallback,
 } from 'react';
 import CellGrid from './CellGrid.jsx';
+import TimelineLines from './TimelineLines.jsx';
 import Bars from './Bars.jsx';
 import { hotkeys } from '@svar-ui/grid-store';
 import { setID } from '@svar-ui/lib-dom';
@@ -21,8 +22,16 @@ import { useRenderTime } from '../../helpers/debug.js';
 function Chart(props) {
   // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
   // `taskTemplate` on this same line — see `Gantt.jsx` for what it is.
-  const { readonly, fullWidth, fullHeight, taskTemplate, scaleCellAriaLabel } =
-    props;
+  // SVAR-M4 (SVAR Production Planner): `timelineLines`, rendered below by
+  // `<TimelineLines>` inside `.wx-area` — see `Gantt.jsx`.
+  const {
+    readonly,
+    fullWidth,
+    fullHeight,
+    taskTemplate,
+    scaleCellAriaLabel,
+    timelineLines,
+  } = props;
 
   const api = useContext(storeContext);
 
@@ -348,6 +357,10 @@ function Chart(props) {
           : null}
 
         <CellGrid />
+
+        {/* SVAR-M4 (SVAR Production Planner): after the cell grid and before
+            the bars, so a line paints above the grid and below every bar. */}
+        <TimelineLines lines={timelineLines} />
 
         <Bars readonly={readonly} taskTemplate={taskTemplate} />
       </div>

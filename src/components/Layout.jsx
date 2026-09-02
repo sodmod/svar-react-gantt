@@ -18,9 +18,12 @@ import { flushSync } from 'react-dom';
 function Layout(props) {
   // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
   // `taskTemplate` on this same line — see `Gantt.jsx` for what it is.
+  // SVAR-M4 (SVAR Production Planner): `timelineLines`, the same kind of
+  // pass-through — see `Gantt.jsx`.
   const {
     taskTemplate,
     scaleCellAriaLabel,
+    timelineLines,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -211,6 +214,7 @@ function Layout(props) {
                 fullHeight={fullHeight}
                 taskTemplate={taskTemplate}
                 scaleCellAriaLabel={scaleCellAriaLabel}
+                timelineLines={timelineLines}
               />
             </div>
           </div>

@@ -73,15 +73,18 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold',
   'src/components/Gantt.jsx':
-    'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx',
+    'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
+    'SVAR-M4 — new `timelineLines` prop, threaded through to Chart.jsx',
   'src/components/Layout.jsx':
-    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through',
+    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; SVAR-M4 — `timelineLines` prop pass-through',
   'src/components/chart/Chart.jsx':
-    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through',
+    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
+    'SVAR-M4 — renders <TimelineLines> from `timelineLines` inside .wx-area',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label',
   'types/index.d.ts':
-    'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop',
+    'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
+    'SVAR-M4 — `ITimelineLine` and the `timelineLines` prop',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':
@@ -101,6 +104,8 @@ const PROJECT_ADDED = [
 	'planner-assets/',
 	'PLANNER_FORK.md',
 	'.gitattributes',
+	// SVAR-M4 (Phase 3.2A spike): the vertical-lines component and its stylesheet.
+	'src/components/chart/TimelineLines.',
 ];
 
 /**

@@ -101,6 +101,12 @@ const Gantt = forwardRef(function Gantt(
     // function returns to the DOM as that cell's `aria-label`. See
     // `src/components/chart/TimeScale.jsx` for where it is applied.
     scaleCellAriaLabel = null,
+    // SVAR-M4 (SVAR Production Planner, Phase 3.2A spike): new optional prop,
+    // purely additive. Vertical lines at dates on the chart body — see
+    // `src/components/chart/TimelineLines.jsx` for what it draws and what it
+    // deliberately does not know. An ordinary React prop threaded down the
+    // same path as `taskTemplate`; it never enters the store.
+    timelineLines = EMPTY_ARRAY,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -362,6 +368,7 @@ const Gantt = forwardRef(function Gantt(
         <Layout
           taskTemplate={taskTemplate}
           scaleCellAriaLabel={scaleCellAriaLabel}
+          timelineLines={timelineLines}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

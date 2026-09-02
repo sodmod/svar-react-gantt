@@ -28,6 +28,19 @@ import type {
 export * from '@svar-ui/gantt-store';
 export { registerEditorItem } from '@svar-ui/react-editor';
 
+// SVAR-M4 (SVAR Production Planner, Phase 3.2A spike): one vertical line on
+// the chart body. The renderer draws it at `date`'s column — on the column's
+// left edge for 'unit-start' (the coordinate a diamond is centred on) or on
+// its centre for 'unit-center' — and adds `css` to the element so the
+// consumer's own stylesheet colours it. What the line MEANS is the
+// consumer's business, never this package's.
+export interface ITimelineLine {
+  id: string | number;
+  date: Date;
+  anchor?: 'unit-start' | 'unit-center';
+  css?: string;
+}
+
 export interface IColumnConfig extends Omit<IGanttColumn, 'header'> {
   cell?: ITableColumn['cell'];
   header?: ITableColumn['header'];
@@ -54,6 +67,9 @@ export declare const Gantt: ForwardRefExoticComponent<
       unit: string,
       value: string,
     ) => string | undefined;
+    // SVAR-M4 (SVAR Production Planner, Phase 3.2A spike): vertical lines at
+    // dates on the chart body, see `ITimelineLine` above.
+    timelineLines?: ITimelineLine[];
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

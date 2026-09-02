@@ -78,8 +78,18 @@ Two kinds of change, deliberately kept in separate commits:
    `tools/planner-icons.mjs` + `planner-assets/icons/` (this project's own SVG
    icons, replacing the CDN icon font — see below), and this file.
    No renderer behaviour.
-2. **Renderer behaviour** — currently exactly one change, `SVAR-M2`, in
-   `src/components/chart/Bars.jsx`: the drag-activation pixel threshold.
+2. **Renderer behaviour** — `SVAR-M2` in `src/components/chart/Bars.jsx`
+   (the drag-activation pixel threshold); `SVAR-M3`, the `scaleCellAriaLabel`
+   prop threaded `Gantt.jsx -> Layout.jsx -> Chart.jsx -> TimeScale.jsx`
+   (an accessible name for scale cells, supplied by the consumer); and, on
+   the `planner-timeline-lines-spike` branch only, `SVAR-M4` — the
+   `timelineLines` prop threaded `Gantt.jsx -> Layout.jsx -> Chart.jsx` and
+   the new `src/components/chart/TimelineLines.jsx` it renders inside
+   `.wx-area`: full-height vertical lines at consumer-supplied dates, placed
+   with the very expression the store uses for a bar's left edge. `SVAR-M4`
+   is a Phase 3.2A technical spike of the Planner project, not yet an accepted
+   production change; its status is recorded in the Planner's own registry
+   (`docs/SVAR_OWNED_MODIFICATIONS.md`).
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
