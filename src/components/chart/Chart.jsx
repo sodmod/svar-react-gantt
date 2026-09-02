@@ -8,6 +8,7 @@ import {
   useCallback,
 } from 'react';
 import CellGrid from './CellGrid.jsx';
+import TimelineLines from './annotations/TimelineLines.jsx';
 import Bars from './Bars.jsx';
 import { hotkeys } from '@svar-ui/grid-store';
 import { setID } from '@svar-ui/lib-dom';
@@ -21,8 +22,18 @@ import { useRenderTime } from '../../helpers/debug.js';
 function Chart(props) {
   // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
   // `taskTemplate` on this same line — see `Gantt.jsx` for what it is.
-  const { readonly, fullWidth, fullHeight, taskTemplate, scaleCellAriaLabel } =
-    props;
+  // SVAR-M4 (SVAR Production Planner): `annotationLayout`, the one layout
+  // object `Layout.jsx` computed — its `lines` are rendered below by
+  // `<TimelineLines>` inside `.wx-area`, and the whole object is handed to
+  // `<TimeScales>` for the annotation lane under the scale rows.
+  const {
+    readonly,
+    fullWidth,
+    fullHeight,
+    taskTemplate,
+    scaleCellAriaLabel,
+    annotationLayout,
+  } = props;
 
   const api = useContext(storeContext);
 
@@ -277,7 +288,11 @@ function Chart(props) {
       ref={chartRef}
       onScroll={onScroll}
     >
-      <TimeScales api={api} scaleCellAriaLabel={scaleCellAriaLabel} />
+      <TimeScales
+        api={api}
+        scaleCellAriaLabel={scaleCellAriaLabel}
+        annotationLayout={annotationLayout}
+      />
       {markers && markers.length ? (
         <div
           className="wx-mR7v2Xag wx-markers"
@@ -348,6 +363,12 @@ function Chart(props) {
           : null}
 
         <CellGrid />
+
+        {/* SVAR-M4 (SVAR Production Planner): after the cell grid and before
+            the bars, so a line paints above the grid and below every bar. */}
+        <TimelineLines
+          lines={annotationLayout ? annotationLayout.lines : undefined}
+        />
 
         <Bars readonly={readonly} taskTemplate={taskTemplate} />
       </div>

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useStore } from '@svar-ui/lib-react';
+import AnnotationLane from './annotations/AnnotationLane.jsx';
 import './TimeScale.css';
 
 // Upper-row cells span multiple lowest-row cells. Walk widths so a span
@@ -30,7 +31,11 @@ function TimeScale(props) {
   // prop (not store state, unlike `highlightTime` below) — see `Gantt.jsx`
   // for what it is and why. `undefined` by default: nothing below changes
   // for a consumer that never passes it.
-  const { api, scaleCellAriaLabel } = props;
+  // SVAR-M4 (SVAR Production Planner): `annotationLayout` — the lane rendered
+  // after the scale rows, inside this sticky element, so it stays fixed with
+  // the header and scrolls with the timeline for free. Absent, or with no
+  // rows to show, nothing is rendered and the header is what it always was.
+  const { api, scaleCellAriaLabel, annotationLayout } = props;
 
   const scales = useStore(api, '_scales');
   const xArea = useStore(api, 'xArea');
@@ -98,6 +103,9 @@ function TimeScale(props) {
           })}
         </div>
       ))}
+      {/* SVAR-M4 (SVAR Production Planner): the annotation lane, under the
+          last scale row. */}
+      <AnnotationLane layout={annotationLayout} />
     </div>
   );
 }

@@ -67,21 +67,27 @@ const UPSTREAM_COMMIT = '0c5788a8ffda80c8f0cb5a61d5113fb036eedebb';
  */
 const OWNED_UPSTREAM_FILES = {
   'package.json':
-    '`prepare` builds the package: a git dependency has no publish step',
+    '`prepare` builds the package: a git dependency has no publish step; ' +
+    '`test:planner` runs the SVAR-M4 layout unit test',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold',
   'src/components/Gantt.jsx':
-    'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx',
+    'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
+    'SVAR-M4 — new `timelineAnnotations` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
-    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through',
+    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
+    'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math',
   'src/components/chart/Chart.jsx':
-    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through',
+    'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
+    'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx',
   'src/components/chart/TimeScale.jsx':
-    'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label',
+    'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
+    'SVAR-M4 — renders <AnnotationLane> under the scale rows, inside the sticky .wx-scale',
   'types/index.d.ts':
-    'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop',
+    'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
+    'SVAR-M4 — `ITimelineAnnotation` and the `timelineAnnotations` prop',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':
@@ -101,6 +107,8 @@ const PROJECT_ADDED = [
 	'planner-assets/',
 	'PLANNER_FORK.md',
 	'.gitattributes',
+	// SVAR-M4: the annotation components, their stylesheets and the pure layout owner.
+	'src/components/chart/annotations/',
 ];
 
 /**

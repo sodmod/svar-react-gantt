@@ -78,8 +78,25 @@ Two kinds of change, deliberately kept in separate commits:
    `tools/planner-icons.mjs` + `planner-assets/icons/` (this project's own SVG
    icons, replacing the CDN icon font — see below), and this file.
    No renderer behaviour.
-2. **Renderer behaviour** — currently exactly one change, `SVAR-M2`, in
-   `src/components/chart/Bars.jsx`: the drag-activation pixel threshold.
+2. **Renderer behaviour** — `SVAR-M2` in `src/components/chart/Bars.jsx`
+   (the drag-activation pixel threshold); `SVAR-M3`, the `scaleCellAriaLabel`
+   prop threaded `Gantt.jsx -> Layout.jsx -> Chart.jsx -> TimeScale.jsx`
+   (an accessible name for scale cells, supplied by the consumer); and
+   `SVAR-M4`, the `timelineAnnotations` prop threaded
+   `Gantt.jsx -> Layout.jsx -> Chart.jsx -> TimeScale.jsx` with the new
+   `src/components/chart/annotations/` components: a vertical line at each
+   consumer-supplied date in the chart body (`TimelineLines.jsx`, inside
+   `.wx-area`, before the bars), a labelled chip for each in an annotation
+   lane rendered under the scale rows inside the sticky `.wx-scale`
+   (`AnnotationLane.jsx`), lines sharing one x merged into one striped line,
+   chips laid out into as many rows as it takes for none to overlap
+   (`timelineAnnotationLayout.js`, pure; unit-tested by
+   `npm run test:planner`), and the lane's height entering `Layout.jsx`'s
+   scroll/height math. The renderer knows a date, a label and a pixel; what
+   an annotation means is the consumer's business. This is the project's own
+   implementation; the PRO edition's vertical-line feature is not used, not
+   copied and not referenced, and `tools/planner-verify.mjs`'s PRO-identifier
+   tripwire covers every added line.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

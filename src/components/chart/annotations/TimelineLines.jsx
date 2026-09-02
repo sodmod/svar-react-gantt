@@ -1,0 +1,62 @@
+/*
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M4).
+ * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
+ *
+ * The chart-body half of a timeline annotation's vertical line: one
+ * full-height element per line, striped with one 2 px stripe per annotation
+ * sharing that x (at most three), rendered inside `.wx-area` after the cell
+ * grid and before the bars so it paints above the grid and below every bar.
+ *
+ * WHY IT LIVES INSIDE `.wx-area`
+ *
+ * `.wx-area` is the horizontally scrolled, full-height chart body: it starts
+ * below the sticky scale header (and therefore below the annotation lane the
+ * header now carries) and the browser moves it as one piece on either axis. A
+ * child positioned inside it stays on its date under horizontal scroll and
+ * stays below the header under vertical scroll with no listener, no
+ * measurement and no per-frame work here at all. The layer takes no pointer
+ * events, so every gesture underneath it (bar move/resize, link handles, the
+ * consumer's own pan) reaches exactly the element it reached before.
+ *
+ * Where each line stands is decided by `timelineAnnotationLayout.js`; this
+ * component only renders what it is handed.
+ *
+ * This is the project's OWN implementation of "a vertical line at a date". The
+ * PRO edition's vertical-line feature is not used, not copied and not
+ * referenced; its state stays reset by the unmodified Community store.
+ */
+import { memo } from 'react';
+import './TimelineLines.css';
+
+function TimelineLines(props) {
+  const { lines } = props;
+  if (!lines || !lines.length) return null;
+
+  return (
+    <div className="wx-timeline-lines" aria-hidden="true">
+      {lines.map((line) => (
+        <div
+          key={line.key}
+          className="wx-timeline-line"
+          data-timeline-line={line.key}
+          data-annotation-ids={line.ids.join(' ')}
+          data-annotation-count={line.ids.length}
+          style={{
+            left: `${line.x - line.width / 2}px`,
+            width: `${line.width}px`,
+          }}
+        >
+          {line.stripes.map((stripe) => (
+            <div
+              key={stripe.id}
+              className={'wx-timeline-line-stripe ' + stripe.css}
+              data-annotation-id={stripe.id}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export default memo(TimelineLines);

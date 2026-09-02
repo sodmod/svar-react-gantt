@@ -1,0 +1,37 @@
+/*
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M4).
+ * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
+ * See TimelineLines.jsx and AnnotationLane.jsx.
+ */
+.wx-timeline-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.wx-timeline-line,
+.wx-annotation-lane-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: row;
+  pointer-events: none;
+}
+
+/* One stripe per annotation sharing the line's x; the consumer's `css` class
+   on the stripe sets the colour through the public custom property. */
+.wx-timeline-line-stripe {
+  flex: 0 0 var(--wx-gantt-timeline-annotation-stripe-width, 2px);
+  width: var(--wx-gantt-timeline-annotation-stripe-width, 2px);
+  height: 100%;
+  background: var(
+    --wx-gantt-timeline-annotation-color,
+    var(--wx-color-primary)
+  );
+  pointer-events: none;
+}

@@ -28,6 +28,28 @@ import type {
 export * from '@svar-ui/gantt-store';
 export { registerEditorItem } from '@svar-ui/react-editor';
 
+// SVAR-M4 (SVAR Production Planner): one timeline annotation — a vertical
+// line at `date`'s column plus a labelled chip in the annotation lane under
+// the scale rows. The renderer draws the line on the column's left edge for
+// 'unit-start' (the coordinate a bar begins on) or on its centre for
+// 'unit-center', puts the chip beside the line ('after': to the right, falling
+// back to the left at the range edge) or centred on it ('center'), merges the
+// lines of annotations sharing one x into one striped line, and adds `css` to
+// every element it renders for the annotation so the consumer's own stylesheet
+// colours it. What the annotation MEANS is the consumer's business, never this
+// package's.
+export interface ITimelineAnnotation {
+  id: string | number;
+  date: Date;
+  anchor?: 'unit-start' | 'unit-center';
+  /** The chip's visible text. */
+  label: string;
+  /** The full name exposed on hover/focus and as the chip's accessible name; defaults to `label`. */
+  title?: string;
+  labelPosition?: 'after' | 'center';
+  css?: string;
+}
+
 export interface IColumnConfig extends Omit<IGanttColumn, 'header'> {
   cell?: ITableColumn['cell'];
   header?: ITableColumn['header'];
@@ -54,6 +76,10 @@ export declare const Gantt: ForwardRefExoticComponent<
       unit: string,
       value: string,
     ) => string | undefined;
+    // SVAR-M4 (SVAR Production Planner): timeline annotations — lines at
+    // dates in the chart body and their chips in the annotation lane, see
+    // `ITimelineAnnotation` above.
+    timelineAnnotations?: ITimelineAnnotation[];
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

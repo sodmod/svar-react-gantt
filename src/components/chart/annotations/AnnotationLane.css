@@ -1,0 +1,69 @@
+/*
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M4).
+ * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
+ * See AnnotationLane.jsx and AnnotationMeasurer.jsx.
+ *
+ * Public custom properties a consumer's stylesheet may set per `css` class:
+ *   --wx-gantt-timeline-annotation-color        line stripes and chip background
+ *   --wx-gantt-timeline-annotation-font-color   chip text
+ *   --wx-gantt-annotation-font                  chip font (defaults to the scale font)
+ */
+.wx-annotation-lane {
+  position: relative;
+  box-sizing: border-box;
+  width: 100%;
+  overflow: hidden;
+}
+
+.wx-annotation-chip {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border-radius: 4px;
+  font: var(--wx-gantt-annotation-font, var(--wx-timescale-font));
+  line-height: 1;
+  color: var(--wx-gantt-timeline-annotation-font-color, #fff);
+  background: var(
+    --wx-gantt-timeline-annotation-color,
+    var(--wx-color-primary)
+  );
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+  outline-offset: 1px;
+}
+
+.wx-annotation-chip:focus-visible {
+  outline: 2px solid var(--wx-color-primary);
+}
+
+.wx-annotation-chip-text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The hidden measuring container: a zero-size, invisible, clipped box that is
+   never hit-tested and adds no scrollable overflow anywhere; its chips take
+   their natural (max-content) width, which is all that is read from them. */
+.wx-annotation-measure {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.wx-annotation-measure .wx-annotation-chip {
+  position: static;
+  display: inline-flex;
+  width: max-content;
+}
