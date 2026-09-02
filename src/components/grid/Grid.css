@@ -18,14 +18,14 @@
   --wx-table-header-border: var(--wx-gantt-border);
   --wx-table-header-cell-border: var(--wx-gantt-border);
   height: 100%;
-  /* SVAR-M5 (SVAR Production Planner): the containing block of the marker-lane
+  /* SVAR-M6 (SVAR Production Planner): the containing block of the marker-lane
      spacer below, and of nothing else. `.wx-table-box` inside is already
      `position: relative`, so every element the grid itself positions still
      resolves against the same ancestor it always did. */
   position: relative;
 }
 
-/* SVAR-M5 (SVAR Production Planner): the grid's blank marker-lane spacer. */
+/* SVAR-M6 (SVAR Production Planner): the grid's blank marker-lane spacer. */
 .wx-annotation-lane-spacer.wx-rHj6070p {
   position: absolute;
   left: 0;

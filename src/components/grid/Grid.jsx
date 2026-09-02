@@ -49,7 +49,7 @@ function cssTextToStyle(cssText) {
 
 export default function Grid(props) {
   /*
-   * SVAR-M5 (SVAR Production Planner): `annotationLaneHeight` — the RESOLVED
+   * SVAR-M6 (SVAR Production Planner): `annotationLaneHeight` — the RESOLVED
    * pixel height of the timeline's annotation lane, computed once by the one
    * lane-layout owner (`chart/annotations/timelineAnnotationLayout.js`) and
    * handed down by `Layout.jsx`.
@@ -306,7 +306,7 @@ export default function Grid(props) {
   );
 
   const bodyOffset = useMemo(
-    // SVAR-M5 (SVAR Production Planner): + laneHeight — the same reservation
+    // SVAR-M6 (SVAR Production Planner): + laneHeight — the same reservation
     // the chart makes, applied to the grid body so row N is at the same y on
     // both sides at every scroll position.
     () => (scrollDelta ?? 0) - (scrollTopVal ?? 0) + laneHeight,
@@ -594,7 +594,7 @@ export default function Grid(props) {
         onClick={onClick}
         onDoubleClick={onDblClick}
       >
-        {/* SVAR-M5 (SVAR Production Planner): the grid's half of the marker
+        {/* SVAR-M6 (SVAR Production Planner): the grid's half of the marker
             lane — blank by construction. It carries no chip, no line and no
             grid data; its only job is to hold the same vertical room the
             timeline's lane holds, and to be opaque, so a row scrolled under it

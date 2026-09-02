@@ -82,7 +82,7 @@ function Layout(props) {
   // the chart body and the chips in the annotation lane. `laneHeight` is the
   // vertical room the lane takes from the chart body; it enters the scroll
   // height and the chart height below exactly as the scale height does — and,
-  // since SVAR-M5, the left grid's own blank spacer, so both halves of the
+  // since SVAR-M6, the left grid's own blank spacer, so both halves of the
   // split surface reserve the SAME resolved pixel height and their rows stay
   // on one line.
   const { layout: annotationLayout, onMeasured: onAnnotationsMeasured } =

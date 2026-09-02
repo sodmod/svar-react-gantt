@@ -99,9 +99,10 @@ Two kinds of change, deliberately kept in separate commits:
    copied and not referenced, and `tools/planner-verify.mjs`'s PRO-identifier
    tripwire covers every added line.
 
-   `SVAR-M5` extends the same feature in two directions, and adds no owner:
+   `SVAR-M5` and `SVAR-M6` extend the same feature in two directions, and
+   add no owner:
 
-   - **the marker travels with the bar.** `Bars.jsx` reports every accepted
+   - **`SVAR-M5` — the marker travels with the bar.** `Bars.jsx` reports every accepted
      step of a bar drag through the new `onTimelineDragPreview` prop
      (`Gantt.jsx -> Layout.jsx -> Chart.jsx -> Bars.jsx`), carrying `dx` (the
      pixels travelled) and `diff` (those pixels as whole scale units, by the
@@ -113,7 +114,7 @@ Two kinds of change, deliberately kept in separate commits:
      line while the gesture is in flight. Pixels here, dates there — the
      split is the point, and it is why a compressed scale still cannot merge
      two different dates;
-   - **the grid reserves the same lane.** `Layout.jsx` hands `Grid.jsx` the
+   - **`SVAR-M6` — the grid reserves the same lane.** `Layout.jsx` hands `Grid.jsx` the
      RESOLVED lane height it already computed, and the grid renders a blank
      opaque spacer of exactly that height under its header, shifting its body
      by the same amount. The grid measures nothing, resolves no collision and
