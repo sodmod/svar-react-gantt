@@ -119,7 +119,24 @@ Two kinds of change, deliberately kept in separate commits:
      opaque spacer of exactly that height under its header, shifting its body
      by the same amount. The grid measures nothing, resolves no collision and
      counts no marker: it receives a number. Without it the chart's rows sat
-     one lane lower than the grid's.
+     one lane lower than the grid's;
+   - **`SVAR-M8` — the lane moves INSIDE the date header.** It used to sit under
+     every scale row, directly above the chart body, so a tall lane pushed the
+     date numbers away from the diagram they label. It now sits after the TOP
+     scale row and before the remaining lower rows. One pure function,
+     `splitScaleHeaderForLane`, is the only place that decides where that split
+     falls — the header, the grid and the header's own line band all ask it —
+     and the rule is POSITIONAL (one row above, the rest below), never "the
+     month row", so the day, week and month scale families all get it without a
+     branch. Three things follow: the grid's blank lane reservation moves ABOVE
+     its column-header block (whose height becomes the lower rows' band), so the
+     column titles stay next to the first task row; the ordinary column
+     separators continue through the lane, sliced from the lowest scale row this
+     component already rendered; and each annotation's vertical line continues
+     down through the lower date rows, drawn by the same `TimelineLines`
+     component with caller-supplied class names and painted behind the cells'
+     text, which the stylesheet lifts. With no lane, or on a single-row scale,
+     every one of these collapses to exactly the pre-SVAR-M8 layout.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
