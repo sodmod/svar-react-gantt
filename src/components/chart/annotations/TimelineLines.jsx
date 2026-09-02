@@ -41,6 +41,7 @@ function TimelineLines(props) {
           data-timeline-line={line.key}
           data-annotation-ids={line.ids.join(' ')}
           data-annotation-count={line.ids.length}
+          data-annotation-dragged={line.dragged ? 'true' : 'false'}
           style={{
             left: `${line.x - line.width / 2}px`,
             width: `${line.width}px`,

@@ -48,7 +48,27 @@ function cssTextToStyle(cssText) {
 }
 
 export default function Grid(props) {
-  const { readonly, onTableAPIChange } = props;
+  /*
+   * SVAR-M5 (SVAR Production Planner): `annotationLaneHeight` — the RESOLVED
+   * pixel height of the timeline's annotation lane, computed once by the one
+   * lane-layout owner (`chart/annotations/timelineAnnotationLayout.js`) and
+   * handed down by `Layout.jsx`.
+   *
+   * The chart's body starts below the scale rows PLUS that lane; the grid's
+   * body starts below the grid header alone. Left and right rows therefore sat
+   * `annotationLaneHeight` px apart, which is what the acceptance run found.
+   * The grid reserves the same height here — as a blank spacer and an equal
+   * shift of the body — and the two halves line up again.
+   *
+   * It is a NUMBER, arriving from the owner that already resolved it. Nothing
+   * in this file measures a label, resolves a chip collision, counts markers
+   * or knows what a marker is; a second answer to "how tall is the lane" would
+   * be a second owner and is exactly what this prop exists to avoid.
+   */
+  const { readonly, onTableAPIChange, annotationLaneHeight } = props;
+  const laneHeight = Number.isFinite(annotationLaneHeight)
+    ? Math.max(0, annotationLaneHeight)
+    : 0;
   const [columnWidth, setColumnWidth] = useState(0);
   const [tableAPI, setTableAPI] = useState();
 
@@ -286,8 +306,11 @@ export default function Grid(props) {
   );
 
   const bodyOffset = useMemo(
-    () => (scrollDelta ?? 0) - (scrollTopVal ?? 0),
-    [scrollDelta, scrollTopVal],
+    // SVAR-M5 (SVAR Production Planner): + laneHeight — the same reservation
+    // the chart makes, applied to the grid body so row N is at the same y on
+    // both sides at every scroll position.
+    () => (scrollDelta ?? 0) - (scrollTopVal ?? 0) + laneHeight,
+    [scrollDelta, scrollTopVal, laneHeight],
   );
 
   const tableStyle = useMemo(() => {
@@ -571,6 +594,21 @@ export default function Grid(props) {
         onClick={onClick}
         onDoubleClick={onDblClick}
       >
+        {/* SVAR-M5 (SVAR Production Planner): the grid's half of the marker
+            lane — blank by construction. It carries no chip, no line and no
+            grid data; its only job is to hold the same vertical room the
+            timeline's lane holds, and to be opaque, so a row scrolled under it
+            disappears behind it exactly as it disappears behind the sticky
+            lane on the chart side. It sits between the grid header and the
+            first row and does not scroll with the rows. */}
+        {laneHeight ? (
+          <div
+            className="wx-rHj6070p wx-annotation-lane-spacer"
+            data-annotation-lane-spacer="true"
+            aria-hidden="true"
+            style={{ top: `${headerHeight}px`, height: `${laneHeight}px` }}
+          />
+        ) : null}
         <WxGrid
           init={init}
           sizes={{

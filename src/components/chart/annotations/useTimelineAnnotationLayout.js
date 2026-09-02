@@ -8,8 +8,16 @@
  * `Chart.jsx`, `TimeScale.jsx` and the annotation components all read.
  *
  * Recomputes only when one of its inputs changes — the annotations, the scale
- * geometry (`_scales`), `cellWidth` or a measured width. Scroll position is not
- * an input, so a pan re-renders nothing here and reads no layout.
+ * geometry (`_scales`), `cellWidth`, a measured width, or the live drag
+ * preview (SVAR-M5). Scroll position is not an input, so a pan re-renders
+ * nothing here and reads no layout.
+ *
+ * `dragPreview` DOES change once per pointer step of a bar drag, and that is
+ * the point: the marker of the dragged bar has to travel with it. What that
+ * costs is arithmetic over the annotations alone — the chip MEASUREMENTS
+ * (`AnnotationMeasurer`, the only DOM reads in this feature) are keyed by
+ * LABEL, and a drag changes no label, so a gesture adds exactly zero layout
+ * reads however far the pointer travels.
  */
 import { useCallback, useMemo, useState } from 'react';
 import {
@@ -29,18 +37,28 @@ function sameWidths(previous, next) {
   return true;
 }
 
-export function useTimelineAnnotationLayout(annotations, scales, cellWidth) {
+export function useTimelineAnnotationLayout(
+  annotations,
+  scales,
+  cellWidth,
+  dragPreview,
+) {
   const [labelWidths, setLabelWidths] = useState(EMPTY_WIDTHS);
 
   const layout = useMemo(() => {
     if (!annotations || !annotations.length) return EMPTY_ANNOTATION_LAYOUT;
-    const placed = placeAnnotations(annotations, scales, cellWidth);
+    const placed = placeAnnotations(
+      annotations,
+      scales,
+      cellWidth,
+      dragPreview,
+    );
     return layoutTimelineAnnotations(
       placed,
       labelWidths,
       scales ? scales.width : 0,
     );
-  }, [annotations, scales, cellWidth, labelWidths]);
+  }, [annotations, scales, cellWidth, labelWidths, dragPreview]);
 
   // Keeps the previous Map when nothing changed, so an unchanged measurement
   // does not re-run the layout above.

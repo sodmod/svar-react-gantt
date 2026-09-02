@@ -88,15 +88,37 @@ Two kinds of change, deliberately kept in separate commits:
    consumer-supplied date in the chart body (`TimelineLines.jsx`, inside
    `.wx-area`, before the bars), a labelled chip for each in an annotation
    lane rendered under the scale rows inside the sticky `.wx-scale`
-   (`AnnotationLane.jsx`), lines sharing one x merged into one striped line,
-   chips laid out into as many rows as it takes for none to overlap
-   (`timelineAnnotationLayout.js`, pure; unit-tested by
+   (`AnnotationLane.jsx`), annotations sharing one consumer-supplied technical
+   date — the semantic group, never the rounded pixel — merged into one
+   striped line, chips laid out into as many rows as it takes for none to
+   overlap (`timelineAnnotationLayout.js`, pure; unit-tested by
    `npm run test:planner`), and the lane's height entering `Layout.jsx`'s
    scroll/height math. The renderer knows a date, a label and a pixel; what
    an annotation means is the consumer's business. This is the project's own
    implementation; the PRO edition's vertical-line feature is not used, not
    copied and not referenced, and `tools/planner-verify.mjs`'s PRO-identifier
    tripwire covers every added line.
+
+   `SVAR-M5` extends the same feature in two directions, and adds no owner:
+
+   - **the marker travels with the bar.** `Bars.jsx` reports every accepted
+     step of a bar drag through the new `onTimelineDragPreview` prop
+     (`Gantt.jsx -> Layout.jsx -> Chart.jsx -> Bars.jsx`), carrying `dx` (the
+     pixels travelled) and `diff` (those pixels as whole scale units, by the
+     one expression that also produces the committing `update-task` `diff`).
+     An annotation naming that bar in `followsTaskId` is drawn `dx` px from
+     its own date, so its line and chip stay on the diamond under the pointer
+     instead of waiting on the drop; a consumer that owns dates answers with
+     `previewDate`, which decides ONLY which annotations share a composite
+     line while the gesture is in flight. Pixels here, dates there — the
+     split is the point, and it is why a compressed scale still cannot merge
+     two different dates;
+   - **the grid reserves the same lane.** `Layout.jsx` hands `Grid.jsx` the
+     RESOLVED lane height it already computed, and the grid renders a blank
+     opaque spacer of exactly that height under its header, shifting its body
+     by the same amount. The grid measures nothing, resolves no collision and
+     counts no marker: it receives a number. Without it the chart's rows sat
+     one lane lower than the grid's.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

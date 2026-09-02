@@ -18,6 +18,24 @@
   --wx-table-header-border: var(--wx-gantt-border);
   --wx-table-header-cell-border: var(--wx-gantt-border);
   height: 100%;
+  /* SVAR-M5 (SVAR Production Planner): the containing block of the marker-lane
+     spacer below, and of nothing else. `.wx-table-box` inside is already
+     `position: relative`, so every element the grid itself positions still
+     resolves against the same ancestor it always did. */
+  position: relative;
+}
+
+/* SVAR-M5 (SVAR Production Planner): the grid's blank marker-lane spacer. */
+.wx-annotation-lane-spacer.wx-rHj6070p {
+  position: absolute;
+  left: 0;
+  right: 0;
+  /* Above `.wx-body` (whose rows are positioned but not stacked) and below
+     `.wx-header-wrapper` (z-index 3), so a row scrolled up under the header
+     passes behind this band and out of sight, as on the chart side. */
+  z-index: 2;
+  background: var(--wx-background);
+  pointer-events: none;
 }
 .wx-table.wx-rHj6070p .wx-grid .wx-table-box {
   border: none;

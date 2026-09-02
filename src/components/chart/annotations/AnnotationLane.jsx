@@ -44,6 +44,7 @@ function AnnotationLane(props) {
           data-timeline-line={line.key}
           data-annotation-ids={line.ids.join(' ')}
           data-annotation-count={line.ids.length}
+          data-annotation-dragged={line.dragged ? 'true' : 'false'}
           aria-hidden="true"
           style={{
             left: `${line.x - line.width / 2}px`,
@@ -70,6 +71,7 @@ function AnnotationLane(props) {
           data-annotation-id={chip.id}
           data-annotation-row={chip.row}
           data-annotation-side={chip.side}
+          data-annotation-dragged={chip.dragged ? 'true' : 'false'}
           data-annotation-clipped={chip.clipped ? 'true' : 'false'}
           style={{
             left: `${chip.x}px`,

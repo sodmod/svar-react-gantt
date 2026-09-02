@@ -23,10 +23,15 @@ function Layout(props) {
   // SVAR-M4 (SVAR Production Planner): `timelineAnnotations` — see
   // `Gantt.jsx`. This component owns the annotation LAYOUT (through the hook
   // below), because the lane's height is part of the scroll/height math here.
+  // SVAR-M5 (SVAR Production Planner): `onTimelineDragPreview` — see
+  // `Gantt.jsx`. This component owns the transient half of the marker
+  // presentation for the same reason it owns the lane layout: the displaced
+  // marker and the lane height it may change are one layout, computed once.
   const {
     taskTemplate,
     scaleCellAriaLabel,
     timelineAnnotations,
+    onTimelineDragPreview,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -45,12 +50,48 @@ function Layout(props) {
   // two geometry inputs the annotation placement reads (with `_scales`).
   const rCellWidth = useStore(api, 'cellWidth');
 
+  /*
+   * SVAR-M5 (SVAR Production Planner): the live bar-drag preview.
+   *
+   * `Bars.jsx` reports one step per accepted pointer move; this state is the
+   * PIXEL half of it (`{ id, dx }`), which is all the annotation layout needs
+   * to slide the dragged bar's own marker onto the bar. The SEMANTIC half —
+   * what date the bar will land on — is not decided here and never is: the
+   * event is handed on to the consumer, which owns dates and answers by
+   * putting a `previewDate` on the annotation it hands back.
+   *
+   * Kept out of the store deliberately (D-102 §B): a transient presentation
+   * value of this fork is not a reason to touch `@svar-ui/gantt-store`.
+   */
+  const [barDragPreview, setBarDragPreview] = useState(null);
+  const onBarDragPreview = useCallback(
+    (event) => {
+      setBarDragPreview((previous) => {
+        if (!event || event.inProgress === false) return null;
+        if (previous && previous.id === event.id && previous.dx === event.dx) {
+          return previous;
+        }
+        return { id: event.id, dx: event.dx };
+      });
+      if (onTimelineDragPreview) onTimelineDragPreview(event);
+    },
+    [onTimelineDragPreview],
+  );
+
   // SVAR-M4 (SVAR Production Planner): ONE memoised layout for the lines in
   // the chart body and the chips in the annotation lane. `laneHeight` is the
   // vertical room the lane takes from the chart body; it enters the scroll
-  // height and the chart height below exactly as the scale height does.
+  // height and the chart height below exactly as the scale height does — and,
+  // since SVAR-M5, the left grid's own blank spacer, so both halves of the
+  // split surface reserve the SAME resolved pixel height and their rows stay
+  // on one line.
   const { layout: annotationLayout, onMeasured: onAnnotationsMeasured } =
-    useTimelineAnnotationLayout(timelineAnnotations, rScales, rCellWidth);
+    useTimelineAnnotationLayout(
+      timelineAnnotations,
+      rScales,
+      rCellWidth,
+      barDragPreview,
+    );
   const laneHeight = annotationLayout.laneHeight;
 
   const [ganttWidth, setGanttWidth] = useWritableProp(props.ganttWidth);
@@ -231,6 +272,7 @@ function Layout(props) {
                 <Grid
                   readonly={readonly}
                   fullHeight={fullHeight}
+                  annotationLaneHeight={laneHeight}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer containerWidth={ganttWidth} api={api} />
@@ -245,6 +287,7 @@ function Layout(props) {
                 taskTemplate={taskTemplate}
                 scaleCellAriaLabel={scaleCellAriaLabel}
                 annotationLayout={annotationLayout}
+                onBarDragPreview={onBarDragPreview}
               />
             </div>
           </div>

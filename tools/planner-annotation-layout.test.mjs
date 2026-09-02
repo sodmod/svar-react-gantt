@@ -549,3 +549,231 @@ test('C1 companion: same canonical date still composes into one line at 1/2/3/4+
     );
   }
 });
+
+/* ------------------------------------------------------------------------ *
+ * SVAR-M5 — the transient bar-drag preview.
+ *
+ * Two inputs, two jobs, deliberately not the same one: `dragPreview.dx` moves
+ * PIXELS, `previewDate` decides the composite-line IDENTITY. Every test below
+ * pins one of the two so a future change cannot quietly merge them back.
+ * ------------------------------------------------------------------------ */
+
+test('SVAR-M5: without a drag preview nothing moves — the identical inputs place identically', () => {
+  const annotations = [
+    { id: 'm-a', date: day(10), label: 'A', followsTaskId: 'task-a' },
+    { id: 'm-b', date: day(20), label: 'B', followsTaskId: 'task-b' },
+  ];
+  const before = placeAnnotations(annotations, SCALES, CELL);
+  const after = placeAnnotations(annotations, SCALES, CELL, null);
+  assert.deepEqual(after, before);
+  assert.ok(after.every((item) => item.dragged === false));
+});
+
+test('SVAR-M5: the annotation that follows the dragged bar moves by exactly dx — and no other annotation moves at all', () => {
+  const annotations = [
+    { id: 'm-a', date: day(10), label: 'A', followsTaskId: 'task-a' },
+    { id: 'm-b', date: day(20), label: 'B', followsTaskId: 'task-b' },
+    { id: 'today', date: day(15), label: 'Today', anchor: 'unit-center' },
+  ];
+  const still = placeAnnotations(annotations, SCALES, CELL);
+  for (const dx of [-97, -CELL, -3, 0, 5, CELL, 151]) {
+    const moved = placeAnnotations(annotations, SCALES, CELL, {
+      id: 'task-a',
+      dx,
+    });
+    assert.equal(
+      moved[0].x,
+      still[0].x + dx,
+      `dx ${dx}: the dragged bar's own marker travels with it, pixel for pixel`,
+    );
+    assert.equal(moved[0].dragged, true);
+    assert.equal(moved[1].x, still[1].x, `dx ${dx}: a stationary marker stays`);
+    assert.equal(moved[2].x, still[2].x, `dx ${dx}: Today stays`);
+    assert.ok(moved.slice(1).every((item) => item.dragged === false));
+  }
+});
+
+test('SVAR-M5: an annotation with no followsTaskId is never displaced, whatever is being dragged', () => {
+  const annotations = [{ id: 'today', date: day(15), label: 'Today' }];
+  const still = placeAnnotations(annotations, SCALES, CELL);
+  const dragged = placeAnnotations(annotations, SCALES, CELL, {
+    id: 'today',
+    dx: 200,
+  });
+  assert.equal(dragged[0].x, still[0].x);
+  assert.equal(dragged[0].dragged, false);
+});
+
+test('SVAR-M5: dx moves pixels only — it never changes which composite line an annotation belongs to', () => {
+  // Two milestones on ONE date; drag one of them a whole day away in pixels
+  // but say nothing about its future date. Grouping must not notice.
+  const annotations = [
+    { id: 'm-a', date: day(23), label: 'A', followsTaskId: 'task-a' },
+    { id: 'm-b', date: day(23), label: 'B', followsTaskId: 'task-b' },
+  ];
+  const placed = placeAnnotations(annotations, SCALES, CELL, {
+    id: 'task-a',
+    dx: 3 * CELL,
+  });
+  const layout = layoutTimelineAnnotations(
+    placed,
+    widths({ A: 60, B: 60 }),
+    SCALES.width,
+  );
+  assert.equal(layout.lines.length, 1, 'still one group: the date did not change');
+  assert.equal(layout.lines[0].width, 4);
+});
+
+test('SVAR-M5: previewDate decides identity — the dragged milestone leaves its old composite line and joins the destination one', () => {
+  const base = [
+    { id: 'm-a', date: day(23), label: 'A', followsTaskId: 'task-a' },
+    { id: 'm-b', date: day(23), label: 'B', followsTaskId: 'task-b' },
+    { id: 'm-c', date: day(30), label: 'C', followsTaskId: 'task-c' },
+    { id: 'm-d', date: day(30), label: 'D', followsTaskId: 'task-d' },
+  ];
+  const measured = widths({ A: 60, B: 60, C: 60, D: 60 });
+
+  const atRest = layoutTimelineAnnotations(
+    placeAnnotations(base, SCALES, CELL),
+    measured,
+    SCALES.width,
+  );
+  assert.deepEqual(
+    atRest.lines.map((line) => line.width),
+    [4, 4],
+    'at rest: two composite lines of two stripes each',
+  );
+
+  // A is halfway to day 30: its preview date has not reached it yet.
+  const halfway = base.map((a) =>
+    a.id === 'm-a' ? { ...a, previewDate: day(26) } : a,
+  );
+  const midDrag = layoutTimelineAnnotations(
+    placeAnnotations(halfway, SCALES, CELL, { id: 'task-a', dx: 3 * CELL }),
+    measured,
+    SCALES.width,
+  );
+  const midWidths = midDrag.lines.map((line) => ({
+    ids: line.ids,
+    width: line.width,
+  }));
+  assert.equal(midDrag.lines.length, 3, 'A is its own line while in transit');
+  assert.deepEqual(
+    midWidths.find((line) => line.ids.join() === 'm-b'),
+    { ids: ['m-b'], width: 2 },
+    'the line A left immediately shrinks to B alone, 2px — not after the drop',
+  );
+  assert.deepEqual(
+    midWidths.find((line) => line.ids.join() === 'm-c,m-d'),
+    { ids: ['m-c', 'm-d'], width: 4 },
+    'the destination is still C+D while A has not reached its date',
+  );
+
+  // A's preview date IS day 30 now: the destination composite grows live.
+  const arrived = base.map((a) =>
+    a.id === 'm-a' ? { ...a, previewDate: day(30) } : a,
+  );
+  const onTarget = layoutTimelineAnnotations(
+    placeAnnotations(arrived, SCALES, CELL, { id: 'task-a', dx: 7 * CELL - 4 }),
+    measured,
+    SCALES.width,
+  );
+  assert.equal(onTarget.lines.length, 2);
+  const destination = onTarget.lines.find((line) => line.ids.includes('m-a'));
+  assert.deepEqual(destination.ids, ['m-a', 'm-c', 'm-d']);
+  assert.equal(destination.width, 6, 'three stripes, live, before the drop');
+  assert.equal(
+    destination.dragged,
+    true,
+    'a composite line holding the dragged marker is flagged as such',
+  );
+  assert.equal(
+    destination.x,
+    placeAnnotations(arrived, SCALES, CELL, { id: 'task-a', dx: 7 * CELL - 4 })
+      .find((item) => item.id === 'm-a').x,
+    'and it is drawn on the diamond under the pointer, not on the destination day',
+  );
+  assert.equal(
+    onTarget.lines.find((line) => line.ids.join() === 'm-b').width,
+    2,
+  );
+});
+
+test('SVAR-M5: the dragged chip travels with its own line, and the lane keeps its no-overlap guarantee throughout', () => {
+  const annotations = [
+    { id: 'm-a', date: day(10), label: 'Alpha', followsTaskId: 'task-a' },
+    { id: 'm-b', date: day(20), label: 'Beta', followsTaskId: 'task-b' },
+  ];
+  const measured = widths({ Alpha: 80, Beta: 80 });
+  for (let dx = 0; dx <= 10 * CELL; dx += 7) {
+    const layout = layoutTimelineAnnotations(
+      placeAnnotations(annotations, SCALES, CELL, { id: 'task-a', dx }),
+      measured,
+      SCALES.width,
+    );
+    const chip = layout.chips.find((c) => c.id === 'm-a');
+    const line = layout.lines.find((l) => l.ids.includes('m-a'));
+    assert.equal(chip.lineX, line.x, `dx ${dx}: chip anchored on its own line`);
+    assert.equal(chip.dragged, true);
+    for (const [, row] of rowsOf(layout.chips)) {
+      const sorted = [...row].sort((a, b) => a.x - b.x);
+      for (let i = 1; i < sorted.length; i++) {
+        assert.ok(
+          sorted[i].x >= sorted[i - 1].x + sorted[i - 1].width,
+          `dx ${dx}: chips in one row never overlap mid-drag`,
+        );
+      }
+    }
+  }
+});
+
+test('SVAR-M5: a drag can change the lane height, and the height stays the one formula', () => {
+  // Two chips far apart share row 0; drag one on top of the other and the
+  // lane must grow to two rows — the same rule, applied to moved pixels.
+  const annotations = [
+    { id: 'm-a', date: day(10), label: 'Alpha', followsTaskId: 'task-a' },
+    { id: 'm-b', date: day(20), label: 'Beta', followsTaskId: 'task-b' },
+  ];
+  const measured = widths({ Alpha: 120, Beta: 120 });
+  const apart = layoutTimelineAnnotations(
+    placeAnnotations(annotations, SCALES, CELL),
+    measured,
+    SCALES.width,
+  );
+  assert.equal(apart.rowCount, 1);
+  assert.equal(apart.laneHeight, laneHeightForRows(1));
+
+  const overlapping = layoutTimelineAnnotations(
+    placeAnnotations(annotations, SCALES, CELL, { id: 'task-a', dx: 10 * CELL }),
+    measured,
+    SCALES.width,
+  );
+  assert.equal(overlapping.rowCount, 2, 'the moved chip needs a row of its own');
+  assert.equal(overlapping.laneHeight, laneHeightForRows(2));
+});
+
+test('SVAR-M5: a preview never removes a marker from the layout, and a garbage preview is ignored', () => {
+  const annotations = [
+    { id: 'm-a', date: day(10), label: 'A', followsTaskId: 'task-a' },
+  ];
+  const still = placeAnnotations(annotations, SCALES, CELL);
+  // A displacement that would take the marker far outside the range still
+  // leaves it placed: range membership is decided by `date`, never by `dx`.
+  const far = placeAnnotations(annotations, SCALES, CELL, {
+    id: 'task-a',
+    dx: -100 * CELL,
+  });
+  assert.equal(far.length, 1);
+  for (const nonsense of [
+    { id: 'task-a', dx: Number.NaN },
+    { id: 'task-a', dx: undefined },
+    { id: null, dx: 40 },
+    {},
+  ]) {
+    assert.deepEqual(
+      placeAnnotations(annotations, SCALES, CELL, nonsense).map((i) => i.x),
+      still.map((i) => i.x),
+      `a preview of ${JSON.stringify(nonsense)} must not move anything`,
+    );
+  }
+});

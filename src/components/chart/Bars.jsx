@@ -17,8 +17,26 @@ import BarSegments from './BarSegments.jsx';
 import Rollups from './Rollups.jsx';
 import './Bars.css';
 
+/*
+ * SVAR-M5 (SVAR Production Planner). The ONE expression that turns a bar
+ * gesture's pixel displacement into a whole-unit displacement.
+ *
+ * It was already here, inline in `up()`, producing the `diff` that
+ * `update-task` carries when the gesture COMMITS. It is named now because the
+ * live preview below has to report exactly the same number while the pointer
+ * is still moving: a consumer that previews a drop with one rule and commits
+ * it with another would show the user a date it then does not write. One
+ * expression, two callers — not two expressions.
+ */
+function unitDiffFromPixels(dx, lengthUnitWidth) {
+  return Math.round(dx / lengthUnitWidth);
+}
+
 function Bars(props) {
-  const { readonly, taskTemplate: TaskTemplate } = props;
+  // SVAR-M5 (SVAR Production Planner): `onDragPreview` — see `Layout.jsx` and
+  // `Gantt.jsx` (`onTimelineDragPreview`). A plain callback prop, null by
+  // default; nothing below changes for a consumer that does not pass one.
+  const { readonly, taskTemplate: TaskTemplate, onDragPreview } = props;
 
   const api = useContext(storeContext);
 
@@ -118,6 +136,30 @@ function Bars(props) {
     }
   }, [containerRef.current]);
 
+  /*
+   * SVAR-M5 (SVAR Production Planner): report the live bar drag, or its end.
+   *
+   * Reports every bar, of every type: this component does not know what a
+   * milestone, a container or a leaf MEANS, and acquiring that knowledge here
+   * would be exactly the kind of second semantic owner the boundary forbids.
+   * The consumer decides which gestures it previews and what a preview means.
+   */
+  const previewingRef = useRef(false);
+  const reportDragPreview = useCallback(
+    (event) => {
+      if (!onDragPreview) return;
+      if (event === null) {
+        if (!previewingRef.current) return;
+        previewingRef.current = false;
+        onDragPreview({ id: null, dx: 0, diff: 0, inProgress: false });
+        return;
+      }
+      previewingRef.current = true;
+      onDragPreview(event);
+    },
+    [onDragPreview],
+  );
+
   const startDrag = useCallback(() => {
     document.body.style.userSelect = 'none';
   }, []);
@@ -174,6 +216,12 @@ function Bars(props) {
             dx: 0,
             l: task.$x,
             w: task.$w,
+            // SVAR-M5 (SVAR Production Planner): the bar's date as it stands
+            // BEFORE the gesture. `drag-task` moves `$x` only and never
+            // touches `start`, so this stays the gesture's reference point for
+            // as long as the drag lasts — the same reference point the
+            // committing `update-task` reports below.
+            referenceStart: task.start,
           };
 
           if (splitTasks && task.segments?.length) {
@@ -234,12 +282,13 @@ function Bars(props) {
       marker.classList.remove('wx-progress-in-drag');
 
       ignoreNextClickRef.current = true;
+      reportDragPreview(null);
       endDrag();
     } else if (taskMove) {
       const { id, mode, dx, l, w, start, segment, index } = taskMove;
       setTaskMove(null);
       if (start) {
-        const diff = Math.round(dx / lengthUnitWidth);
+        const diff = unitDiffFromPixels(dx, lengthUnitWidth);
 
         if (!diff) {
           api.exec('drag-task', {
@@ -269,9 +318,14 @@ function Bars(props) {
         ignoreNextClickRef.current = true;
       }
 
+      // SVAR-M5 (SVAR Production Planner): AFTER the committing action above,
+      // never before it. Both land in one React event batch, so the consumer
+      // drops the preview and adopts the committed value in the same commit
+      // and the marker never flashes back to where it started.
+      reportDragPreview(null);
       endDrag();
     }
-  }, [api, endDrag, taskMove, lengthUnitWidth]);
+  }, [api, endDrag, taskMove, lengthUnitWidth, reportDragPreview]);
 
   const move = useCallback(
     (e, point) => {
@@ -355,6 +409,21 @@ function Bars(props) {
             ...(segment && { segmentIndex: index }),
           });
 
+          // SVAR-M5 (SVAR Production Planner): the same transient step, told
+          // to the consumer in the two forms it can actually use — `dx`, the
+          // pixels the bar has travelled, and `diff`, those pixels as whole
+          // scale units by the ONE expression that will also produce the
+          // committing `diff` on mouseup. Only reached once the guards above
+          // have accepted this step, so a preview never describes a movement
+          // the bar did not make.
+          reportDragPreview({
+            id,
+            dx,
+            diff: unitDiffFromPixels(dx, lengthUnitWidth),
+            referenceStart: taskMove.referenceStart,
+            inProgress: true,
+          });
+
           if (
             !nextTaskMove.start &&
             ((mode === 'move' && task.$x === l) ||
@@ -386,6 +455,7 @@ function Bars(props) {
       totalWidth,
       getMoveMode,
       onSelectLink,
+      reportDragPreview,
       up,
     ],
   );

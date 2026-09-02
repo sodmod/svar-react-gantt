@@ -26,6 +26,8 @@ function Chart(props) {
   // object `Layout.jsx` computed — its `lines` are rendered below by
   // `<TimelineLines>` inside `.wx-area`, and the whole object is handed to
   // `<TimeScales>` for the annotation lane under the scale rows.
+  // SVAR-M5 (SVAR Production Planner): `onBarDragPreview` — a plain callback
+  // handed straight to `<Bars>`; this component only carries it.
   const {
     readonly,
     fullWidth,
@@ -33,6 +35,7 @@ function Chart(props) {
     taskTemplate,
     scaleCellAriaLabel,
     annotationLayout,
+    onBarDragPreview,
   } = props;
 
   const api = useContext(storeContext);
@@ -370,7 +373,11 @@ function Chart(props) {
           lines={annotationLayout ? annotationLayout.lines : undefined}
         />
 
-        <Bars readonly={readonly} taskTemplate={taskTemplate} />
+        <Bars
+          readonly={readonly}
+          taskTemplate={taskTemplate}
+          onDragPreview={onBarDragPreview}
+        />
       </div>
     </div>
   );

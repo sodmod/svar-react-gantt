@@ -108,6 +108,18 @@ const Gantt = forwardRef(function Gantt(
     // component deliberately does not know. An ordinary React prop threaded
     // down the same path as `taskTemplate`; it never enters the store.
     timelineAnnotations = EMPTY_ARRAY,
+    // SVAR-M5 (SVAR Production Planner): new optional prop, purely additive.
+    // Called on every accepted pointer step of a bar drag with
+    // `{ id, dx, diff, referenceStart, inProgress: true }`, and once with
+    // `inProgress: false` when the gesture ends — `dx` the pixels the bar has
+    // travelled, `diff` those pixels as whole scale units by the same
+    // expression that produces the committing `update-task` `diff`, and
+    // `referenceStart` the bar's pre-gesture date. It reports; it decides
+    // nothing. A consumer that owns dates can answer with a `previewDate` on
+    // the annotation that follows the bar, and the marker then travels with
+    // the bar instead of waiting on the drop. `null` by default: without it
+    // nothing in this component behaves differently.
+    onTimelineDragPreview = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -370,6 +382,7 @@ const Gantt = forwardRef(function Gantt(
           taskTemplate={taskTemplate}
           scaleCellAriaLabel={scaleCellAriaLabel}
           timelineAnnotations={timelineAnnotations}
+          onTimelineDragPreview={onTimelineDragPreview}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

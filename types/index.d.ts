@@ -48,6 +48,37 @@ export interface ITimelineAnnotation {
   title?: string;
   labelPosition?: 'after' | 'center';
   css?: string;
+  /**
+   * SVAR-M5: the task whose bar this annotation follows. While that bar is
+   * being dragged, the annotation's line and chip travel with it, pixel for
+   * pixel. Absent = the annotation never moves before its `date` does.
+   */
+  followsTaskId?: string | number;
+  /**
+   * SVAR-M5: while a gesture is in flight, the date this annotation will have
+   * once the gesture commits. Used for ONE thing — deciding which annotations
+   * share a composite line — and never for a pixel: `date` alone still says
+   * where the annotation is drawn, and the live displacement comes from the
+   * gesture itself. Absent outside a gesture.
+   */
+  previewDate?: Date;
+}
+
+/**
+ * SVAR-M5: one accepted pointer step of a bar drag, or its end.
+ *
+ * `dx` is the pixels the bar has travelled since pointerdown; `diff` is that
+ * displacement in whole scale units, by the same expression that produces the
+ * `diff` of the committing `update-task`; `referenceStart` is the bar's date
+ * before the gesture. `inProgress: false` (with `id: null`) means the gesture
+ * is over and any preview should be dropped.
+ */
+export interface ITimelineDragPreview {
+  id: string | number | null;
+  dx: number;
+  diff: number;
+  referenceStart?: Date;
+  inProgress: boolean;
 }
 
 export interface IColumnConfig extends Omit<IGanttColumn, 'header'> {
@@ -80,6 +111,9 @@ export declare const Gantt: ForwardRefExoticComponent<
     // dates in the chart body and their chips in the annotation lane, see
     // `ITimelineAnnotation` above.
     timelineAnnotations?: ITimelineAnnotation[];
+    // SVAR-M5 (SVAR Production Planner): live bar-drag preview reporting, see
+    // `ITimelineDragPreview` above. Reports; decides nothing.
+    onTimelineDragPreview?: (preview: ITimelineDragPreview) => void;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

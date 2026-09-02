@@ -47,6 +47,31 @@
  *     keep their chips but add no stripe;
  *   - the lane is as tall as the rows it needs; there is no row cap.
  *
+ * TRANSIENT DRAG PREVIEW (SVAR-M5)
+ *
+ * While a bar is being dragged, the consumer's marker for that bar has to
+ * travel WITH the bar instead of waiting on its old date until the gesture
+ * commits. Two independent inputs carry that, and they are deliberately not
+ * the same thing:
+ *
+ *   - `dragPreview = { id, dx }` — the live pixel displacement of the dragged
+ *     bar, reported by `Bars.jsx`. An annotation that names that bar in its
+ *     own `followsTaskId` is drawn `dx` px from where its `date` puts it,
+ *     which is exactly where the bar itself now stands. PIXELS ONLY: no date
+ *     is derived from it here, and `date` itself is never rewritten;
+ *   - `previewDate` — an OPTIONAL second date on the annotation, supplied by
+ *     the consumer, meaning "the date this annotation will have once the
+ *     gesture commits". It is used for ONE thing: deciding which annotations
+ *     share a composite line (below). It never moves a pixel.
+ *
+ * That split is what keeps D-108 true during a gesture as well as after it:
+ * grouping stays a question about DATES, answered by the one owner that knows
+ * what a date means, while this module keeps answering only the question about
+ * pixels. A group that contains the dragged annotation is drawn at the dragged
+ * annotation's own (displaced) x, so the composite line stays centred on the
+ * diamond the user is holding rather than jumping to the destination day ahead
+ * of the drop.
+ *
  * The result depends on the inputs alone. Horizontal scroll is not an input,
  * so a pan cannot change a row, a side or the lane height.
  */
@@ -86,10 +111,16 @@ export const EMPTY_ANNOTATION_LAYOUT = Object.freeze({
  * `[start, end]` gets no entry; `end` itself is kept because a date whose
  * column ends exactly at the range edge is a legitimate right-boundary anchor.
  *
- * @returns an array in INPUT ORDER of `{ id, x, anchor, label, title,
- *   labelPosition, css }`.
+ * `dragPreview` is the optional `{ id, dx }` of the bar currently under the
+ * pointer. Whether an annotation is in or out of range, and where its column
+ * is, are decided from its own `date` alone; `dx` is added afterwards, so a
+ * gesture can neither drop a line out of the layout nor change which column
+ * it belongs to.
+ *
+ * @returns an array in INPUT ORDER of `{ id, x, anchor, dateTime, dragged,
+ *   label, title, labelPosition, css }`.
  */
-export function placeAnnotations(annotations, scales, cellWidth) {
+export function placeAnnotations(annotations, scales, cellWidth, dragPreview) {
   if (
     !annotations ||
     !annotations.length ||
@@ -100,6 +131,10 @@ export function placeAnnotations(annotations, scales, cellWidth) {
     return EMPTY_PLACED;
   }
   const { start, end, lengthUnit, lengthUnitWidth, width, diff } = scales;
+  const draggedId =
+    dragPreview && dragPreview.id != null ? String(dragPreview.id) : null;
+  const draggedDx =
+    draggedId !== null && Number.isFinite(dragPreview.dx) ? dragPreview.dx : 0;
   const placed = [];
   for (const annotation of annotations) {
     const date = annotation && annotation.date;
@@ -109,23 +144,40 @@ export function placeAnnotations(annotations, scales, cellWidth) {
     const unitStart = Math.round(diff(date, start, lengthUnit) * cellWidth);
     const anchor =
       annotation.anchor === 'unit-center' ? 'unit-center' : 'unit-start';
-    const x =
+    const baseX =
       anchor === 'unit-center' ? unitStart + lengthUnitWidth / 2 : unitStart;
-    if (!Number.isFinite(x) || x < 0 || x > width) continue;
+    if (!Number.isFinite(baseX) || baseX < 0 || baseX > width) continue;
+    // SVAR-M5: the live pixel displacement of the bar this annotation follows,
+    // and nothing else. `date` above already decided the column; this only
+    // slides the drawn line and chip onto the bar the user is holding.
+    const dragged =
+      draggedId !== null &&
+      annotation.followsTaskId != null &&
+      String(annotation.followsTaskId) === draggedId;
+    const x = dragged ? baseX + draggedDx : baseX;
     const label = annotation.label == null ? '' : String(annotation.label);
     const title =
       annotation.title == null || annotation.title === ''
         ? label
         : String(annotation.title);
+    // The composite-line grouping identity (D-108): the exact technical
+    // instant BEFORE pixel projection/rounding, not the rounded `x` above.
+    // Two different canonical dates never collapse into one group merely
+    // because a compressed scale rounds them to the same pixel. During a
+    // gesture the consumer's `previewDate` — the date this annotation will
+    // have when the gesture commits — takes its place, so the composite line
+    // it belongs to is right while the pointer is still moving (SVAR-M5).
+    const identity =
+      annotation.previewDate instanceof Date &&
+      !Number.isNaN(annotation.previewDate.getTime())
+        ? annotation.previewDate.getTime()
+        : date.getTime();
     placed.push({
       id: annotation.id,
       x,
       anchor,
-      // The composite-line grouping identity (D-108): the exact technical
-      // instant BEFORE pixel projection/rounding, not the rounded `x` above.
-      // Two different canonical dates never collapse into one group merely
-      // because a compressed scale rounds them to the same pixel.
-      dateTime: date.getTime(),
+      dateTime: identity,
+      dragged,
       label,
       title,
       labelPosition: annotation.labelPosition === 'center' ? 'center' : 'after',
@@ -170,7 +222,8 @@ export function chipTopForRow(row) {
 /**
  * Lines and chips for already-placed annotations.
  *
- * @param placed        the result of `placeAnnotations`
+ * @param placed        the result of `placeAnnotations` (already carrying any
+ *                      transient drag displacement in its `x`)
  * @param labelWidths   `Map<label, naturalChipWidthPx>` — the measured natural
  *                      width of a chip carrying that label (padding included).
  *                      Until every placed label has a measurement, no chip is
@@ -191,9 +244,15 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
     const key = `${item.anchor}@${item.dateTime}`;
     let group = groups.get(key);
     if (group === undefined) {
-      group = { key, x: item.x, members: [] };
+      group = { key, x: item.x, members: [], dragged: item.dragged === true };
       groups.set(key, group);
       lines.push(group);
+    } else if (item.dragged === true && group.dragged !== true) {
+      // SVAR-M5: at most one bar is dragged at a time, so a group holds at
+      // most one displaced member — and when it does, the whole composite
+      // line follows it, staying centred on the diamond under the pointer.
+      group.x = item.x;
+      group.dragged = true;
     }
     group.members.push(item);
   }
@@ -207,6 +266,7 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
       width: stripes.length * ANNOTATION_STRIPE_WIDTH,
       stripes,
       ids: group.members.map((member) => member.id),
+      dragged: group.dragged === true,
     };
   });
 
@@ -261,6 +321,7 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
       row,
       side,
       lineX: item.x,
+      dragged: item.dragged === true,
       clipped: natural > ANNOTATION_CHIP_MAX_WIDTH,
     });
   }
