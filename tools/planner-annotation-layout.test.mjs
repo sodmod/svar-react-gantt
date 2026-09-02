@@ -449,3 +449,103 @@ test('lines: different dates give different lines, each 2 px wide', () => {
   assert.equal(layout.lines.length, 2);
   assert.ok(layout.lines.every((line) => line.width === 2));
 });
+
+// D-108 / Major C1 permanent regression. Root cause of the counterexample:
+// the old grouping key was `${anchor}@${x}`, where `x` is the ROUNDED pixel
+// coordinate. At a compressed scale (a month-length unit with a small cell
+// width, the geometry a real month/quarter zoom produces), two milestones on
+// genuinely different canonical dates can round to the identical integer
+// pixel and were wrongly merged into one composite line. This test MUST fail
+// against the pre-remediation renderer candidate
+// 18dbdee41530801d9c5abd20a2d318e4e774330c and pass after the R1 fix, which
+// groups by the technical `date` (an exact millisecond instant, one owner's
+// deterministic projection of the canonical milestone LocalDate) instead of
+// by rounded `x`. The oracle below compares the resulting semantic group
+// count/widths, not a copy of the new grouping key function.
+test('C1 (D-108): two milestones on DIFFERENT canonical dates stay two distinct line groups, even when a compressed scale rounds them to the same pixel', () => {
+  // A month-length-unit scale stand-in with a small cell width — exactly the
+  // "lengthUnit = month, small cell width" compressed geometry the
+  // independent review counterexample used. `diff` approximates a real
+  // month-scale projection closely enough to reproduce the same rounding
+  // collision; the pure layout functions only depend on `diff`'s contract
+  // (a numeric distance in `lengthUnit`s), not on any particular formula.
+  const monthScales = {
+    start: day(0),
+    end: day(365),
+    lengthUnit: 'month',
+    lengthUnitWidth: 1,
+    width: 40,
+    diff: (a, b) => (a.getTime() - b.getTime()) / DAY / 30,
+  };
+  const COMPRESSED_CELL = 1;
+
+  const placed = placeAnnotations(
+    [
+      { id: 'milestone-a', date: day(10), label: 'Milestone A' },
+      { id: 'milestone-b', date: day(11), label: 'Milestone B' },
+    ],
+    monthScales,
+    COMPRESSED_CELL,
+  );
+  // Confirms the test actually reproduces the collision: two different
+  // canonical dates rounding to the identical pixel. If this assertion ever
+  // fails, the scenario below no longer exercises the counterexample.
+  assert.equal(
+    placed[0].x,
+    placed[1].x,
+    'test setup must reproduce the rounded-pixel collision between two different dates',
+  );
+  assert.notEqual(
+    placed[0].dateTime,
+    placed[1].dateTime,
+    'test setup must use two genuinely different canonical dates',
+  );
+
+  const layout = layoutTimelineAnnotations(placed, new Map(), monthScales.width);
+  assert.equal(
+    layout.lines.length,
+    2,
+    'different canonical milestone dates must remain two semantic line groups, not one composite 4px line, even though their rendered x collides',
+  );
+  assert.ok(
+    layout.lines.every((line) => line.width === 2),
+    'each distinct-date line stays its own single-stripe 2px line',
+  );
+  assert.deepEqual(
+    new Set(layout.lines.map((line) => line.ids[0])),
+    new Set(['milestone-a', 'milestone-b']),
+  );
+});
+
+// Same-canonical-date regression companion to the test above: genuinely
+// identical dates must still compose into one line at every stripe-cap tier,
+// with every label retained as a chip. This guards against a fix that avoids
+// C1 by over-correcting into "never merge."
+test('C1 companion: same canonical date still composes into one line at 1/2/3/4+ -> 2/4/6/6 px, with every label kept as a chip', () => {
+  const same = (n) =>
+    Array.from({ length: n }, (_, i) => ({
+      id: `same-${i}`,
+      date: day(23),
+      label: `Same ${i}`,
+    }));
+  for (const [count, width] of [
+    [1, 2],
+    [2, 4],
+    [3, 6],
+    [4, 6],
+  ]) {
+    const annotations = same(count);
+    const placed = placeAnnotations(annotations, SCALES, CELL);
+    const measured = widths(
+      Object.fromEntries(annotations.map((a) => [a.label, 60])),
+    );
+    const layout = layoutTimelineAnnotations(placed, measured, SCALES.width);
+    assert.equal(layout.lines.length, 1, `count ${count}: one composite line`);
+    assert.equal(layout.lines[0].width, width, `count ${count}: width ${width}`);
+    assert.equal(
+      layout.chips.length,
+      count,
+      `count ${count}: every milestone keeps its chip/label even past the 3-stripe cap`,
+    );
+  }
+});

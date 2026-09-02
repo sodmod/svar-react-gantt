@@ -34,10 +34,17 @@
  *     range width, never against the viewport, so panning cannot flip a side;
  *   - placement order is deterministic: by x, then by input order for equal x.
  *     Input order is the consumer's display order and is preserved as such;
- *   - annotations whose lines land on the same x (and share an anchor kind)
- *     merge into ONE striped line: one 2 px stripe per annotation, at most
- *     three stripes, in input order — the fourth and later annotations keep
- *     their chips but add no stripe;
+ *   - annotations sharing one composite line are grouped by their SEMANTIC
+ *     identity — the consumer-supplied technical `date` (an exact millisecond
+ *     instant, one owner's deterministic projection of a canonical LocalDate,
+ *     D-108) plus the anchor kind — never by the rendered/rounded pixel `x`.
+ *     Two annotations at different technical dates stay two distinct lines
+ *     even when a compressed scale rounds both to the same pixel; they may
+ *     then overlap on screen, which is acceptable (no artificial displacement
+ *     is introduced to keep them apart). Annotations that DO share one
+ *     identity merge into ONE striped line: one 2 px stripe per annotation, at
+ *     most three stripes, in input order — the fourth and later annotations
+ *     keep their chips but add no stripe;
  *   - the lane is as tall as the rows it needs; there is no row cap.
  *
  * The result depends on the inputs alone. Horizontal scroll is not an input,
@@ -114,6 +121,11 @@ export function placeAnnotations(annotations, scales, cellWidth) {
       id: annotation.id,
       x,
       anchor,
+      // The composite-line grouping identity (D-108): the exact technical
+      // instant BEFORE pixel projection/rounding, not the rounded `x` above.
+      // Two different canonical dates never collapse into one group merely
+      // because a compressed scale rounds them to the same pixel.
+      dateTime: date.getTime(),
       label,
       title,
       labelPosition: annotation.labelPosition === 'center' ? 'center' : 'after',
@@ -173,7 +185,10 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
   const groups = new Map();
   const lines = [];
   for (const item of placed) {
-    const key = `${item.anchor}@${item.x}`;
+    // D-108: group by semantic identity (technical date + anchor kind), NOT
+    // by the rendered/rounded `x`. Different canonical dates that happen to
+    // round to the same pixel at a compressed scale must stay distinct lines.
+    const key = `${item.anchor}@${item.dateTime}`;
     let group = groups.get(key);
     if (group === undefined) {
       group = { key, x: item.x, members: [] };
