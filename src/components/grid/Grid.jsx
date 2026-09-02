@@ -61,9 +61,10 @@ export default function Grid(props) {
    * shift of the body — and the two halves line up again.
    *
    * It is a NUMBER, arriving from the owner that already resolved it. Nothing
-   * in this file measures a label, resolves a chip collision, counts markers
-   * or knows what a marker is; a second answer to "how tall is the lane" would
-   * be a second owner and is exactly what this prop exists to avoid.
+   * in this file measures a label, resolves a chip collision, counts anything
+   * on the timeline or knows what an annotation is; a second answer to "how
+   * tall is the lane" would be a second owner, and that is exactly what this
+   * prop exists to avoid.
    */
   const { readonly, onTableAPIChange, annotationLaneHeight } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
