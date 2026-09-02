@@ -25,8 +25,10 @@
   position: relative;
 }
 
-/* SVAR-M6 (SVAR Production Planner): the grid's blank marker-lane spacer. */
-.wx-annotation-lane-spacer.wx-rHj6070p {
+/* SVAR-M6 (SVAR Production Planner): the grid's blank marker-lane spacer, and
+   SVAR-M8's blank counterpart of the top scale row directly above it. */
+.wx-annotation-lane-spacer.wx-rHj6070p,
+.wx-annotation-scale-spacer.wx-rHj6070p {
   position: absolute;
   left: 0;
   right: 0;
@@ -36,6 +38,17 @@
   z-index: 2;
   background: var(--wx-background);
   pointer-events: none;
+}
+
+/* SVAR-M8 (SVAR Production Planner): the whole grid — its column-header block
+   included — starts this far down, so the blank bands above are real vertical
+   room and the column titles stay directly on top of the first task row. The
+   header is `position: sticky` inside a container that cannot scroll
+   vertically, so a margin simply moves it, and the body follows it in flow.
+   `0px` (the default) is the pre-SVAR-M8 layout exactly. */
+.wx-table.wx-rHj6070p .wx-grid .wx-scroll > .wx-header-wrapper,
+.wx-table.wx-rHj6070p .wx-grid .wx-scroll > .wx-body:first-child {
+  margin-top: var(--wx-annotation-header-offset, 0px);
 }
 .wx-table.wx-rHj6070p .wx-grid .wx-table-box {
   border: none;

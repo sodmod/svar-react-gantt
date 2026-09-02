@@ -37,3 +37,27 @@
   background: var(--wx-gantt-holiday-background);
   color: var(--wx-gantt-holiday-color);
 }
+
+/* SVAR-M8 (SVAR Production Planner): the header half of the annotation lines
+   is `.wx-scale-row-lines`, rendered by the same `<TimelineLines>` the chart
+   body uses and styled in that component's own stylesheet; `.wx-scale` is
+   `position: sticky` and therefore its containing block, so TimeScale.jsx's
+   inline `top`/`height` place the band exactly under the marker lane.
+
+   z-order (project rule §15): that band is positioned, so it paints ABOVE the
+   in-flow rows' own cell backgrounds — which is what makes a milestone/Today
+   line visible across a weekend cell's opaque fill — and the rules below lift
+   the cells' TEXT above it again, so no label is ever cut.
+
+   SVAR-M8: the scale cell's own text, lifted above that band.
+   `.wx-cell-value` is already `position: sticky` (upstream, for wide cells),
+   so it needs the stacking order alone; every other cell label has to become
+   positioned first. Neither rule moves anything by a pixel. */
+.wx-cell.wx-ZkvhDKir > span:not(.wx-cell-value) {
+  position: relative;
+  z-index: 1;
+}
+
+.wx-cell-value.wx-ZkvhDKir {
+  z-index: 1;
+}

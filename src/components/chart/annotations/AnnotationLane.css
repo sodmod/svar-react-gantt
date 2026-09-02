@@ -15,6 +15,30 @@
   overflow: hidden;
 }
 
+/* SVAR-M8 (SVAR Production Planner): the ordinary timeline column separators,
+   continued through the lane so a chip reads as belonging to a date column
+   rather than to an isolated band. Same token, same 1 px, same subdued tone
+   as the scale rows' own cell separators — deliberately NOT a second,
+   stronger grid style. Purely decorative: no pointer events, and it is the
+   first child so every line and chip paints above it. */
+.wx-annotation-lane-grid {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.wx-annotation-lane-grid-cell {
+  flex: 0 0 auto;
+  box-sizing: border-box;
+  height: 100%;
+  border-right: var(--wx-timescale-border);
+}
+
 .wx-annotation-chip {
   position: absolute;
   display: inline-flex;

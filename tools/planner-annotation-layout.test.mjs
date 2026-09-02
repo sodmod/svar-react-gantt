@@ -29,6 +29,7 @@ import {
   laneHeightForRows,
   layoutTimelineAnnotations,
   placeAnnotations,
+  splitScaleHeaderForLane,
 } from '../src/components/chart/annotations/timelineAnnotationLayout.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -1116,4 +1117,82 @@ test('SVAR-M7 negative control (NC-R3-A oracle): a Today NOT flagged bottomAncho
     withFlag.rowCount - 1,
     'Today is pushed to a NEW bottom row instead — never the other way around',
   );
+});
+
+
+/* ------------------------------------------------------------------------ *
+ * SVAR-M8: where the lane splits the scale header.
+ * ------------------------------------------------------------------------ */
+
+/** A three-row day header, as `_scales` presents it. */
+const DAY_HEADER = { rows: [{ height: 30 }, { height: 25 }, { height: 25 }], height: 80 };
+/** A two-row week/month header. */
+const TWO_ROW_HEADER = { rows: [{ height: 30 }, { height: 30 }], height: 60 };
+/** A single-row header: there is nothing to put below the lane. */
+const ONE_ROW_HEADER = { rows: [{ height: 40 }], height: 40 };
+
+test('SVAR-M8: the lane splits the header after the TOP row, whatever the row count', () => {
+  const three = splitScaleHeaderForLane(DAY_HEADER, 28);
+  assert.equal(three.laneSplitsHeader, true);
+  assert.equal(three.rowsAboveLane, 1, 'exactly one row renders above the lane');
+  assert.equal(three.heightAboveLane, 30);
+  assert.equal(three.heightBelowLane, 50, 'the two lower rows');
+  assert.equal(three.laneHeight, 28);
+
+  const two = splitScaleHeaderForLane(TWO_ROW_HEADER, 28);
+  assert.equal(two.laneSplitsHeader, true);
+  assert.equal(two.rowsAboveLane, 1, 'the rule is positional, not "the month row"');
+  assert.equal(two.heightAboveLane, 30);
+  assert.equal(two.heightBelowLane, 30);
+});
+
+test('SVAR-M8: the split preserves the whole header height exactly', () => {
+  for (const header of [DAY_HEADER, TWO_ROW_HEADER]) {
+    const split = splitScaleHeaderForLane(header, 22);
+    assert.equal(
+      split.heightAboveLane + split.heightBelowLane,
+      header.height,
+      'no pixel is invented or lost by the split — this is what keeps the grid aligned',
+    );
+  }
+});
+
+test('SVAR-M8: no lane means no split at all — the pre-SVAR-M8 arrangement', () => {
+  for (const laneHeight of [0, undefined, null, NaN, -10]) {
+    const split = splitScaleHeaderForLane(DAY_HEADER, laneHeight);
+    assert.equal(split.laneSplitsHeader, false, `laneHeight=${laneHeight}`);
+    assert.equal(split.rowsAboveLane, 3, 'every row renders above the (absent) lane');
+    assert.equal(split.heightAboveLane, DAY_HEADER.height);
+    assert.equal(split.heightBelowLane, 0);
+    assert.equal(split.laneHeight, 0);
+  }
+});
+
+test('SVAR-M8: a single-row header has nothing to put below the lane', () => {
+  const split = splitScaleHeaderForLane(ONE_ROW_HEADER, 28);
+  assert.equal(split.laneSplitsHeader, false);
+  assert.equal(split.rowsAboveLane, 1);
+  assert.equal(split.heightAboveLane, ONE_ROW_HEADER.height);
+  assert.equal(split.heightBelowLane, 0);
+  assert.equal(split.laneHeight, 28, 'the lane still exists — it just sits under the only row');
+});
+
+test('SVAR-M8: a missing or malformed `_scales` degrades to no split', () => {
+  for (const scales of [undefined, null, {}, { rows: null, height: 'x' }]) {
+    const split = splitScaleHeaderForLane(scales, 28);
+    assert.equal(split.laneSplitsHeader, false);
+    assert.equal(split.heightAboveLane, 0);
+    assert.equal(split.heightBelowLane, 0);
+  }
+});
+
+test('SVAR-M8 negative control (NC-R4-A oracle): a lane placed under ALL rows leaves nothing below it', () => {
+  // NC-R4-A restores the pre-SVAR-M8 order (lane under every scale row). The
+  // shape that control produces is exactly `laneSplitsHeader === false`, and
+  // the permanent tests above must be able to tell the two apart.
+  const restored = splitScaleHeaderForLane(DAY_HEADER, 0);
+  const current = splitScaleHeaderForLane(DAY_HEADER, 28);
+  assert.notEqual(restored.laneSplitsHeader, current.laneSplitsHeader);
+  assert.equal(restored.heightBelowLane, 0);
+  assert.ok(current.heightBelowLane > 0);
 });

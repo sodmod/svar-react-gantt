@@ -28,6 +28,7 @@ import {
   getSortMarks,
 } from '../../helpers/grid';
 import { useStore } from '@svar-ui/lib-react';
+import { splitScaleHeaderForLane } from '../chart/annotations/timelineAnnotationLayout.js';
 import storeContext from '../../context';
 import './Grid.css';
 
@@ -57,14 +58,21 @@ export default function Grid(props) {
    * The chart's body starts below the scale rows PLUS that lane; the grid's
    * body starts below the grid header alone. Left and right rows therefore sat
    * `annotationLaneHeight` px apart, which is what the acceptance run found.
-   * The grid reserves the same height here — as a blank spacer and an equal
-   * shift of the body — and the two halves line up again.
+   * The grid reserves the same height here and the two halves line up again.
    *
-   * It is a NUMBER, arriving from the owner that already resolved it. Nothing
-   * in this file measures a label, resolves a chip collision, counts anything
-   * on the timeline or knows what an annotation is; a second answer to "how
-   * tall is the lane" would be a second owner, and that is exactly what this
-   * prop exists to avoid.
+   * SVAR-M8 (SVAR Production Planner): WHERE it reserves it moved. The lane
+   * now sits between the top scale row and the lower ones, so the grid's own
+   * blank reservation grows ABOVE its column-header block instead of below
+   * it: the column titles stay directly on top of the first task row however
+   * tall the lane gets, which is the whole point of the change. The split is
+   * asked of `splitScaleHeaderForLane` — the same pure function the header
+   * itself asks — so the two sides cannot disagree about it.
+   *
+   * `annotationLaneHeight` is still a NUMBER, arriving from the owner that
+   * already resolved it. Nothing in this file measures a label, resolves a
+   * chip collision, counts anything on the timeline or knows what an
+   * annotation is; a second answer to "how tall is the lane" would be a
+   * second owner, and that is exactly what this prop exists to avoid.
    */
   const { readonly, onTableAPIChange, annotationLaneHeight } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
@@ -287,7 +295,40 @@ export default function Grid(props) {
   // --------
 
   const scrollDelta = useMemo(() => areaVal?.from ?? 0, [areaVal]);
-  const headerHeight = useMemo(() => scalesVal?.height ?? 0, [scalesVal]);
+
+  /*
+   * SVAR-M8 (SVAR Production Planner): the grid's three vertical bands above
+   * its first task row, all three of them decided by the ONE split owner:
+   *
+   *   blankScaleHeight   the top scale row's own height, blank on this side
+   *   laneHeight         the marker lane's resolved height, blank on this side
+   *   headerHeight       the column-header block — the LOWER scale rows' band
+   *
+   * With no lane (`laneSplitsHeader === false`) every one of these collapses
+   * back to exactly what this file did before: the header block is the whole
+   * scale height, there is nothing above it, and any lane height is reserved
+   * BELOW it through `bodyOffset`, as SVAR-M6 always did.
+   */
+  const headerSplit = useMemo(
+    () => splitScaleHeaderForLane(scalesVal, laneHeight),
+    [scalesVal, laneHeight],
+  );
+  const headerHeight = useMemo(
+    () =>
+      headerSplit.laneSplitsHeader
+        ? headerSplit.heightBelowLane
+        : (scalesVal?.height ?? 0),
+    [headerSplit, scalesVal],
+  );
+  /** Blank on the grid side because the top scale row carries no grid data. */
+  const blankScaleHeight = headerSplit.laneSplitsHeader
+    ? headerSplit.heightAboveLane
+    : 0;
+  /** How far down the whole grid (header included) starts. */
+  const headerOffset =
+    blankScaleHeight + (headerSplit.laneSplitsHeader ? laneHeight : 0);
+  /** The lane height still reserved BELOW the header (the pre-SVAR-M8 case). */
+  const laneBelowHeader = headerSplit.laneSplitsHeader ? 0 : laneHeight;
 
   const flexBasis = useMemo(
     () => getFlexBasis(columnsVal || [], displayModeVal, gridWidthVal),
@@ -303,15 +344,24 @@ export default function Grid(props) {
         gridClientWidth,
         gridWidthVal,
       ),
-    [compactModeVal, displayModeVal, columnWidth, gridClientWidth, gridWidthVal],
+    [
+      compactModeVal,
+      displayModeVal,
+      columnWidth,
+      gridClientWidth,
+      gridWidthVal,
+    ],
   );
 
   const bodyOffset = useMemo(
-    // SVAR-M6 (SVAR Production Planner): + laneHeight — the same reservation
-    // the chart makes, applied to the grid body so row N is at the same y on
-    // both sides at every scroll position.
-    () => (scrollDelta ?? 0) - (scrollTopVal ?? 0) + laneHeight,
-    [scrollDelta, scrollTopVal, laneHeight],
+    // SVAR-M6 (SVAR Production Planner): + the lane height still reserved
+    // below the header — the same reservation the chart makes, applied to the
+    // grid body so row N is at the same y on both sides at every scroll
+    // position. SVAR-M8 moved that reservation above the header for every
+    // multi-row scale, and then this term is 0 because `headerOffset` already
+    // carries it.
+    () => (scrollDelta ?? 0) - (scrollTopVal ?? 0) + laneBelowHeader,
+    [scrollDelta, scrollTopVal, laneBelowHeader],
   );
 
   const tableStyle = useMemo(() => {
@@ -320,6 +370,10 @@ export default function Grid(props) {
       getGridStyle(displayModeVal, columnWidth, scrollX);
     const style = cssTextToStyle(css);
     style['--wx-body-offset'] = `${bodyOffset}px`;
+    // SVAR-M8 (SVAR Production Planner): how far down the grid's own header
+    // starts, so the blank scale/marker bands above it are real vertical room
+    // rather than an overlay. Read by Grid.css.
+    style['--wx-annotation-header-offset'] = `${headerOffset}px`;
     return style;
   }, [
     gridClientHeight,
@@ -328,6 +382,7 @@ export default function Grid(props) {
     columnWidth,
     scrollX,
     bodyOffset,
+    headerOffset,
   ]);
 
   // SELECTION
@@ -595,19 +650,36 @@ export default function Grid(props) {
         onClick={onClick}
         onDoubleClick={onDblClick}
       >
+        {/* SVAR-M8 (SVAR Production Planner): the grid's blank counterpart of
+            the TOP scale row. Blank because the coarse month/year band names
+            no grid column; opaque for the same reason the lane spacer below
+            is. Present only while the lane actually splits the header. */}
+        {blankScaleHeight ? (
+          <div
+            className="wx-rHj6070p wx-annotation-scale-spacer"
+            data-annotation-scale-spacer="true"
+            aria-hidden="true"
+            style={{ top: '0px', height: `${blankScaleHeight}px` }}
+          />
+        ) : null}
         {/* SVAR-M6 (SVAR Production Planner): the grid's half of the marker
             lane — blank by construction. It carries no chip, no line and no
             grid data; its only job is to hold the same vertical room the
             timeline's lane holds, and to be opaque, so a row scrolled under it
             disappears behind it exactly as it disappears behind the sticky
-            lane on the chart side. It sits between the grid header and the
-            first row and does not scroll with the rows. */}
+            lane on the chart side. It does not scroll with the rows.
+            SVAR-M8: it now sits ABOVE the column-header block (directly under
+            the blank scale band), so the column titles stay adjacent to the
+            first task row however tall the lane grows. */}
         {laneHeight ? (
           <div
             className="wx-rHj6070p wx-annotation-lane-spacer"
             data-annotation-lane-spacer="true"
             aria-hidden="true"
-            style={{ top: `${headerHeight}px`, height: `${laneHeight}px` }}
+            style={{
+              top: `${headerSplit.laneSplitsHeader ? blankScaleHeight : headerHeight}px`,
+              height: `${laneHeight}px`,
+            }}
           />
         ) : null}
         <WxGrid

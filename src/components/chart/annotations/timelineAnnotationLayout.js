@@ -316,7 +316,9 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
       laneTop: 0,
     };
   });
-  const lineWidthByKey = new Map(lineModels.map((line) => [line.key, line.width]));
+  const lineWidthByKey = new Map(
+    lineModels.map((line) => [line.key, line.width]),
+  );
 
   const measured =
     labelWidths instanceof Map &&
@@ -403,7 +405,8 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
 
   const rowCount = rows.length;
   if (rowCount > 0) {
-    const bottomChipBottom = chipTopForRow(rowCount - 1) + ANNOTATION_CHIP_HEIGHT;
+    const bottomChipBottom =
+      chipTopForRow(rowCount - 1) + ANNOTATION_CHIP_HEIGHT;
     for (const line of lineModels) {
       if (line.bottomAnchored) line.laneTop = bottomChipBottom;
     }
@@ -435,5 +438,65 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
     chips,
     rowCount,
     laneHeight: laneHeightForRows(rowCount),
+  };
+}
+
+/*
+ * WHERE THE MARKER LANE SITS INSIDE THE DATE HEADER (SVAR-M8)
+ *
+ * The lane used to be rendered under ALL scale rows, directly above the chart
+ * body. It now sits after the TOP scale row and before the remaining lower
+ * rows, so the rows that carry the actual dates stay adjacent to the body:
+ *
+ *   top scale row          (month / year — the coarse band)
+ *   marker lane            (dynamic height)
+ *   lower scale row(s)     (weekday, day number — whatever the scale has)
+ *   chart body
+ *
+ * This is deliberately NOT a "month row" special case: the rule is positional
+ * — one row above, every remaining row below — so it holds for the day, week
+ * and month scale families alike, and for any future row count, without this
+ * module knowing what a row means.
+ *
+ * The same split has to be answered on the GRID side, where the lane's blank
+ * reservation now grows ABOVE the column-header block instead of below it, and
+ * in the header's own line layer, which has to know which vertical band the
+ * lower rows occupy. All three ask THIS function; none of them re-derives the
+ * rule, and none of them measures anything.
+ */
+
+/**
+ * How the scale header is split by the marker lane.
+ *
+ * @param scales      the store's `_scales` (`rows`, `height`)
+ * @param laneHeight  the RESOLVED lane height (`layoutTimelineAnnotations`)
+ * @returns `{ laneSplitsHeader, rowsAboveLane, heightAboveLane,
+ *   heightBelowLane, laneHeight }`. When there is no lane, or the scale has a
+ *   single row and therefore nothing to put below one, `laneSplitsHeader` is
+ *   `false` and the caller keeps its previous arrangement exactly: every row
+ *   above, nothing below, the lane (if any) under all of them.
+ */
+export function splitScaleHeaderForLane(scales, laneHeight) {
+  const rows = scales && Array.isArray(scales.rows) ? scales.rows : [];
+  const totalHeight =
+    scales && Number.isFinite(scales.height) ? scales.height : 0;
+  const lane = Number.isFinite(laneHeight) && laneHeight > 0 ? laneHeight : 0;
+  const laneSplitsHeader = lane > 0 && rows.length > 1;
+  if (!laneSplitsHeader) {
+    return {
+      laneSplitsHeader: false,
+      rowsAboveLane: rows.length,
+      heightAboveLane: totalHeight,
+      heightBelowLane: 0,
+      laneHeight: lane,
+    };
+  }
+  const heightAboveLane = Number.isFinite(rows[0].height) ? rows[0].height : 0;
+  return {
+    laneSplitsHeader: true,
+    rowsAboveLane: 1,
+    heightAboveLane,
+    heightBelowLane: Math.max(0, totalHeight - heightAboveLane),
+    laneHeight: lane,
   };
 }

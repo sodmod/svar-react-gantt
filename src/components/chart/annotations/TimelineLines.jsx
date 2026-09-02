@@ -30,16 +30,31 @@
 import { memo } from 'react';
 import './TimelineLines.css';
 
+/*
+ * SVAR-M8 (SVAR Production Planner): the SAME layer is now drawn twice — once
+ * in the chart body, and once across the LOWER scale rows, which the marker
+ * lane no longer sits under. Both are "one full-height striped line per
+ * annotation at its own x", so they are one component; only the class names
+ * and the band differ, and each caller names its own so a test (and a
+ * stylesheet) can address exactly one of them. Defaults are the chart-body
+ * names, so `<TimelineLines lines={...} />` renders precisely what it always
+ * rendered.
+ */
 function TimelineLines(props) {
-  const { lines } = props;
+  const {
+    lines,
+    layerClassName = 'wx-timeline-lines',
+    lineClassName = 'wx-timeline-line',
+    style,
+  } = props;
   if (!lines || !lines.length) return null;
 
   return (
-    <div className="wx-timeline-lines" aria-hidden="true">
+    <div className={layerClassName} style={style} aria-hidden="true">
       {lines.map((line) => (
         <div
           key={line.key}
-          className="wx-timeline-line"
+          className={lineClassName}
           data-timeline-line={line.key}
           data-annotation-ids={line.ids.join(' ')}
           data-annotation-count={line.ids.length}

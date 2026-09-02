@@ -13,7 +13,21 @@
   pointer-events: none;
 }
 
+/* SVAR-M8: the same layer across the LOWER scale rows. `top`/`height` come
+   from the caller, because only it knows which band those rows occupy;
+   `z-index: 0` puts it above the rows' own cell backgrounds (a weekend cell
+   paints an opaque one) and below their text, which TimeScale.css lifts. */
+.wx-scale-row-lines {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+
 .wx-timeline-line,
+.wx-scale-row-line,
 .wx-annotation-lane-line {
   position: absolute;
   top: 0;

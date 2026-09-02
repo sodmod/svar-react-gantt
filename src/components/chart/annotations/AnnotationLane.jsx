@@ -2,16 +2,25 @@
  * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M4).
  * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
  *
- * The annotation lane: a band rendered inside `.wx-scale`, directly under the
- * scale rows, that carries one chip per annotation (its label) and, behind the
- * chips, the lane segment of each annotation's vertical line. Because it lives
- * inside the sticky `.wx-scale` element it stays fixed with the header under
- * vertical scroll and scrolls with the timeline under horizontal scroll, with
- * no code of its own for either.
+ * The annotation lane: a band rendered inside `.wx-scale`, between the top
+ * scale row and the lower ones (SVAR-M8), that carries one chip per
+ * annotation (its label) and, behind the chips, the lane segment of each
+ * annotation's vertical line. Because it lives inside the sticky `.wx-scale`
+ * element it stays fixed with the header under vertical scroll and scrolls
+ * with the timeline under horizontal scroll, with no code of its own for
+ * either.
  *
  * Rows, sides, lane height and each line's lane-segment top (`laneTop`) come
  * from `timelineAnnotationLayout.js`; this component renders what it is
  * handed and decides nothing.
+ *
+ * SVAR-M8: the lane also carries the ordinary timeline column separators, so
+ * a chip reads as belonging to a date column instead of floating in an
+ * isolated band. `columns` is the LOWEST rendered scale row exactly as
+ * `TimeScale.jsx` already sliced it for its own rows — the same cells, the
+ * same widths, the same virtualisation offset. Whatever the active scale
+ * exposes as a column (a day, a week, a month) is what continues through the
+ * lane; this component derives no column and computes no date.
  *
  * Accessibility: the lane is a list; each chip is a list item whose accessible
  * name is the annotation's full title, so a screen reader hears the full name
@@ -27,9 +36,10 @@ import {
 import './AnnotationLane.css';
 
 function AnnotationLane(props) {
-  const { layout } = props;
+  const { layout, columns } = props;
   if (!layout || !layout.laneHeight) return null;
   const { lines, chips, rowCount, laneHeight } = layout;
+  const columnCells = columns && columns.slice ? columns.slice : null;
 
   return (
     <div
@@ -38,6 +48,25 @@ function AnnotationLane(props) {
       data-annotation-rows={rowCount}
       style={{ height: `${laneHeight}px` }}
     >
+      {/* SVAR-M8: FIRST, so every line and every chip paints over it. The
+          same subdued `--wx-timescale-border` the scale rows draw their own
+          cell separators with — one treatment, not a second grid style. */}
+      {columnCells && columnCells.length ? (
+        <div
+          className="wx-annotation-lane-grid"
+          data-annotation-lane-grid="true"
+          aria-hidden="true"
+          style={{ paddingLeft: `${columns.from}px` }}
+        >
+          {columnCells.map((cell, cellIdx) => (
+            <div
+              key={cellIdx}
+              className="wx-annotation-lane-grid-cell"
+              style={{ width: `${cell.width}px` }}
+            />
+          ))}
+        </div>
+      ) : null}
       {lines.map((line) => (
         <div
           key={line.key}
