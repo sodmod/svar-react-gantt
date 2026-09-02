@@ -364,14 +364,15 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
     return { natural, width, side, left, right: left + width };
   }
 
-  // Row assignment happens in two passes over the same x-sorted order:
-  // normal annotations first (ordinary top-down first-fit, unchanged), then
-  // bottom-anchored ones (Today) — each claiming the LAST row that phase one
-  // produced if it is free there, or one new row below everything otherwise.
-  // A normal chip is never moved to make room: if it collides with a
-  // bottom-anchored chip, it is already sitting in the row directly above,
-  // because first-fit placed it there before the bottom-anchored chip ever
-  // looked for a row (product decision, §3 bottom-anchored Today).
+  // SVAR-M7: row assignment happens in two passes over the same x-sorted
+  // order: normal annotations first (ordinary top-down first-fit,
+  // unchanged), then bottom-anchored ones (Today) — each claiming the LAST
+  // row that phase one produced if it is free there, or one new row below
+  // everything otherwise. A normal chip is never moved to make room: if it
+  // collides with a bottom-anchored chip, it is already sitting in the row
+  // directly above, because first-fit placed it there before the
+  // bottom-anchored chip ever looked for a row (product decision, §3
+  // bottom-anchored Today).
   const rows = [];
   const geometryByIndex = new Map();
   const rowByIndex = new Map();
