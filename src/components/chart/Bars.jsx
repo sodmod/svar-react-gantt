@@ -766,12 +766,7 @@ function Bars(props) {
         readonly={readonly}
       />
       {tasks.map((task) => {
-        if (
-          task.$skip &&
-          task.$skip_baseline &&
-          !(rollups && rRollups?.[task.id])
-        )
-          return null;
+        if (task.$skip && task.$skip_baseline && !(rollups && rRollups?.[task.id])) return null;
         const barClass =
           `wx-bar wx-${taskTypeCss(task.type)}` +
           (touched && taskMove && task.id === taskMove.id ? ' wx-touch' : '') +
@@ -783,7 +778,7 @@ function Bars(props) {
           'wx-link wx-left' +
           (linkFrom ? ' wx-visible' : '') +
           (!linkFrom ||
-          (!alreadyLinked(task.id, true) && isLinkMarkerVisible(task.id))
+            (!alreadyLinked(task.id, true) && isLinkMarkerVisible(task.id))
             ? ' wx-target'
             : '') +
           (linkFrom && linkFrom.id === task.id && linkFrom.start
@@ -794,7 +789,7 @@ function Bars(props) {
           'wx-link wx-right' +
           (linkFrom ? ' wx-visible' : '') +
           (!linkFrom ||
-          (!alreadyLinked(task.id, false) && isLinkMarkerVisible(task.id))
+            (!alreadyLinked(task.id, false) && isLinkMarkerVisible(task.id))
             ? ' wx-target'
             : '') +
           (linkFrom && linkFrom.id === task.id && !linkFrom.start
@@ -813,7 +808,7 @@ function Bars(props) {
               >
                 {!readonly && !hasDuplicatedIds ? (
                   task.id === selectedLink?.target &&
-                  selectedLink?.type[2] === 's' ? (
+                    selectedLink?.type[2] === 's' ? (
                     <Button
                       type="danger"
                       css="wx-left wx-delete-button wx-delete-link"
@@ -838,8 +833,8 @@ function Bars(props) {
                       </div>
                     ) : null}
                     {!readonly &&
-                    !(splitTasks && task.segments) &&
-                    !(task.type === 'summary' && summary?.autoProgress) ? (
+                      !(splitTasks && task.segments) &&
+                      !(task.type === 'summary' && summary?.autoProgress) ? (
                       <div
                         className="wx-GKbcLEGA wx-progress-marker"
                         style={{ left: `calc(${task.progress}% - 10px)` }}
@@ -870,7 +865,7 @@ function Bars(props) {
 
                 {!readonly && !hasDuplicatedIds ? (
                   task.id === selectedLink?.target &&
-                  selectedLink?.type[2] === 'e' ? (
+                    selectedLink?.type[2] === 'e' ? (
                     <Button
                       type="danger"
                       css="wx-right wx-delete-button wx-delete-link"

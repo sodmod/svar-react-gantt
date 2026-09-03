@@ -20,13 +20,21 @@ import {
   resolveCollapsedSummaryGeometry,
 } from '../src/components/chart/summaryDragGeometry.js';
 
-/** A tiny tree: OUTER > INNER > MILESTONE, plus an unrelated root leaf. */
+/**
+ * A tiny tree: OUTER > INNER > MILESTONE, plus an unrelated root leaf.
+ *
+ * No `type` field on purpose. Neither function under test reads one — the
+ * rule is about the `parent` chain and the live `$x`/`$w`, and a bar of any
+ * kind whose transient width the store collapsed gets the same answer.
+ * Leaving it out states that dependency exactly, instead of implying a type
+ * check that does not exist; the ids say which node is which.
+ */
 function tree(overrides = {}) {
   const tasks = {
-    outer: { id: 'outer', parent: 0, type: 'summary', $x: 100, $w: 34 },
-    inner: { id: 'inner', parent: 'outer', type: 'summary', $x: 100, $w: 34 },
-    milestone: { id: 'milestone', parent: 'inner', type: 'milestone', $x: 117, $w: 31 },
-    unrelated: { id: 'unrelated', parent: 0, type: 'task', $x: 500, $w: 68 },
+    outer: { id: 'outer', parent: 0, $x: 100, $w: 34 },
+    inner: { id: 'inner', parent: 'outer', $x: 100, $w: 34 },
+    milestone: { id: 'milestone', parent: 'inner', $x: 117, $w: 31 },
+    unrelated: { id: 'unrelated', parent: 0, $x: 500, $w: 68 },
     ...overrides,
   };
   return { tasks, getTask: (id) => tasks[id] };
@@ -53,7 +61,7 @@ test('SVAR-M10: a root task has no ancestors, and a missing task is not an error
 test('SVAR-M10: an ancestor with nothing to preserve is not recorded', () => {
   for (const broken of [{ $x: 100, $w: 0 }, { $x: 100, $w: -41 }, { $x: Number.POSITIVE_INFINITY, $w: 34 }]) {
     const { tasks, getTask } = tree({
-      inner: { id: 'inner', parent: 'outer', type: 'summary', ...broken },
+      inner: { id: 'inner', parent: 'outer', ...broken },
     });
     const geometry = collectAncestorBarGeometry(getTask, tasks.milestone);
     assert.equal(geometry.has('inner'), false, JSON.stringify(broken));

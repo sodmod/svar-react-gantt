@@ -17,9 +17,9 @@
  *   3  OWNED DIFF      every upstream file this project changed is declared
  *                      here, with a reason; every other changed path is a file
  *                      this project added
- *   4  PRO DRIFT       no line this project ADDED mentions any identifier of
- *                      the Community/PRO reset — this file excepted, since it
- *                      is where that reset is written down
+ *   4  PRO DRIFT       no EXECUTABLE line this project ADDED mentions any
+ *                      identifier of the Community/PRO reset — this file
+ *                      excepted, since it is where that reset is written down
  *
  * WHAT THIS PROVES AND WHAT IT DOES NOT (project rule D-091 §1).
  *
@@ -33,13 +33,51 @@
  * what reading `git diff` and the Planner's own regression suite are for.
  *
  * Check 4 is a BOUNDED SYNTACTIC TRIPWIRE and nothing more. It proves that no
- * line added by this project spells one of the PRO identifier names. It does
- * NOT prove the absence of a hand-written function that is semantically
- * equivalent to a PRO capability under a different name; only independent
- * review catches that, and under the project's rules it is a Blocker even when
- * every automated check here is green. It also says nothing about the built
- * artefact: the Planner runs the complementary differential check there,
- * comparing a pristine upstream build against the fork build token by token.
+ * EXECUTABLE line added by this project spells one of the PRO identifier
+ * names. It does NOT prove the absence of a hand-written function that is
+ * semantically equivalent to a PRO capability under a different name; only
+ * independent review catches that, and under the project's rules it is a
+ * Blocker even when every automated check here is green. It also says nothing
+ * about the built artefact: the Planner runs the complementary differential
+ * check there, comparing a pristine upstream build against the fork build
+ * token by token.
+ *
+ * ### The word "executable", and why check 4 says it (R7, review finding F-2)
+ *
+ * Until R7 check 4 scanned every added line of every added path, and it was
+ * red on 22 of them without a single PRO API anywhere in the fork. All 22 were
+ * the same collision: `summary`, `calendar`, `rollups` and `splitTasks` are
+ * PRO STORE PROPERTIES *and* ordinary English words *and* — for `summary` —
+ * the vendor's own public Community task type. A fork whose newest owned
+ * modification is literally about summary-bar geometry (SVAR-M10) cannot
+ * describe itself without the word, so a check that reads prose was going to
+ * stay red for as long as the documentation stayed honest, and a red check
+ * proves nothing.
+ *
+ * So the scan was narrowed to the lines where a PRO capability could actually
+ * be USED, along two boundaries that are provable rather than convenient:
+ *
+ *   source kind      only `.js` / `.jsx` / `.mjs` / `.cjs` / `.ts` / `.tsx`.
+ *                    A markdown paragraph and a `package.json` script name are
+ *                    not executed by anything; no PRO call can be reached from
+ *                    them. Adding a PRO-carrying DEPENDENCY would still be
+ *                    caught — by check 3, which declares every changed path,
+ *                    and by the Planner's differential token check on the
+ *                    built artefact.
+ *
+ *   line kind        within those files, not a WHOLE-LINE comment (`//…`, and
+ *                    a line whose first non-space character is `*` or `/*`).
+ *                    A whole-line comment is never executable JavaScript. A
+ *                    line with any code before its `//` still is, and is still
+ *                    scanned.
+ *
+ * NOTHING ELSE was relaxed: no identifier was removed from the list, no source
+ * directory was excluded, and no occurrence is allowlisted individually. A PRO
+ * identifier in real code — in any owned upstream file, in any file this
+ * project added, in a string, in a JSX prop — is still a failure. The
+ * counterexample kept for exactly this claim is recorded in `PLANNER_FORK.md`:
+ * the check was re-run with a PRO use injected into ordinary code and went
+ * red, twice, before this narrowing shipped.
  *
  * Deliberately NOT checked here: that the built artefact matches a recorded
  * hash. That belongs to the consumer, which is the only place that knows which
@@ -68,7 +106,8 @@ const UPSTREAM_COMMIT = '0c5788a8ffda80c8f0cb5a61d5113fb036eedebb';
 const OWNED_UPSTREAM_FILES = {
   'package.json':
     '`prepare` builds the package: a git dependency has no publish step; ' +
-    '`test:planner` runs the SVAR-M4 layout and SVAR-M10 summary-geometry unit tests',
+    '`test:planner` runs the pure unit tests of SVAR-M4 (annotation layout), ' +
+    'SVAR-M10 (ancestor bar geometry) and SVAR-M11 (bar-drag preview gate)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/components/chart/Bars.jsx':
@@ -82,7 +121,8 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math; ' +
-    'SVAR-M5 — owns the transient bar-drag preview state; SVAR-M6 — hands the RESOLVED lane height to Grid.jsx',
+    'SVAR-M5 — owns the transient bar-drag preview state; SVAR-M6 — hands the RESOLVED lane height to Grid.jsx; ' +
+    'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx; ' +
@@ -322,27 +362,67 @@ const identifierHit = (line, name) =>
     'u',
   ).test(line);
 
+/** Paths whose lines a JavaScript runtime can actually execute. */
+const EXECUTABLE_SOURCE = /\.(?:js|jsx|mjs|cjs|ts|tsx)$/;
+
+/** `true` for a line that is entirely a comment, and so never executed. */
+const isWholeLineComment = (text) => {
+  const trimmed = text.trim();
+  return (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('/*') ||
+    trimmed.startsWith('*')
+  );
+};
+
 // This file is excluded from its own scan: it carries the PRO reset sentence
 // as the DEFINITION of the boundary, so every identifier necessarily appears
 // in it. Excluding the definition keeps the check about uses. Every other path
 // this project adds or changes is still scanned.
-const addedLines = tagCommit
-  ? git(
-      'diff',
-      '--unified=0',
-      `${UPSTREAM_COMMIT}..HEAD`,
-      '--',
-      '.',
-      ':(exclude)tools/planner-verify.mjs',
-    )
-      .split('\n')
-      .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
-  : [];
+//
+// The diff is read WITH its file headers, because check 4's scope is per file
+// (see the header of this file): an added line is attributed to the path it
+// was added to, and only executable paths are scanned.
+const addedLines = [];
+if (tagCommit) {
+  let path = null;
+  const diff = git(
+    'diff',
+    '--unified=0',
+    `${UPSTREAM_COMMIT}..HEAD`,
+    '--',
+    '.',
+    ':(exclude)tools/planner-verify.mjs',
+  );
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++ b/')) {
+      path = line.slice('+++ b/'.length);
+      continue;
+    }
+    if (line.startsWith('+++')) {
+      path = null;
+      continue;
+    }
+    if (line.startsWith('+')) addedLines.push({ path, text: line.slice(1) });
+  }
+}
+
+const outsideExecutableSource = addedLines.filter(
+  ({ path }) => path === null || !EXECUTABLE_SOURCE.test(path),
+);
+const wholeLineComments = addedLines.filter(
+  ({ path, text }) =>
+    path !== null && EXECUTABLE_SOURCE.test(path) && isWholeLineComment(text),
+);
+const executableLines = addedLines.filter(
+  ({ path, text }) =>
+    path !== null && EXECUTABLE_SOURCE.test(path) && !isWholeLineComment(text),
+);
 
 const drift = [];
-for (const line of addedLines) {
+for (const { path, text } of executableLines) {
   for (const name of PRO_TOKENS) {
-    if (identifierHit(line.slice(1), name)) drift.push({ name, line });
+    if (identifierHit(text, name)) drift.push({ name, path, text });
   }
 }
 
@@ -355,13 +435,20 @@ if (!tagCommit) {
 } else if (drift.length > 0) {
   for (const hit of drift) {
     fail(
-      `added line mentions PRO identifier "${hit.name}": ${hit.line.trim()}`,
+      `added executable line in ${hit.path} mentions PRO identifier ` +
+        `"${hit.name}": ${hit.text.trim()}`,
     );
   }
 } else {
   note(
-    `ok    none of the ${addedLines.length} added line(s) mention any of the ` +
-      `${PRO_TOKENS.length} PRO identifiers`,
+    `ok    none of the ${executableLines.length} added executable line(s) ` +
+      `mention any of the ${PRO_TOKENS.length} PRO identifiers`,
+  );
+  note(
+    `         out of scope by construction: ` +
+      `${outsideExecutableSource.length} added line(s) outside executable ` +
+      `source, ${wholeLineComments.length} whole-line comment(s) — see this ` +
+      `file's own header for why, and for what that does NOT relax`,
   );
 }
 

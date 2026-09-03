@@ -165,7 +165,27 @@ Two kinds of change, deliberately kept in separate commits:
      travels with the drag, keeps its size, and keeps its position relative to
      its content. A summary whose descendants still span a real interval keeps
      the store's live extent exactly as before, and with no gesture in flight
-     nothing is overridden at all.
+     nothing is overridden at all;
+   - **`SVAR-M11` — a drag pays for the marker preview only when a marker is
+     actually following it.** `SVAR-M5` gave `Layout.jsx` one piece of
+     transient state, and `Bars.jsx` reports every accepted pointer step of
+     every bar of every consumer, because it cannot know what a marker is. That
+     report was written into React state unconditionally, and a write there
+     re-renders the whole layout — grid, resizer, chart, scale — once per step.
+     Measured over 120 accepted steps of one continuous leaf drag, per step:
+     32.8 ms -> 48.5 ms with the full application, 33.6 -> 47.8 with the
+     application disabled, and **34.1 -> 44.4 on a bare Gantt with no
+     annotations and no consumer code at all**. The last figure is the
+     decisive one: that page had nothing to preview and still paid 30% more per
+     step. `chart/annotations/barDragPreviewGate.js` is the whole repair, as a
+     pure decision with its own unit tests: the annotation layout depends on
+     the report only through `followsTaskId`, so the state write happens when
+     some annotation follows the dragged bar — plus, always, the FIRST accepted
+     step of a gesture, because a consumer may redirect an annotation onto that
+     bar in response to that very event (which is how a container carries its
+     descendants' markers) and both must land in one React commit. A gesture
+     nothing follows therefore costs two state writes instead of one per step,
+     however far the pointer travels. No preview behaviour changes.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
