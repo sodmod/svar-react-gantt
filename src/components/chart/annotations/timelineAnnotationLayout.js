@@ -59,16 +59,28 @@
  *     keep their chips but add no stripe;
  *   - the lane is as tall as the rows it needs; there is no row cap.
  *
- * BOTTOM-ANCHORED ROWS AND LANE-SEGMENT EXTENT (SVAR-M7)
+ * BOTTOM-ANCHORED ROWS (SVAR-M7)
  *
- * A composite line whose group contains a bottom-anchored annotation draws
- * its LANE segment only from that chip's own bottom edge down to the lane's
- * bottom edge — never from the lane's top, unlike every other line, which
- * still spans the lane's full height as before. `laneTop` on such a line
- * model carries that offset; a normal line's `laneTop` is always `0`. This
- * governs the lane segment only: the chart-body segment (`TimelineLines.jsx`,
- * inside `.wx-area`) is unaffected — it already starts below the lane
- * entirely, for every line alike.
+ * `bottomAnchored` is a ROW rule and only a row rule: the annotation's chip
+ * claims the last row of the lane, as described above. It says nothing about
+ * where that annotation's line is drawn.
+ *
+ * WHICH BANDS A LINE IS DRAWN IN (SVAR-M9)
+ *
+ * A line is drawn in three bands — the lane, the lower scale rows, and the
+ * chart body — and the consumer chooses between two extents per annotation:
+ *
+ *   'header-and-body'  the default, and what every line did before: all three
+ *                      bands, one continuous line from the lane's top edge to
+ *                      the bottom of the visible body
+ *   'body'             the chart body ALONE. No segment in the lane and none
+ *                      across the lower scale rows: the line begins at the top
+ *                      edge of the chart body and goes down from there
+ *
+ * A composite line takes the 'body' extent only when EVERY annotation sharing
+ * it asked for one — one annotation can shorten its own line, never someone
+ * else's. What the choice MEANS is the consumer's business, exactly as with
+ * `bottomAnchored`; this module knows two band sets and no more.
  *
  * TRANSIENT DRAG PREVIEW (SVAR-M5)
  *
@@ -121,7 +133,10 @@ export const ANNOTATION_CHIP_GAP = 6;
 export const ANNOTATION_LINE_GAP = 2;
 /** A chip is never wider than this; longer labels are clipped with an ellipsis. */
 export const ANNOTATION_CHIP_MAX_WIDTH = 240;
-/** One colour stripe of a composite line, in px. */
+/**
+ * One colour stripe of a composite line, in px, when the annotation does not
+ * ask for another width (`stripeWidth`, SVAR-M9).
+ */
 export const ANNOTATION_STRIPE_WIDTH = 2;
 /** A composite line shows at most this many stripes. */
 export const ANNOTATION_MAX_STRIPES = 3;
@@ -218,6 +233,14 @@ export function placeAnnotations(annotations, scales, cellWidth, dragPreview) {
       // The consumer's own decision (row placement, §"the lane" above); this
       // module attaches no meaning to it beyond the placement rule it drives.
       bottomAnchored: annotation.bottomAnchored === true,
+      // SVAR-M9: which bands this annotation's line is drawn in, and how wide
+      // one of its stripes is. Both are presentation values the consumer
+      // owns; neither carries meaning here.
+      bodyOnlyLine: annotation.lineExtent === 'body',
+      stripeWidth:
+        Number.isFinite(annotation.stripeWidth) && annotation.stripeWidth > 0
+          ? annotation.stripeWidth
+          : ANNOTATION_STRIPE_WIDTH,
     });
   }
   return placed;
@@ -294,26 +317,27 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
     group.members.push(item);
   }
   const lineModels = lines.map((group) => {
+    // SVAR-M9: one stripe per annotation, each as wide as ITS OWN annotation
+    // asked for. The line's width is their sum, so the centring below
+    // (`x - width / 2`) and the chip's gap from the line's outer edge stay
+    // exact whatever the consumer chose.
     const stripes = group.members
       .slice(0, ANNOTATION_MAX_STRIPES)
-      .map((member) => ({ id: member.id, css: member.css }));
+      .map((member) => ({
+        id: member.id,
+        css: member.css,
+        width: member.stripeWidth,
+      }));
     return {
       key: group.key,
       x: group.x,
-      width: stripes.length * ANNOTATION_STRIPE_WIDTH,
+      width: stripes.reduce((total, stripe) => total + stripe.width, 0),
       stripes,
       ids: group.members.map((member) => member.id),
       dragged: group.dragged === true,
-      // A group containing a bottom-anchored member is itself bottom-anchored
-      // (in practice: solo, since a bottom-anchored annotation never shares a
-      // composite line — a different `dateTime` identity — with a normal one).
-      bottomAnchored: group.members.some(
-        (member) => member.bottomAnchored === true,
-      ),
-      // The lane-segment top offset, in px. `0` (the lane's own top) for
-      // every ordinary line; recomputed below, once rows are known, for a
-      // bottom-anchored line — it starts at its own chip's bottom edge.
-      laneTop: 0,
+      // SVAR-M9: the chart body ALONE, and only when EVERY annotation on this
+      // line asked for it — one annotation never shortens another's line.
+      bodyOnly: group.members.every((member) => member.bodyOnlyLine === true),
     };
   });
   const lineWidthByKey = new Map(
@@ -404,13 +428,6 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
   }
 
   const rowCount = rows.length;
-  if (rowCount > 0) {
-    const bottomChipBottom =
-      chipTopForRow(rowCount - 1) + ANNOTATION_CHIP_HEIGHT;
-    for (const line of lineModels) {
-      if (line.bottomAnchored) line.laneTop = bottomChipBottom;
-    }
-  }
 
   // Output order follows the same x-then-input-order rule as placement,
   // regardless of which of the two passes above assigned a chip its row.

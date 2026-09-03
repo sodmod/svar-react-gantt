@@ -91,6 +91,18 @@ function TimeScale(props) {
     [headerSplit],
   );
 
+  // SVAR-M9: and only the lines that reach the header at all. A consumer can
+  // ask for one drawn in the chart body ALONE (`lineExtent: 'body'`), and
+  // such a line has no segment anywhere in this header — not across these
+  // rows, and not in the lane above them (`AnnotationLane.jsx`).
+  const lowerRowLines = useMemo(
+    () =>
+      annotationLayout
+        ? annotationLayout.lines.filter((line) => !line.bodyOnly)
+        : [],
+    [annotationLayout],
+  );
+
   const renderRow = (r, rowIdx) => (
     <div
       className="wx-ZkvhDKir wx-row"
@@ -139,11 +151,9 @@ function TimeScale(props) {
           absolutely positioned, so it paints where its inline style says;
           being first keeps the LAST `.wx-row` the stylesheet's `:last-child`
           and therefore keeps the row borders exactly as they were. */}
-      {headerSplit.laneSplitsHeader &&
-      annotationLayout &&
-      annotationLayout.lines.length ? (
+      {headerSplit.laneSplitsHeader && lowerRowLines.length ? (
         <TimelineLines
-          lines={annotationLayout.lines}
+          lines={lowerRowLines}
           layerClassName="wx-scale-row-lines"
           lineClassName="wx-scale-row-line"
           style={lowerRowLinesStyle}

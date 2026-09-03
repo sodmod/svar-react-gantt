@@ -39,6 +39,12 @@ import './TimelineLines.css';
  * stylesheet) can address exactly one of them. Defaults are the chart-body
  * names, so `<TimelineLines lines={...} />` renders precisely what it always
  * rendered.
+ *
+ * SVAR-M9 (SVAR Production Planner): which lines reach a given band is the
+ * CALLER's question, not this component's — it draws the list it is handed.
+ * The lane and the lower-rows band filter out the lines whose consumer asked
+ * for the chart body alone (`lineExtent: 'body'`); the chart body draws every
+ * line, as it always did.
  */
 function TimelineLines(props) {
   const {
@@ -69,6 +75,13 @@ function TimelineLines(props) {
               key={stripe.id}
               className={'wx-timeline-line-stripe ' + stripe.css}
               data-annotation-id={stripe.id}
+              /* SVAR-M9: one annotation, one stripe, the width THAT
+                 annotation asked for — the layout owner already summed them
+                 into the line's own width above. */
+              style={{
+                flexBasis: `${stripe.width}px`,
+                width: `${stripe.width}px`,
+              }}
             />
           ))}
         </div>

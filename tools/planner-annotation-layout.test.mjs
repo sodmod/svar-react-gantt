@@ -807,11 +807,12 @@ test('SVAR-M5: a preview never removes a marker from the layout, and a garbage p
 });
 
 /* ------------------------------------------------------------------------ *
- * SVAR-M7 — bottom-anchored rows (R3 §3) and the bottom-anchored line's
- * lane-segment extent (R3 §4). `bottomAnchored: true` on an annotation is a
- * generic capability this module attaches no meaning to; the Planner sets it
- * on exactly one annotation, Today. These tests still name it "Today" for
- * readability, matching the product scenario it exists for.
+ * SVAR-M7 — bottom-anchored rows (R3 §3). `bottomAnchored: true` on an
+ * annotation is a generic capability this module attaches no meaning to; the
+ * Planner sets it on exactly one annotation, Today. These tests still name it
+ * "Today" for readability, matching the product scenario it exists for. Which
+ * BANDS that annotation's line reaches is a separate question, answered by
+ * SVAR-M9 below.
  * ------------------------------------------------------------------------ */
 
 function today(id, offset, extra) {
@@ -988,9 +989,17 @@ test('SVAR-M7: Pan (a wider range at the same annotations) does not change which
   assert.equal(narrow.rowCount, wide.rowCount);
 });
 
-test('SVAR-M7: the bottom-anchored line draws its lane segment only below its own chip — an ordinary line still spans the full lane from the top', () => {
+/* ------------------------------------------------------------------------ *
+ * SVAR-M9 — which BANDS a line is drawn in, and how wide one stripe is
+ * (Phase 3.2B R5 / P7). `lineExtent: 'body'` and `stripeWidth` are generic
+ * presentation capabilities this module attaches no meaning to; the Planner
+ * sets both on exactly one annotation, Today. These tests keep calling it
+ * "Today" for readability, matching the product scenario they exist for.
+ * ------------------------------------------------------------------------ */
+
+test("SVAR-M9: an annotation asking for the chart body alone marks its line bodyOnly; every other line keeps the header bands", () => {
   const placed = placeAnnotations(
-    [today('today', 10, { date: day(10) }), milestone('m', 10, 'Milestone')],
+    [today('today', 10, { lineExtent: 'body' }), milestone('m', 10, 'Milestone')],
     SCALES,
     CELL,
   );
@@ -1001,25 +1010,105 @@ test('SVAR-M7: the bottom-anchored line draws its lane segment only below its ow
   );
   const todayLine = layout.lines.find((l) => l.ids.includes('today'));
   const milestoneLine = layout.lines.find((l) => l.ids.includes('m'));
-  assert.equal(todayLine.bottomAnchored, true);
-  assert.equal(milestoneLine.bottomAnchored, false);
-  assert.equal(milestoneLine.laneTop, 0, 'an ordinary line still starts at the lane top');
+  assert.equal(todayLine.bodyOnly, true);
+  assert.equal(milestoneLine.bodyOnly, false, 'an ordinary line still reaches the header');
+  // The row rule is untouched by the band rule: Today still claims the
+  // bottom row, and the lane is still exactly as tall as its rows.
   const todayChip = layout.chips.find((c) => c.id === 'today');
-  const todayChipBottom = chipTopForRow(todayChip.row) + ANNOTATION_CHIP_HEIGHT;
-  assert.equal(
-    todayLine.laneTop,
-    todayChipBottom,
-    "Today's line starts exactly at its own chip's bottom edge",
-  );
+  assert.equal(todayChip.row, layout.rowCount - 1);
+  assert.equal(layout.laneHeight, laneHeightForRows(layout.rowCount));
   assert.ok(
-    todayLine.laneTop >= todayChipBottom,
-    'no part of the lane segment is drawn above the chip bottom (tolerance: none needed, exact by construction)',
+    layout.laneHeight >= chipTopForRow(todayChip.row) + ANNOTATION_CHIP_HEIGHT + ANNOTATION_LANE_PADDING_BOTTOM - 1,
   );
-  // And the segment below it never exceeds the lane's own bottom padding.
-  assert.equal(
-    layout.laneHeight - todayLine.laneTop,
-    ANNOTATION_LANE_PADDING_BOTTOM,
+});
+
+test('SVAR-M9: the default is unchanged — an annotation that asks for nothing keeps all three bands', () => {
+  const placed = placeAnnotations([milestone('m', 10, 'Milestone')], SCALES, CELL);
+  const layout = layoutTimelineAnnotations(placed, widths({ Milestone: 90 }), SCALES.width);
+  assert.equal(layout.lines[0].bodyOnly, false);
+  assert.equal(layout.lines[0].width, ANNOTATION_STRIPE_WIDTH);
+  assert.equal(layout.lines[0].stripes[0].width, ANNOTATION_STRIPE_WIDTH);
+});
+
+test('SVAR-M9: one annotation cannot shorten a line it SHARES — a composite line is bodyOnly only when every member asked for it', () => {
+  const shared = [
+    { id: 'a', date: day(20), label: 'A', lineExtent: 'body' },
+    { id: 'b', date: day(20), label: 'B' },
+  ];
+  const layout = layoutTimelineAnnotations(
+    placeAnnotations(shared, SCALES, CELL),
+    widths({ A: 40, B: 40 }),
+    SCALES.width,
   );
+  assert.equal(layout.lines.length, 1, 'one canonical date, one composite line');
+  assert.equal(layout.lines[0].bodyOnly, false);
+
+  const both = shared.map((a) => ({ ...a, lineExtent: 'body' }));
+  const layoutBoth = layoutTimelineAnnotations(
+    placeAnnotations(both, SCALES, CELL),
+    widths({ A: 40, B: 40 }),
+    SCALES.width,
+  );
+  assert.equal(layoutBoth.lines[0].bodyOnly, true);
+});
+
+test('SVAR-M9: a stripe is as wide as ITS OWN annotation asked, the line is their sum, and the line stays centred on its date', () => {
+  const placed = placeAnnotations(
+    [today('today', 10, { stripeWidth: 3 })],
+    SCALES,
+    CELL,
+  );
+  const layout = layoutTimelineAnnotations(placed, widths({ Today: 60 }), SCALES.width);
+  const line = layout.lines[0];
+  assert.equal(line.width, 3);
+  assert.equal(line.stripes[0].width, 3);
+  // Centred: the drawn left edge is `x - width / 2` (TimelineLines.jsx), so
+  // the line's own centre is its date's x whatever the stripe width is.
+  assert.equal(line.x - line.width / 2 + line.width / 2, line.x);
+
+  const mixed = layoutTimelineAnnotations(
+    placeAnnotations(
+      [
+        { id: 'a', date: day(20), label: 'A', stripeWidth: 3 },
+        { id: 'b', date: day(20), label: 'B' },
+      ],
+      SCALES,
+      CELL,
+    ),
+    widths({ A: 40, B: 40 }),
+    SCALES.width,
+  );
+  assert.equal(mixed.lines[0].width, 3 + ANNOTATION_STRIPE_WIDTH);
+});
+
+test('SVAR-M9: a non-positive or nonsensical stripeWidth falls back to the package default', () => {
+  for (const bad of [0, -3, Number.NaN, Number.POSITIVE_INFINITY, '3', null, undefined]) {
+    const layout = layoutTimelineAnnotations(
+      placeAnnotations([milestone('m', 10, 'Milestone', { stripeWidth: bad })], SCALES, CELL),
+      widths({ Milestone: 90 }),
+      SCALES.width,
+    );
+    assert.equal(
+      layout.lines[0].width,
+      ANNOTATION_STRIPE_WIDTH,
+      `stripeWidth=${String(bad)} must fall back to the default`,
+    );
+  }
+});
+
+test('SVAR-M9: the chip gap is still measured from the line\'s own OUTER edge when that line is 3 px wide', () => {
+  const layout = layoutTimelineAnnotations(
+    placeAnnotations(
+      [milestone('m', 50, 'Milestone', { stripeWidth: 3 })],
+      SCALES,
+      CELL,
+    ),
+    widths({ Milestone: 80 }),
+    SCALES.width,
+  );
+  const chip = layout.chips[0];
+  const line = layout.lines[0];
+  assert.equal(chip.x, line.x + line.width / 2 + ANNOTATION_LINE_GAP);
 });
 
 test('SVAR-M7: the milestone chip gap is exactly ANNOTATION_LINE_GAP from the line\'s own OUTER edge, for a 2/4/6 px composite line, right and left fallback alike', () => {

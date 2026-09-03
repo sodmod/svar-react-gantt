@@ -68,14 +68,34 @@ export interface ITimelineAnnotation {
    * top-down first-fit rule; this one is placed afterwards, into that row if
    * its interval is free there or into one new row below everything
    * otherwise — a colliding chip is therefore never itself moved, it simply
-   * already sits in the row directly above. Its own composite line also
-   * draws its LANE segment only below this chip, never above or behind it;
-   * the chart-body segment is unaffected. What "bottom-anchored" MEANS
-   * (e.g. "this is today") is the consumer's business, never this package's.
-   * Absent = ordinary first-fit placement, unaffected by any other
-   * annotation's flag. Default false.
+   * already sits in the row directly above. A ROW rule and only a row rule:
+   * it says nothing about where this annotation's line is drawn (see
+   * `lineExtent`). What "bottom-anchored" MEANS (e.g. "this is today") is the
+   * consumer's business, never this package's. Absent = ordinary first-fit
+   * placement, unaffected by any other annotation's flag. Default false.
    */
   bottomAnchored?: boolean;
+  /**
+   * SVAR-M9: which bands this annotation's vertical line is drawn in.
+   *
+   *   'header-and-body'  the default: the annotation lane, the lower scale
+   *                      rows and the chart body — one continuous line
+   *   'body'             the chart body ALONE. The line begins at the top
+   *                      edge of the chart body; there is no segment in the
+   *                      lane and none across the date rows
+   *
+   * A composite line takes 'body' only when EVERY annotation sharing it asked
+   * for one, so an annotation can shorten its own line and never another's.
+   * What the choice means is the consumer's business.
+   */
+  lineExtent?: 'header-and-body' | 'body';
+  /**
+   * SVAR-M9: the width in px of THIS annotation's own stripe of its line. A
+   * composite line is as wide as its stripes together, so it stays centred on
+   * its date whatever the consumer chooses. Absent or not a positive finite
+   * number = the package's own 2 px default.
+   */
+  stripeWidth?: number;
 }
 
 /**

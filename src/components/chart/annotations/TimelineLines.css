@@ -39,10 +39,15 @@
 
 /* One stripe per annotation in the line's group — the annotations sharing one
    consumer-supplied technical date, not one rounded x; the consumer's `css`
-   class on the stripe sets the colour through the public custom property. */
+   class on the stripe sets the colour through the public custom property.
+
+   SVAR-M9: the stripe's WIDTH now comes from the layout owner as an inline
+   style, because the line's own width is their sum and the two must agree
+   exactly for the line to stay centred on its date. `flex: 0 0 auto` here
+   simply stops flexbox from growing or shrinking what it is given; the 2 px
+   default lives in `timelineAnnotationLayout.js`, one place, not two. */
 .wx-timeline-line-stripe {
-  flex: 0 0 var(--wx-gantt-timeline-annotation-stripe-width, 2px);
-  width: var(--wx-gantt-timeline-annotation-stripe-width, 2px);
+  flex: 0 0 auto;
   height: 100%;
   background: var(
     --wx-gantt-timeline-annotation-color,

@@ -10,9 +10,9 @@
  * with the timeline under horizontal scroll, with no code of its own for
  * either.
  *
- * Rows, sides, lane height and each line's lane-segment top (`laneTop`) come
- * from `timelineAnnotationLayout.js`; this component renders what it is
- * handed and decides nothing.
+ * Rows, sides, lane height and which lines reach this band at all come from
+ * `timelineAnnotationLayout.js`; this component renders what it is handed and
+ * decides nothing.
  *
  * SVAR-M8: the lane also carries the ordinary timeline column separators, so
  * a chip reads as belonging to a date column instead of floating in an
@@ -67,34 +67,38 @@ function AnnotationLane(props) {
           ))}
         </div>
       ) : null}
-      {lines.map((line) => (
-        <div
-          key={line.key}
-          className="wx-annotation-lane-line"
-          data-timeline-line={line.key}
-          data-annotation-ids={line.ids.join(' ')}
-          data-annotation-count={line.ids.length}
-          data-annotation-dragged={line.dragged ? 'true' : 'false'}
-          aria-hidden="true"
-          style={{
-            left: `${line.x - line.width / 2}px`,
-            width: `${line.width}px`,
-            // Every ordinary line still spans the lane's full height via the
-            // stylesheet's `top: 0`. A bottom-anchored (Today) line overrides
-            // it: its lane segment starts at its own chip's bottom edge, not
-            // the lane's top — no line drawn above or behind that chip.
-            ...(line.bottomAnchored ? { top: `${line.laneTop}px` } : null),
-          }}
-        >
-          {line.stripes.map((stripe) => (
-            <div
-              key={stripe.id}
-              className={'wx-timeline-line-stripe ' + stripe.css}
-              data-annotation-id={stripe.id}
-            />
-          ))}
-        </div>
-      ))}
+      {/* SVAR-M9: a line whose consumer asked for the chart body alone is not
+          drawn here at all — no segment in the lane, not even behind its own
+          chip. Every other line still spans the lane's full height. */}
+      {lines
+        .filter((line) => !line.bodyOnly)
+        .map((line) => (
+          <div
+            key={line.key}
+            className="wx-annotation-lane-line"
+            data-timeline-line={line.key}
+            data-annotation-ids={line.ids.join(' ')}
+            data-annotation-count={line.ids.length}
+            data-annotation-dragged={line.dragged ? 'true' : 'false'}
+            aria-hidden="true"
+            style={{
+              left: `${line.x - line.width / 2}px`,
+              width: `${line.width}px`,
+            }}
+          >
+            {line.stripes.map((stripe) => (
+              <div
+                key={stripe.id}
+                className={'wx-timeline-line-stripe ' + stripe.css}
+                data-annotation-id={stripe.id}
+                style={{
+                  flexBasis: `${stripe.width}px`,
+                  width: `${stripe.width}px`,
+                }}
+              />
+            ))}
+          </div>
+        ))}
       {chips.map((chip) => (
         <div
           key={chip.id}
