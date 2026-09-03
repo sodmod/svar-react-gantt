@@ -16,6 +16,11 @@ import './Layout.css';
 import { flushSync } from 'react-dom';
 import { useTimelineAnnotationLayout } from './chart/annotations/useTimelineAnnotationLayout.js';
 import AnnotationMeasurer from './chart/annotations/AnnotationMeasurer.jsx';
+import {
+  collectFollowedTaskIds,
+  IDLE_BAR_DRAG_PREVIEW,
+  nextBarDragPreviewState,
+} from './chart/annotations/barDragPreviewGate.js';
 
 function Layout(props) {
   // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
@@ -62,20 +67,36 @@ function Layout(props) {
    *
    * Kept out of the store deliberately (D-102 §B): a transient presentation
    * value of this fork is not a reason to touch `@svar-ui/gantt-store`.
+   *
+   * SVAR-M11 (SVAR Production Planner): WHETHER a given step is written into
+   * that state at all. A write here re-renders this whole layout, and until
+   * R7 every accepted step of every drag paid for one — including on a page
+   * with no annotations, where the recomputed layout is provably identical.
+   * `./chart/annotations/barDragPreviewGate.js` is the pure decision, with the
+   * measurements and the one first-step exception written down; the state
+   * itself, and everything the layout does with it, are unchanged.
+   *
+   * The gate's own state lives in a ref, not in React state: it decides WHEN
+   * to render and must therefore not cause one.
    */
   const [barDragPreview, setBarDragPreview] = useState(null);
+  const barDragPreviewGate = useRef(IDLE_BAR_DRAG_PREVIEW);
+  const followedTaskIds = useMemo(
+    () => collectFollowedTaskIds(timelineAnnotations),
+    [timelineAnnotations],
+  );
   const onBarDragPreview = useCallback(
     (event) => {
-      setBarDragPreview((previous) => {
-        if (!event || event.inProgress === false) return null;
-        if (previous && previous.id === event.id && previous.dx === event.dx) {
-          return previous;
-        }
-        return { id: event.id, dx: event.dx };
-      });
+      const next = nextBarDragPreviewState(
+        barDragPreviewGate.current,
+        event,
+        followedTaskIds,
+      );
+      barDragPreviewGate.current = next.state;
+      if (next.publish) setBarDragPreview(next.state.published);
       if (onTimelineDragPreview) onTimelineDragPreview(event);
     },
-    [onTimelineDragPreview],
+    [followedTaskIds, onTimelineDragPreview],
   );
 
   // SVAR-M4 (SVAR Production Planner): ONE memoised layout for the lines in
