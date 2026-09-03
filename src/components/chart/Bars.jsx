@@ -13,6 +13,10 @@ import { useStore, useStoreWithCounter } from '@svar-ui/lib-react';
 import { isSegmentMoveAllowed, extendDragOptions } from '@svar-ui/gantt-store';
 import { Button } from '@svar-ui/react-core';
 import Links from './Links.jsx';
+import {
+  collectAncestorBarGeometry,
+  resolveCollapsedSummaryGeometry,
+} from './summaryDragGeometry.js';
 import BarSegments from './BarSegments.jsx';
 import Rollups from './Rollups.jsx';
 import './Bars.css';
@@ -79,6 +83,19 @@ function Bars(props) {
   const [linkFrom, setLinkFrom] = useState(undefined);
   const [taskMove, setTaskMove] = useState(null);
   const progressFromRef = useRef(null);
+
+  /*
+   * SVAR-M10 (SVAR Production Planner): the pre-gesture bar geometry of the
+   * dragged bar's ancestors — see `summaryDragGeometry.js` for what it is for.
+   *
+   * A ref, not state: it never decides WHEN to render, only what to draw when
+   * a render happens, and every accepted drag step already re-renders this
+   * component twice over (the store's own `setState`, and `setTaskMove`). It
+   * deliberately outlives the gesture, because a gesture that commits nothing
+   * leaves the store's collapsed `$w` in place until the consumer re-projects,
+   * and `dx` is then `0` — which draws the bar exactly where it began.
+   */
+  const ancestorGeometryRef = useRef(null);
 
   const [selectedLinkId, setSelectedLinkId] = useState(null);
 
@@ -206,8 +223,24 @@ function Bars(props) {
             marker: point.target,
           };
           point.target.classList.add('wx-progress-in-drag');
+          // SVAR-M10: a progress gesture re-derives no summary geometry, so
+          // there is nothing to restore and no stale snapshot to keep.
+          ancestorGeometryRef.current = null;
         } else {
           const mode = getMoveMode(node, point, task) || 'move';
+
+          /*
+           * SVAR-M10 (SVAR Production Planner): the ancestors' geometry as it
+           * stands BEFORE this gesture, taken here for the same reason `l`/`w`
+           * below are — the store is about to overwrite it, and for a summary
+           * whose content is a single date it overwrites it with a zero width.
+           * Taken through the public `api.getTask`, over the tree's depth,
+           * once per gesture: no per-step work is added anywhere.
+           */
+          ancestorGeometryRef.current = collectAncestorBarGeometry(
+            (ancestorId) => api.getTask(ancestorId),
+            task,
+          );
 
           const newTaskMove = {
             id,
@@ -597,15 +630,27 @@ function Bars(props) {
     ],
   );
 
-  const taskStyle = useCallback((task) => {
-    return {
-      left: `${task.$x}px`,
-      top: `${task.$y}px`,
-      width: `${task.$w}px`,
-      height: `${task.$h}px`,
-      lineHeight: `${task.$h}px`,
-    };
-  }, []);
+  const taskStyle = useCallback(
+    (task) => {
+      // SVAR-M10 (SVAR Production Planner): `null` for every bar except an
+      // ancestor summary whose transient width the store has just collapsed
+      // to zero — see `summaryDragGeometry.js`. `taskMove` is the gesture in
+      // flight; `dx` is `0` once the pointer is up.
+      const collapsed = resolveCollapsedSummaryGeometry(
+        task,
+        ancestorGeometryRef.current,
+        taskMove ? taskMove.dx : 0,
+      );
+      return {
+        left: `${collapsed ? collapsed.x : task.$x}px`,
+        top: `${task.$y}px`,
+        width: `${collapsed ? collapsed.w : task.$w}px`,
+        height: `${task.$h}px`,
+        lineHeight: `${task.$h}px`,
+      };
+    },
+    [taskMove],
+  );
 
   const baselineStyle = useCallback((task) => {
     return {
@@ -721,7 +766,12 @@ function Bars(props) {
         readonly={readonly}
       />
       {tasks.map((task) => {
-        if (task.$skip && task.$skip_baseline && !(rollups && rRollups?.[task.id])) return null;
+        if (
+          task.$skip &&
+          task.$skip_baseline &&
+          !(rollups && rRollups?.[task.id])
+        )
+          return null;
         const barClass =
           `wx-bar wx-${taskTypeCss(task.type)}` +
           (touched && taskMove && task.id === taskMove.id ? ' wx-touch' : '') +
@@ -733,7 +783,7 @@ function Bars(props) {
           'wx-link wx-left' +
           (linkFrom ? ' wx-visible' : '') +
           (!linkFrom ||
-            (!alreadyLinked(task.id, true) && isLinkMarkerVisible(task.id))
+          (!alreadyLinked(task.id, true) && isLinkMarkerVisible(task.id))
             ? ' wx-target'
             : '') +
           (linkFrom && linkFrom.id === task.id && linkFrom.start
@@ -744,7 +794,7 @@ function Bars(props) {
           'wx-link wx-right' +
           (linkFrom ? ' wx-visible' : '') +
           (!linkFrom ||
-            (!alreadyLinked(task.id, false) && isLinkMarkerVisible(task.id))
+          (!alreadyLinked(task.id, false) && isLinkMarkerVisible(task.id))
             ? ' wx-target'
             : '') +
           (linkFrom && linkFrom.id === task.id && !linkFrom.start
@@ -763,7 +813,7 @@ function Bars(props) {
               >
                 {!readonly && !hasDuplicatedIds ? (
                   task.id === selectedLink?.target &&
-                    selectedLink?.type[2] === 's' ? (
+                  selectedLink?.type[2] === 's' ? (
                     <Button
                       type="danger"
                       css="wx-left wx-delete-button wx-delete-link"
@@ -788,8 +838,8 @@ function Bars(props) {
                       </div>
                     ) : null}
                     {!readonly &&
-                      !(splitTasks && task.segments) &&
-                      !(task.type === 'summary' && summary?.autoProgress) ? (
+                    !(splitTasks && task.segments) &&
+                    !(task.type === 'summary' && summary?.autoProgress) ? (
                       <div
                         className="wx-GKbcLEGA wx-progress-marker"
                         style={{ left: `calc(${task.progress}% - 10px)` }}
@@ -820,7 +870,7 @@ function Bars(props) {
 
                 {!readonly && !hasDuplicatedIds ? (
                   task.id === selectedLink?.target &&
-                    selectedLink?.type[2] === 'e' ? (
+                  selectedLink?.type[2] === 'e' ? (
                     <Button
                       type="danger"
                       css="wx-right wx-delete-button wx-delete-link"

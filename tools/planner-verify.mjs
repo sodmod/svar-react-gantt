@@ -68,12 +68,13 @@ const UPSTREAM_COMMIT = '0c5788a8ffda80c8f0cb5a61d5113fb036eedebb';
 const OWNED_UPSTREAM_FILES = {
   'package.json':
     '`prepare` builds the package: a git dependency has no publish step; ' +
-    '`test:planner` runs the SVAR-M4 layout unit test',
+    '`test:planner` runs the SVAR-M4 layout and SVAR-M10 summary-geometry unit tests',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold; ' +
-    'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback',
+    'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
+    'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M4 — new `timelineAnnotations` prop, threaded through to Layout.jsx; ' +
@@ -89,11 +90,13 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
     'SVAR-M4 — renders <AnnotationLane> inside the sticky .wx-scale; ' +
-    'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines',
+    'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines; ' +
+    'SVAR-M9 — keeps a body-only line out of that lower-row band',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
     'SVAR-M4 — `ITimelineAnnotation` and the `timelineAnnotations` prop; ' +
-    'SVAR-M5 — `ITimelineDragPreview`, the `onTimelineDragPreview` prop and the `followsTaskId`/`previewDate` annotation fields',
+    'SVAR-M5 — `ITimelineDragPreview`, the `onTimelineDragPreview` prop and the `followsTaskId`/`previewDate` annotation fields; ' +
+    'SVAR-M9 — the `lineExtent` and `stripeWidth` annotation fields',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':
@@ -123,6 +126,8 @@ const PROJECT_ADDED = [
 	'.gitattributes',
 	// SVAR-M4: the annotation components, their stylesheets and the pure layout owner.
 	'src/components/chart/annotations/',
+	// SVAR-M10: the pure summary-drag geometry owner.
+	'src/components/chart/summaryDragGeometry.js',
 ];
 
 /**

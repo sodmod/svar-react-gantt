@@ -136,7 +136,36 @@ Two kinds of change, deliberately kept in separate commits:
      down through the lower date rows, drawn by the same `TimelineLines`
      component with caller-supplied class names and painted behind the cells'
      text, which the stylesheet lifts. With no lane, or on a single-row scale,
-     every one of these collapses to exactly the pre-SVAR-M8 layout.
+     every one of these collapses to exactly the pre-SVAR-M8 layout;
+   - **`SVAR-M9` — which BANDS a line is drawn in, and how wide one stripe is.**
+     An annotation may now ask for `lineExtent: 'body'`, and its line is then
+     drawn in the chart body ALONE: no segment in the marker lane, none across
+     the lower date rows. A composite line takes that extent only when EVERY
+     annotation sharing it asked for one, so an annotation can shorten its own
+     line and never someone else's. `stripeWidth` sets the width of that
+     annotation's own stripe; a line is as wide as its stripes together, so it
+     stays centred on its date and the chip's gap from its outer edge stays
+     exact whatever the consumer chose. Both default to what the package did
+     before, so an annotation that asks for neither is drawn exactly as it was.
+     What either choice MEANS is the consumer's business, as with everything
+     else here;
+   - **`SVAR-M10` — a summary bar that cannot collapse mid-gesture.** While a
+     bar is dragged, `@svar-ui/gantt-store` keeps every ancestor summary in
+     step with it by re-deriving that summary's transient `$x`/`$w` from its
+     descendants' extents, and a milestone contributes its DATE to those
+     extents rather than its diamond. A summary whose descendants are one
+     milestone — or several on one date — therefore has a single point for an
+     extent, and the store writes `$w = 0`: the group keeps its element, loses
+     all of its width and vanishes for as long as the pointer is held. The
+     store is not forked, so the repair lives where the bar is drawn.
+     `summaryDragGeometry.js` is the whole of it: `Bars.jsx` snapshots the
+     ancestors' geometry once, at pointerdown, through the public
+     `api.getTask`, and any of them whose live width is not positive is drawn
+     at that snapshot's own size, translated by the gesture's own `dx` — so it
+     travels with the drag, keeps its size, and keeps its position relative to
+     its content. A summary whose descendants still span a real interval keeps
+     the store's live extent exactly as before, and with no gesture in flight
+     nothing is overridden at all.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
