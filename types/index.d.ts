@@ -34,10 +34,13 @@ export { registerEditorItem } from '@svar-ui/react-editor';
 // 'unit-start' (the coordinate a bar begins on) or on its centre for
 // 'unit-center', puts the chip beside the line ('after': to the right, falling
 // back to the left at the range edge) or centred on it ('center'), merges the
-// lines of annotations sharing one x into one striped line, and adds `css` to
-// every element it renders for the annotation so the consumer's own stylesheet
-// colours it. What the annotation MEANS is the consumer's business, never this
-// package's.
+// lines of annotations sharing one SEMANTIC IDENTITY — the exact `date` (or
+// `previewDate`, while a gesture is in flight) plus the anchor kind, never the
+// rendered/rounded x — into one striped line, and adds `css` to every element
+// it renders for the annotation so the consumer's own stylesheet colours it.
+// Two annotations at different dates therefore stay two lines even when a
+// compressed scale projects both onto the same pixel. What the annotation
+// MEANS is the consumer's business, never this package's.
 export interface ITimelineAnnotation {
   id: string | number;
   date: Date;
@@ -101,11 +104,18 @@ export interface ITimelineAnnotation {
 /**
  * SVAR-M5: one accepted pointer step of a bar drag, or its end.
  *
- * `dx` is the pixels the bar has travelled since pointerdown; `diff` is that
- * displacement in whole scale units, by the same expression that produces the
- * `diff` of the committing `update-task`; `referenceStart` is the bar's date
- * before the gesture. `inProgress: false` (with `id: null`) means the gesture
- * is over and any preview should be dropped.
+ * `dx` is the pixels the bar has travelled since pointerdown — the total
+ * displacement from the grab point, not the increment since the previous step,
+ * and always a PIXEL value, never a date. `diff` is that same displacement in
+ * whole scale units, by the same expression that produces the `diff` of the
+ * committing `update-task`; `referenceStart` is the bar's date before the
+ * gesture. `inProgress: false` (with `id: null`) means the gesture is over and
+ * any preview should be dropped.
+ *
+ * The consumer receives EVERY accepted step of EVERY bar. What the package
+ * does with a step internally is its own business — since SVAR-M11 a step is
+ * written into the annotation layout only when some annotation follows the
+ * dragged bar — and none of that changes what arrives here.
  */
 export interface ITimelineDragPreview {
   id: string | number | null;
