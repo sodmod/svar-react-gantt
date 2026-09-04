@@ -215,11 +215,41 @@ const fail = (line) => {
 
 /* 1 -- UPSTREAM BASE ------------------------------------------------------ */
 
+/*
+ * The base is the recorded COMMIT, and the tag only corroborates it.
+ *
+ * This used to be the other way round, and a fresh clone could not run this
+ * file at all: `git clone` fetches tags, but this repository's origin carries
+ * none, so `v2.7.1` resolved nowhere and four checks failed as
+ * "prerequisite failures" — on a clone whose objects were completely intact.
+ * The upstream commit itself is reachable from every branch here, so the clone
+ * always had what the checks actually need.
+ *
+ * A 40-hex commit is immutable and is the stronger identifier of the two: a tag
+ * can be moved, and the recorded SHA cannot. So the commit decides whether the
+ * base is usable, and the tag — when a clone happens to have it — is checked
+ * for AGREEMENT, because a tag that points somewhere else is a real provenance
+ * violation and still fails.
+ */
+
+let upstreamBase = '';
+try {
+  upstreamBase = git('rev-parse', `${UPSTREAM_COMMIT}^{commit}`);
+} catch {
+  fail(
+    `the recorded upstream base commit ${UPSTREAM_COMMIT} is not present in ` +
+      `this clone — without it there is nothing to compare against`,
+  );
+}
+
 let tagCommit = '';
 try {
   tagCommit = git('rev-parse', `${UPSTREAM_TAG}^{commit}`);
 } catch {
-  fail(`upstream tag ${UPSTREAM_TAG} is not present in this clone`);
+  note(
+    `note  upstream tag ${UPSTREAM_TAG} is not in this clone, so it could not ` +
+      `corroborate the recorded base; the commit itself is what is verified`,
+  );
 }
 
 if (tagCommit && tagCommit !== UPSTREAM_COMMIT) {
@@ -229,15 +259,16 @@ if (tagCommit && tagCommit !== UPSTREAM_COMMIT) {
   );
 }
 
-if (tagCommit === UPSTREAM_COMMIT) {
+if (upstreamBase === UPSTREAM_COMMIT) {
   try {
     git('merge-base', '--is-ancestor', UPSTREAM_COMMIT, 'HEAD');
     note(
-      `ok    upstream base ${UPSTREAM_TAG} (${UPSTREAM_COMMIT}) is an ancestor of HEAD`,
+      `ok    upstream base ${UPSTREAM_COMMIT} is an ancestor of HEAD` +
+        (tagCommit ? ` (tag ${UPSTREAM_TAG} agrees)` : ''),
     );
   } catch {
     fail(
-      `upstream base ${UPSTREAM_TAG} (${UPSTREAM_COMMIT}) is NOT an ancestor of ` +
+      `upstream base ${UPSTREAM_COMMIT} is NOT an ancestor of ` +
         `HEAD — upstream ancestry was rewritten, which destroys the only proof ` +
         `of where this code came from`,
     );
@@ -275,7 +306,7 @@ const licensePath = resolve(repoRoot, LICENSE_PATH);
 
 if (!existsSync(licensePath)) {
   fail(`${LICENSE_PATH} is missing from the working tree`);
-} else if (!tagCommit) {
+} else if (!upstreamBase) {
   fail(
     `${LICENSE_PATH} could not be verified: the upstream base commit is not ` +
       `resolvable in this clone (see check 1) — this is a prerequisite failure, ` +
@@ -329,7 +360,7 @@ if (!existsSync(licensePath)) {
 
 /* 3 -- OWNED DIFF --------------------------------------------------------- */
 
-const changed = tagCommit
+const changed = upstreamBase
   ? git('diff', '--name-only', `${UPSTREAM_COMMIT}..HEAD`)
       .split('\n')
       .filter(Boolean)
@@ -340,7 +371,7 @@ const undeclared = changed.filter(
   (file) => !isProjectAdded(file) && !(file in OWNED_UPSTREAM_FILES),
 );
 
-if (!tagCommit) {
+if (!upstreamBase) {
   fail(
     'owned-diff could not be checked: the upstream base commit is not ' +
       'resolvable in this clone (see check 1) — this is a prerequisite ' +
@@ -394,7 +425,7 @@ const isWholeLineComment = (text) => {
 // (see the header of this file): an added line is attributed to the path it
 // was added to, and only executable paths are scanned.
 const addedLines = [];
-if (tagCommit) {
+if (upstreamBase) {
   let path = null;
   const diff = git(
     'diff',
@@ -436,7 +467,7 @@ for (const { path, text } of executableLines) {
   }
 }
 
-if (!tagCommit) {
+if (!upstreamBase) {
   fail(
     'PRO drift could not be checked: the upstream base commit is not ' +
       'resolvable in this clone (see check 1) — this is a prerequisite ' +
