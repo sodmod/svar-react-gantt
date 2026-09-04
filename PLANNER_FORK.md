@@ -241,6 +241,48 @@ Two kinds of change, deliberately kept in separate commits:
      where the product's theme lives, and nothing about whether the drop is
      legal, which is the consumer's domain. The attribute describes the
      GESTURE, not a promised outcome.
+
+     **R3 remediation — one descriptor, not two.** The first cut of `SVAR-M14`
+     marked the row from the RAW zone `reorder.js` computes, and `Grid.jsx`
+     then REWROTE that zone before dispatching it. Two upstream corrections do
+     the rewriting, and both exist for good reasons: `after T` becomes
+     `before T` when the dragged row already sits directly under `T` (otherwise
+     the drop is a no-op), and becomes `before T`'s first child when `T` is an
+     open container (otherwise the drop lands past the whole subtree). The
+     consequence was that the line was drawn on `T`'s BOTTOM edge while the
+     drop it described was going to land ABOVE `T`, or INSIDE it. The Planner's
+     manual acceptance found exactly that, along with the two other effects of
+     the same split: `config.move` was handed the detail computed on the
+     PREVIOUS pointer move, so every dispatched intent lagged the marker by one
+     move; and the drop itself was read from the last DISPATCHED detail, so the
+     same final pointer position produced different results depending on how
+     many moves the browser had coalesced after the last zone change.
+
+     There is one descriptor now, and it is resolved before anything is drawn:
+
+     ```text
+     reorder.js   GEOMETRY — which row the pointer is over, and which of the
+                  three zones it fell in. Unchanged: the two edge tests still
+                  compare the dragged row's own edges to the target's midline,
+                  and the middle band is still measured from the pointer.
+     Grid.jsx     RESOLUTION — `config.resolve`, the two adjacency corrections
+                  as a pure function, because they need the task list.
+     reorder.js   the resolved `{ mode, target }` is the ONE thing marked, the
+                  ONE thing dispatched, and the ONE thing dropped.
+     ```
+
+     `data-wx-drop-zone` therefore now lands on the row the drop will actually
+     apply to — which, for a drop resolved into an open container, is that
+     container's first child rather than the row under the pointer. The
+     duplicate-call guard still suppresses a repeated DISPATCH, but it no
+     longer clears the value the drop is read from; and a pointer over nothing
+     droppable clears the intent as well as the marker, so releasing there
+     drops nothing instead of dropping where the pointer used to be.
+
+     Deliberately NOT changed: the hit test still follows the POINTER for the
+     target row and the dragged row's own edges for the before/after side.
+     Replacing that with a dragged-body intersection model is a different
+     interaction, and an open product question rather than a defect.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

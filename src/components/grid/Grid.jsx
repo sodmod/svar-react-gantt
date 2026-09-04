@@ -198,40 +198,58 @@ export default function Grid(props) {
     allTasksRef.current = allTasks;
   }, [allTasks]);
 
-  const lastDetailRef = useRef(null);
+  /*
+   * SVAR-M13/M14 (SVAR Production Planner, R3): what the reorder helper's RAW
+   * zone actually means, once the task list is taken into account.
+   *
+   * These two corrections are upstream's, and they are not cosmetic: without
+   * them a drag onto the row directly above the dragged one, and a drag onto
+   * the bottom edge of an open container, would both dispatch a `move-task`
+   * that changes nothing. What R3 changes is WHEN they are applied.
+   *
+   * Until R3 they ran inside the dispatch, AFTER `reorder.js` had already
+   * drawn its marker from the raw zone, so the two disagreed on exactly the
+   * cases the corrections exist for: the line sat on a row's BOTTOM edge while
+   * the task was about to land ABOVE that row, or INSIDE it. The Planner's
+   * manual acceptance (R3-P4/R3-P6) found both.
+   *
+   * They are now a pure resolution handed to `reorder.js`, which asks for it
+   * on every pointer move and then marks, dispatches and drops that ONE
+   * answer. `mode: 'child'` and `mode: 'before'` are returned untouched: a
+   * correction about a position in a sibling list says nothing about a drop
+   * INTO a row, and "before" has no adjacent no-op to repair.
+   *
+   * It decides nothing about LEGALITY — a consumer that owns hierarchy rules
+   * refuses the drop it does not allow, and that is still its own business.
+   */
+  const resolveDrop = useCallback(({ id, mode, target }) => {
+    if (mode !== 'after') return { mode, target };
+
+    const rows = allTasksRef.current;
+    const index = rows.findIndex((t) => t.id === id);
+    const targetIndex = rows.findIndex((t) => t.id === target);
+    if (targetIndex === -1) return { mode, target };
+    const task = rows[targetIndex];
+
+    // The dragged row already sits directly under the target, so "after it" is
+    // where it is. The gesture means the other side of that boundary.
+    if (index - targetIndex === 1) return { mode: 'before', target };
+
+    // The target is an OPEN container: the boundary under its own row is the
+    // one above its first child, not one after the whole subtree.
+    if (task && task.data && task.open && task.data.length > 0) {
+      return { mode: 'before', target: task.data[0].id };
+    }
+
+    return { mode, target };
+  }, []);
 
   const reorderTasks = useCallback(
-    (detail) => {
-      const id = detail.id;
+    ({ id, mode, target, inProgress }) => {
       // SVAR-M13 (SVAR Production Planner): `child` is the third zone the
       // reorder helper can now report — "into this row". `move-task` has always
       // accepted the mode and the store has always implemented it; only the
       // gesture that produces it is new.
-      const { before, after, child } = detail;
-      const inProgress = detail.onMove;
-
-      let target = child || before || after;
-      let mode = child ? 'child' : before ? 'before' : 'after';
-
-      if (inProgress) {
-        // The two adjacency corrections below are about a position in a sibling
-        // list, so they say nothing about a drop INTO a row.
-        if (mode === 'after') {
-          const index = allTasksRef.current.findIndex((t) => t.id === id);
-          const targetIndex = allTasksRef.current.findIndex(
-            (t) => t.id === target,
-          );
-          const task = allTasksRef.current[targetIndex];
-          if (index - targetIndex === 1) {
-            mode = 'before';
-          } else if (task && task.data && task.open) {
-            mode = 'before';
-            target = task.data[0].id;
-          }
-        }
-        lastDetailRef.current = { id, [mode]: target };
-      } else lastDetailRef.current = null;
-
       api.exec('move-task', {
         id,
         mode,
@@ -473,9 +491,19 @@ export default function Grid(props) {
   );
 
   const endReorder = useCallback(
-    ({ id, top }) => {
-      if (lastDetailRef.current) {
-        reorderTasks({ ...lastDetailRef.current, onMove: false });
+    ({ id, top, drop }) => {
+      /*
+       * SVAR-M14 (R3): the drop is the descriptor `reorder.js` had on screen at
+       * the moment of release, handed straight here.
+       *
+       * It used to be the last in-progress detail this component had cached,
+       * which is a different value whenever the final pointer move crossed a
+       * zone boundary — the marker showed one thing and the drop did another,
+       * and which one won depended on how many moves the browser coalesced.
+       * There is nothing to cache now: one descriptor, painted and dropped.
+       */
+      if (drop) {
+        reorderTasks({ ...drop, inProgress: false });
       } else {
         api.exec('drag-task', {
           id,
@@ -491,7 +519,7 @@ export default function Grid(props) {
   const moveReorder = useCallback(
     ({ id, top, detail }) => {
       if (detail) {
-        reorderTasks({ ...detail, onMove: true });
+        reorderTasks({ ...detail, inProgress: true });
       }
       api.exec('drag-task', {
         id,
@@ -515,10 +543,13 @@ export default function Grid(props) {
       start: startReorder,
       end: endReorder,
       move: moveReorder,
+      // SVAR-M14 (R3): the raw zone becomes the drop this grid would actually
+      // dispatch, BEFORE anything is drawn from it.
+      resolve: resolveDrop,
       getTask: api.getTask,
     });
     return action.destroy;
-  }, [api, startReorder, endReorder, moveReorder]);
+  }, [api, startReorder, endReorder, moveReorder, resolveDrop]);
 
   const handleHotkey = useCallback(
     (ev) => {
