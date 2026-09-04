@@ -154,7 +154,10 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/grid/Grid.jsx':
     'SVAR-M6 — reserves the RESOLVED annotation-lane height as a blank spacer, and shifts the grid body by the same amount, so grid and chart rows share one y; ' +
     'SVAR-M8 — puts that reservation ABOVE the column-header block, whose own height becomes the lower scale rows\' band; ' +
-    'SVAR-M12 — renders the consumer\'s action slot in that same reserved band',
+    'SVAR-M12 — renders the consumer\'s action slot in that same reserved band; ' +
+    'SVAR-M13 — maps the reorder helper\'s new `child` zone onto move-task mode "child"',
+  'src/helpers/reorder.js':
+    'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted',
   'src/components/grid/Grid.css':
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +

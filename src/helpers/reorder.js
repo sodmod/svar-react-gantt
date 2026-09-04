@@ -18,6 +18,16 @@ function checkSource(node) {
 
 const SHIFT = 5;
 
+/*
+ * SVAR-M13 (SVAR Production Planner): how much of a row, at each end, still
+ * means "beside this row" rather than "into it".
+ *
+ * 0.3 leaves the middle 40% as the child band. Small enough that dropping
+ * between two rows stays easy, large enough that hitting it is not a matter of
+ * luck at the 48px row heights this renderer is used at.
+ */
+const CHILD_BAND_EDGE = 0.3;
+
 export function reorder(node, config) {
   let source, clone, sid;
   let x, y, base, detail;
@@ -140,15 +150,43 @@ export function reorder(node, config) {
           event.clientY - base.dt < line &&
           target.previousElementSibling !== source;
 
-        if (detail?.after === tid || detail?.before === tid) {
-          // avoid duplicate calls
-          detail = null;
-        } else if (after) {
-          // move down
-          detail = { id: sid, after: tid };
-        } else if (before) {
-          // move up
-          detail = { id: sid, before: tid };
+        /*
+         * SVAR-M13 (SVAR Production Planner): the row's middle band means
+         * "into this row", not "next to it".
+         *
+         * Before this, a row was split in two and a drag could only ever
+         * express a position in an existing sibling list. Making one task the
+         * parent of another was therefore impossible by direct manipulation,
+         * even though `move-task` has always accepted `mode: 'child'` and the
+         * store has always implemented it — `indent-task` is written in terms
+         * of exactly that call.
+         *
+         * The band is measured from the POINTER against the target's own box,
+         * unlike the two edge tests above, which compare the dragged row's
+         * edges to the target's midline. That difference is deliberate: an
+         * edge test asks "which side is the row falling on", and there is no
+         * third side; "am I over the middle of that row" is a question about
+         * where the user is pointing.
+         */
+        const middleTop = box.top + box.height * CHILD_BAND_EDGE;
+        const middleBottom = box.bottom - box.height * CHILD_BAND_EDGE;
+        const onto = event.clientY > middleTop && event.clientY < middleBottom;
+
+        const zone = onto
+          ? 'child'
+          : after
+            ? 'after'
+            : before
+              ? 'before'
+              : null;
+        if (zone) {
+          if (detail && detail[zone] === tid) {
+            // avoid duplicate calls — keyed on the ZONE as well as the target,
+            // so moving from a row's edge to its middle is a real change.
+            detail = null;
+          } else {
+            detail = { id: sid, [zone]: tid };
+          }
         }
       }
     }

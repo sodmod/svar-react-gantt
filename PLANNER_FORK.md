@@ -207,6 +207,24 @@ Two kinds of change, deliberately kept in separate commits:
      as it did. This renderer does not know what the controls are: no action, no
      availability rule, no selection, no history, no hierarchy rule, no calendar
      and no notion of language crosses this seam.
+   - **`SVAR-M13` — a row's middle band means "into this row".** The grid's
+     drag split every row in two: the upper half meant "before", the lower half
+     "after". A drag could therefore only ever express a position in an existing
+     sibling list, and making one task the parent of another by direct
+     manipulation was impossible — even though `move-task` has always accepted
+     `mode: 'child'` and the store has always implemented it (`indent-task` is
+     written in terms of exactly that call). `src/helpers/reorder.js` now
+     reports a third zone from the middle 40% of the target row, and
+     `Grid.jsx` maps it onto that existing mode. The band is measured from the
+     POINTER against the target's own box, unlike the two edge tests, which
+     compare the dragged row's edges to the target's midline: an edge test asks
+     which side the row is falling on, and there is no third side, while "am I
+     over the middle of that row" is a question about where the user points.
+     The duplicate-call guard is keyed on the zone as well as the target, so
+     moving from a row's edge to its middle is a real change rather than a
+     repeat. Nothing decides whether the resulting parentage is legal — that
+     was never this renderer's to decide, and the consumer's domain refuses a
+     drop it does not allow.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

@@ -203,13 +203,19 @@ export default function Grid(props) {
   const reorderTasks = useCallback(
     (detail) => {
       const id = detail.id;
-      const { before, after } = detail;
+      // SVAR-M13 (SVAR Production Planner): `child` is the third zone the
+      // reorder helper can now report — "into this row". `move-task` has always
+      // accepted the mode and the store has always implemented it; only the
+      // gesture that produces it is new.
+      const { before, after, child } = detail;
       const inProgress = detail.onMove;
 
-      let target = before || after;
-      let mode = before ? 'before' : 'after';
+      let target = child || before || after;
+      let mode = child ? 'child' : before ? 'before' : 'after';
 
       if (inProgress) {
+        // The two adjacency corrections below are about a position in a sibling
+        // list, so they say nothing about a drop INTO a row.
         if (mode === 'after') {
           const index = allTasksRef.current.findIndex((t) => t.id === id);
           const targetIndex = allTasksRef.current.findIndex(
