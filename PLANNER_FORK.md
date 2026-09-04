@@ -225,6 +225,22 @@ Two kinds of change, deliberately kept in separate commits:
      repeat. Nothing decides whether the resulting parentage is legal — that
      was never this renderer's to decide, and the consumer's domain refuses a
      drop it does not allow.
+   - **`SVAR-M14` — the row a drop would land at says so, while the drag is
+     still happening.** The zone `SVAR-M13` computes already decided the
+     `move-task` mode, but it existed only long enough to be sent: nothing on
+     screen distinguished "insert between these two rows" from "put it inside
+     this one" until after the user let go. `src/helpers/reorder.js` now puts
+     `data-wx-drop-zone="before|after|child"` on the row the drop applies to,
+     moves it as the pointer moves, and removes it when the pointer leaves the
+     rows or the gesture ends in any way — drop, cancel, or a drag that never
+     started. Exactly one row carries it at a time.
+
+     The split of responsibility is the point. This renderer says WHERE and
+     WHICH ZONE, because it already computes both; it says nothing about what
+     the marker should look like, which belongs in the consumer's stylesheet
+     where the product's theme lives, and nothing about whether the drop is
+     legal, which is the consumer's domain. The attribute describes the
+     GESTURE, not a promised outcome.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

@@ -28,6 +28,38 @@ const SHIFT = 5;
  */
 const CHILD_BAND_EDGE = 0.3;
 
+/*
+ * SVAR-M14 (SVAR Production Planner): the attribute that says where the drop
+ * would land, put on the row it would land at.
+ *
+ * The zone is already computed here on every pointer move — it is what decides
+ * the `move-task` mode — but until now it existed only long enough to be sent
+ * and was never visible. A user could not tell "insert between these two rows"
+ * from "put it inside this one" until after letting go.
+ *
+ * This marks the row and stops there. WHAT the marker looks like is the
+ * consumer's, in its own stylesheet, because a drop indicator has to match the
+ * product's theme; and WHETHER the drop is legal is the consumer's too, which
+ * is why this attribute describes the gesture rather than promising an outcome.
+ */
+const DROP_ZONE_ATTRIBUTE = 'data-wx-drop-zone';
+
+let markedRow = null;
+
+/** Moves the drop marker to `row`/`zone`, or clears it when `row` is null. */
+function markDropZone(row, zone) {
+  if (markedRow && markedRow !== row) {
+    markedRow.removeAttribute(DROP_ZONE_ATTRIBUTE);
+  }
+  markedRow = row;
+  if (row) row.setAttribute(DROP_ZONE_ATTRIBUTE, zone);
+}
+
+/** Clears the marker, whatever it currently is. Safe to call twice. */
+function clearDropZone() {
+  markDropZone(null, null);
+}
+
 export function reorder(node, config) {
   let source, clone, sid;
   let x, y, base, detail;
@@ -179,6 +211,11 @@ export function reorder(node, config) {
             : before
               ? 'before'
               : null;
+        // SVAR-M14: show the zone on the row it applies to, every move, even
+        // when the zone has not changed and no `move-task` is emitted — the
+        // marker is about what the user can SEE, not about what is dispatched.
+        markDropZone(zone ? target : null, zone);
+
         if (zone) {
           if (detail && detail[zone] === tid) {
             // avoid duplicate calls — keyed on the ZONE as well as the target,
@@ -188,6 +225,11 @@ export function reorder(node, config) {
             detail = { id: sid, [zone]: tid };
           }
         }
+      } else {
+        // SVAR-M14: over nothing droppable — the pointer left the rows, or is
+        // over the dragged row itself. Nothing is going to happen here, and the
+        // marker has to say so.
+        clearDropZone();
       }
     }
   }
@@ -220,6 +262,10 @@ export function reorder(node, config) {
   }
 
   function up() {
+    // SVAR-M14: drop, cancel, or a gesture that never started — the marker goes
+    // in every one of those cases, because it describes a drag in progress.
+    clearDropZone();
+
     if (source) {
       source.style.visibility = '';
     }
