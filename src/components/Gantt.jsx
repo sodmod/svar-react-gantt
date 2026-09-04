@@ -134,9 +134,9 @@ const Gantt = forwardRef(function Gantt(
     //
     // This renderer does not know what the content is. It holds no action, no
     // availability rule, no selection, no history, no hierarchy rule, no
-    // calendar and no notion of language: it renders the node in a place it
-    // already owns, and nothing else. `null` by default — without it the
-    // header and the grid are byte-for-byte what they were.
+    // working-day arithmetic and no notion of language: it renders the node in
+    // a place it already owns, and nothing else. `null` by default — without
+    // it the header and the grid are byte-for-byte what they were.
     gridActionSlot = null,
     init = null,
     autoScale = true,

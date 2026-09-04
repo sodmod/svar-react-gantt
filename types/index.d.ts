@@ -164,8 +164,8 @@ export declare const Gantt: ForwardRefExoticComponent<
     // band, so it stays directly on top of the column titles and a taller
     // marker lane opens room ABOVE it. Passing a slot also reserves the band
     // when there is no marker lane at all, so the content cannot disappear
-    // with the data. The renderer renders the node and knows nothing else about
-    // it — no action, no availability, no selection, no history, no calendar.
+    // with the data. The renderer renders the node and knows nothing else
+    // about it: no action, no availability, no selection, no history, no dates.
     gridActionSlot?: ReactNode;
     init?: (api: IApi) => void;
   } & IConfig &
