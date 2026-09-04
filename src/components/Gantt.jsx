@@ -130,7 +130,7 @@ const Gantt = forwardRef(function Gantt(
     // The band is bottom-aligned, so the content stays directly on top of the
     // column titles and extra room from a taller marker lane opens above it.
     // When the consumer passes a slot the band is reserved even with no
-    // markers at all, so the content cannot vanish with the data.
+    // marker lane at all, so the content cannot vanish with the data.
     //
     // This renderer does not know what the content is. It holds no action, no
     // availability rule, no selection, no history, no hierarchy rule, no

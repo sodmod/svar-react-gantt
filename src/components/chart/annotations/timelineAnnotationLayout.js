@@ -492,7 +492,7 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
  *   the rows keep their order and their heights, and `AnnotationLane` renders
  *   nothing at all — but on the GRID side the split is what turns the top
  *   row's band into blank room, and the grid's action slot needs that room to
- *   exist whether or not the consumer happens to have any markers right now.
+ *   exist whether or not the consumer happens to have any annotation now.
  *   Both callers are handed the SAME value by `Layout.jsx`, so the two halves
  *   of the surface still answer this question identically. Default `false`:
  *   without it this function is what it was.

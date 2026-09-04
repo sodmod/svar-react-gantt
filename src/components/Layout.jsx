@@ -125,9 +125,9 @@ function Layout(props) {
    * kept blank on the grid side even with no marker lane to fill it.
    *
    * The band is where `gridActionSlot` renders, and a project can legitimately
-   * have no markers at all — an empty one, or one whose only dates sit outside
-   * the visible range — so without this the slot's room would come and go with
-   * the consumer's data. Handed to BOTH halves so the one split owner still
+   * have no annotation at all — an empty one, or one whose only dates sit
+   * outside the visible range — so without this the slot's room would come and
+   * go with the consumer's data. Handed to BOTH halves so the one split owner still
    * gives one answer; on the chart side a zero-height lane renders nothing, so
    * the header looks exactly as it did.
    */
