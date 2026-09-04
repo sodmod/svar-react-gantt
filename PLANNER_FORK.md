@@ -186,6 +186,27 @@ Two kinds of change, deliberately kept in separate commits:
      descendants' markers) and both must land in one React commit. A gesture
      nothing follows therefore costs two state writes instead of one per step,
      however far the pointer travels. No preview behaviour changes.
+   - **`SVAR-M12` — a place for the consumer's own controls above the grid's
+     column headers.** `SVAR-M6`/`SVAR-M8` already leave a blank band on the
+     grid side: the top scale row's height plus the marker lane's, reserved
+     above the column-header block so the column titles stay adjacent to the
+     first task row. That band is real vertical room and nothing renders in it.
+     `gridActionSlot` is a new optional prop — an ordinary React node, threaded
+     down the same path as `taskTemplate`, never entering the store — that
+     `Grid.jsx` renders inside exactly that band, bottom-aligned, so the
+     content sits directly on top of the column titles and a taller marker lane
+     opens room ABOVE it rather than pushing it away from them. Two details
+     make it usable: the slot takes the pointer (the blank spacers do not, and
+     it holds real controls), and passing a slot also reserves the top scale
+     row's band when there is no lane at all, because a project can legitimately
+     have no markers and controls that vanish with the data would be a trap.
+     That last part is one boolean handed to the ONE split owner
+     (`splitScaleHeaderForLane`) by `Layout.jsx`, and handed identically to the
+     grid and to the scale header, so the two halves cannot disagree; with no
+     lane to draw, `AnnotationLane` renders nothing and the header looks exactly
+     as it did. This renderer does not know what the controls are: no action, no
+     availability rule, no selection, no history, no hierarchy rule, no calendar
+     and no notion of language crosses this seam.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

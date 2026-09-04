@@ -117,26 +117,31 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M4 — new `timelineAnnotations` prop, threaded through to Layout.jsx; ' +
-    'SVAR-M5 — new `onTimelineDragPreview` prop, threaded through to Layout.jsx',
+    'SVAR-M5 — new `onTimelineDragPreview` prop, threaded through to Layout.jsx; ' +
+    'SVAR-M12 — new `gridActionSlot` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math; ' +
     'SVAR-M5 — owns the transient bar-drag preview state; SVAR-M6 — hands the RESOLVED lane height to Grid.jsx; ' +
-    'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all',
+    'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all; ' +
+    'SVAR-M12 — carries the consumer\'s grid action slot to Grid.jsx and decides, for BOTH halves, whether the top scale row stays blank without a lane',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx; ' +
-    'SVAR-M5 — carries onBarDragPreview down to Bars.jsx',
+    'SVAR-M5 — carries onBarDragPreview down to Bars.jsx; ' +
+    'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
     'SVAR-M4 — renders <AnnotationLane> inside the sticky .wx-scale; ' +
     'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines; ' +
-    'SVAR-M9 — keeps a body-only line out of that lower-row band',
+    'SVAR-M9 — keeps a body-only line out of that lower-row band; ' +
+    'SVAR-M12 — asks the split owner with the same reserveTopScaleRow the grid is given',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
     'SVAR-M4 — `ITimelineAnnotation` and the `timelineAnnotations` prop; ' +
     'SVAR-M5 — `ITimelineDragPreview`, the `onTimelineDragPreview` prop and the `followsTaskId`/`previewDate` annotation fields; ' +
-    'SVAR-M9 — the `lineExtent` and `stripeWidth` annotation fields',
+    'SVAR-M9 — the `lineExtent` and `stripeWidth` annotation fields; ' +
+    'SVAR-M12 — the `gridActionSlot` prop',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':
@@ -148,10 +153,12 @@ const OWNED_UPSTREAM_FILES = {
     'ephemeral install-time clone directory path was otherwise leaking into them (SVAR-LOCAL-ASSETS)',
   'src/components/grid/Grid.jsx':
     'SVAR-M6 — reserves the RESOLVED annotation-lane height as a blank spacer, and shifts the grid body by the same amount, so grid and chart rows share one y; ' +
-    'SVAR-M8 — puts that reservation ABOVE the column-header block, whose own height becomes the lower scale rows\' band',
+    'SVAR-M8 — puts that reservation ABOVE the column-header block, whose own height becomes the lower scale rows\' band; ' +
+    'SVAR-M12 — renders the consumer\'s action slot in that same reserved band',
   'src/components/grid/Grid.css':
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
-    'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers',
+    'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +
+    'SVAR-M12 — the action slot inside that band, bottom-aligned and pointer-taking',
   'src/components/chart/TimeScale.css':
     'SVAR-M8 — the lower-scale-row band of the annotation lines, and the stacking rule that keeps every scale label above them',
   '.gitignore':

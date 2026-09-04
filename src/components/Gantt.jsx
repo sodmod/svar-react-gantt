@@ -120,6 +120,24 @@ const Gantt = forwardRef(function Gantt(
     // the bar instead of waiting on the drop. `null` by default: without it
     // nothing in this component behaves differently.
     onTimelineDragPreview = null,
+    // SVAR-M12 (SVAR Production Planner): new optional prop, purely additive.
+    //
+    // Consumer-owned content rendered in the blank band the LEFT grid already
+    // reserves above its column headers — the grid-side counterpart of the
+    // marker lane (SVAR-M6/SVAR-M8). It is a plain React node, threaded down
+    // the same path as `taskTemplate`; it never enters the store.
+    //
+    // The band is bottom-aligned, so the content stays directly on top of the
+    // column titles and extra room from a taller marker lane opens above it.
+    // When the consumer passes a slot the band is reserved even with no
+    // markers at all, so the content cannot vanish with the data.
+    //
+    // This renderer does not know what the content is. It holds no action, no
+    // availability rule, no selection, no history, no hierarchy rule, no
+    // calendar and no notion of language: it renders the node in a place it
+    // already owns, and nothing else. `null` by default — without it the
+    // header and the grid are byte-for-byte what they were.
+    gridActionSlot = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -383,6 +401,7 @@ const Gantt = forwardRef(function Gantt(
           scaleCellAriaLabel={scaleCellAriaLabel}
           timelineAnnotations={timelineAnnotations}
           onTimelineDragPreview={onTimelineDragPreview}
+          gridActionSlot={gridActionSlot}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

@@ -32,11 +32,16 @@ function Layout(props) {
   // `Gantt.jsx`. This component owns the transient half of the marker
   // presentation for the same reason it owns the lane layout: the displaced
   // marker and the lane height it may change are one layout, computed once.
+  // SVAR-M12 (SVAR Production Planner): `gridActionSlot` — see `Gantt.jsx`.
+  // This component owns the flag below for the same reason it owns the lane
+  // layout: the grid's blank reservation and the header's own composition are
+  // one arrangement, and both halves must be told the same thing about it.
   const {
     taskTemplate,
     scaleCellAriaLabel,
     timelineAnnotations,
     onTimelineDragPreview,
+    gridActionSlot,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -114,6 +119,19 @@ function Layout(props) {
       barDragPreview,
     );
   const laneHeight = annotationLayout.laneHeight;
+
+  /*
+   * SVAR-M12 (SVAR Production Planner): whether the top scale row's band is
+   * kept blank on the grid side even with no marker lane to fill it.
+   *
+   * The band is where `gridActionSlot` renders, and a project can legitimately
+   * have no markers at all — an empty one, or one whose only dates sit outside
+   * the visible range — so without this the slot's room would come and go with
+   * the consumer's data. Handed to BOTH halves so the one split owner still
+   * gives one answer; on the chart side a zero-height lane renders nothing, so
+   * the header looks exactly as it did.
+   */
+  const reserveTopScaleRow = laneHeight > 0 || gridActionSlot != null;
 
   const [ganttWidth, setGanttWidth] = useWritableProp(props.ganttWidth);
   const [ganttHeight, setGanttHeight] = useState(0);
@@ -294,6 +312,8 @@ function Layout(props) {
                   readonly={readonly}
                   fullHeight={fullHeight}
                   annotationLaneHeight={laneHeight}
+                  gridActionSlot={gridActionSlot}
+                  reserveTopScaleRow={reserveTopScaleRow}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer containerWidth={ganttWidth} api={api} />
@@ -308,6 +328,7 @@ function Layout(props) {
                 taskTemplate={taskTemplate}
                 scaleCellAriaLabel={scaleCellAriaLabel}
                 annotationLayout={annotationLayout}
+                reserveTopScaleRow={reserveTopScaleRow}
                 onBarDragPreview={onBarDragPreview}
               />
             </div>

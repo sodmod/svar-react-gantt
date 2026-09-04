@@ -487,18 +487,29 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
  *
  * @param scales      the store's `_scales` (`rows`, `height`)
  * @param laneHeight  the RESOLVED lane height (`layoutTimelineAnnotations`)
+ * @param reserveTopRow  SVAR-M12: split the header even when there is no lane
+ *   to put in the gap. A zero-height lane changes nothing the eye can see —
+ *   the rows keep their order and their heights, and `AnnotationLane` renders
+ *   nothing at all — but on the GRID side the split is what turns the top
+ *   row's band into blank room, and the grid's action slot needs that room to
+ *   exist whether or not the consumer happens to have any markers right now.
+ *   Both callers are handed the SAME value by `Layout.jsx`, so the two halves
+ *   of the surface still answer this question identically. Default `false`:
+ *   without it this function is what it was.
  * @returns `{ laneSplitsHeader, rowsAboveLane, heightAboveLane,
- *   heightBelowLane, laneHeight }`. When there is no lane, or the scale has a
- *   single row and therefore nothing to put below one, `laneSplitsHeader` is
- *   `false` and the caller keeps its previous arrangement exactly: every row
- *   above, nothing below, the lane (if any) under all of them.
+ *   heightBelowLane, laneHeight }`. When there is no lane and no reservation
+ *   asked for, or the scale has a single row and therefore nothing to put
+ *   below one, `laneSplitsHeader` is `false` and the caller keeps its previous
+ *   arrangement exactly: every row above, nothing below, the lane (if any)
+ *   under all of them.
  */
-export function splitScaleHeaderForLane(scales, laneHeight) {
+export function splitScaleHeaderForLane(scales, laneHeight, reserveTopRow) {
   const rows = scales && Array.isArray(scales.rows) ? scales.rows : [];
   const totalHeight =
     scales && Number.isFinite(scales.height) ? scales.height : 0;
   const lane = Number.isFinite(laneHeight) && laneHeight > 0 ? laneHeight : 0;
-  const laneSplitsHeader = lane > 0 && rows.length > 1;
+  const laneSplitsHeader =
+    (lane > 0 || reserveTopRow === true) && rows.length > 1;
   if (!laneSplitsHeader) {
     return {
       laneSplitsHeader: false,

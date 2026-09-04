@@ -158,6 +158,15 @@ export declare const Gantt: ForwardRefExoticComponent<
     // SVAR-M5 (SVAR Production Planner): live bar-drag preview reporting, see
     // `ITimelineDragPreview` above. Reports; decides nothing.
     onTimelineDragPreview?: (preview: ITimelineDragPreview) => void;
+    // SVAR-M12 (SVAR Production Planner): consumer-owned content rendered in
+    // the blank band the LEFT grid reserves above its column headers — the
+    // grid-side counterpart of the marker lane. Bottom-aligned inside that
+    // band, so it stays directly on top of the column titles and a taller
+    // marker lane opens room ABOVE it. Passing a slot also reserves the band
+    // when there are no markers at all, so the content cannot disappear with
+    // the data. The renderer renders the node and knows nothing else about
+    // it — no action, no availability, no selection, no history, no calendar.
+    gridActionSlot?: ReactNode;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

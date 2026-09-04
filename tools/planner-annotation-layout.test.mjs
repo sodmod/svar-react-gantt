@@ -1285,3 +1285,50 @@ test('SVAR-M8 negative control (NC-R4-A oracle): a lane placed under ALL rows le
   assert.equal(restored.heightBelowLane, 0);
   assert.ok(current.heightBelowLane > 0);
 });
+
+/*
+ * SVAR-M12 — the grid's action slot needs the top row's band to be blank room
+ * whether or not the consumer currently has any markers.
+ *
+ * `reserveTopRow` is the ONLY thing that changes: the split still keeps every
+ * pixel, still puts exactly one row above, and still reports the lane height
+ * it was handed. Both halves of the surface are given the same flag, so the
+ * one owner still gives one answer.
+ */
+test('SVAR-M12: reserveTopRow splits the header even with no lane', () => {
+  const split = splitScaleHeaderForLane(DAY_HEADER, 0, true);
+  assert.equal(split.laneSplitsHeader, true);
+  assert.equal(split.rowsAboveLane, 1);
+  assert.equal(split.heightAboveLane, 30, "the top row's own height");
+  assert.equal(split.heightBelowLane, 50, 'the two lower rows');
+  assert.equal(split.laneHeight, 0, 'no lane is invented — there is simply none');
+  assert.equal(
+    split.heightAboveLane + split.heightBelowLane,
+    DAY_HEADER.height,
+    'no pixel is invented or lost, so both halves stay aligned',
+  );
+});
+
+test('SVAR-M12: with a lane, reserveTopRow changes nothing', () => {
+  const withFlag = splitScaleHeaderForLane(DAY_HEADER, 28, true);
+  const without = splitScaleHeaderForLane(DAY_HEADER, 28, false);
+  assert.deepEqual(withFlag, without);
+});
+
+test('SVAR-M12: the flag cannot conjure a split a single-row header cannot have', () => {
+  const split = splitScaleHeaderForLane(ONE_ROW_HEADER, 0, true);
+  assert.equal(split.laneSplitsHeader, false, 'nothing to put below the only row');
+  assert.equal(split.heightAboveLane, ONE_ROW_HEADER.height);
+  assert.equal(split.heightBelowLane, 0);
+});
+
+test('SVAR-M12: only `true` reserves — an absent flag is the old behaviour', () => {
+  for (const flag of [undefined, null, false, 0, '', 'yes', 1]) {
+    const split = splitScaleHeaderForLane(DAY_HEADER, 0, flag);
+    assert.equal(
+      split.laneSplitsHeader,
+      false,
+      `reserveTopRow=${String(flag)} must not split`,
+    );
+  }
+});

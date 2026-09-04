@@ -133,3 +133,26 @@
   border-top: transparent;
   border-bottom: transparent;
 }
+
+/* SVAR-M12 (SVAR Production Planner): the consumer's action slot, inside the
+   blank band this grid reserves above its column headers.
+
+   Bottom-aligned on purpose: the band's height is the marker lane's, so it
+   grows and shrinks with the number of milestone-label rows, and the controls
+   have to stay where the eye last left them — directly on top of the column
+   titles — while the new room opens ABOVE them.
+
+   Unlike the two blank spacers, this one takes the pointer: it holds real
+   controls. It also stacks above the sticky column header (z-index 3) so a
+   control is never clipped by it. */
+.wx-grid-action-slot.wx-rHj6070p {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--wx-background);
+}

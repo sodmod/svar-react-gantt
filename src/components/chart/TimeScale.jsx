@@ -37,7 +37,12 @@ function TimeScale(props) {
   // inside this sticky element, so it stays fixed with the header and scrolls
   // with the timeline for free. Absent, or with no rows to show, nothing is
   // rendered and the header is what it always was.
-  const { api, scaleCellAriaLabel, annotationLayout } = props;
+  // SVAR-M12 (SVAR Production Planner): `reserveTopScaleRow` — the same value
+  // `Grid.jsx` is handed, so this header and the grid's blank reservation stay
+  // one arrangement. With no lane it changes nothing visible here: the rows
+  // keep their order and heights, and `AnnotationLane` renders nothing.
+  const { api, scaleCellAriaLabel, annotationLayout, reserveTopScaleRow } =
+    props;
 
   const scales = useStore(api, '_scales');
   const xArea = useStore(api, 'xArea');
@@ -73,8 +78,8 @@ function TimeScale(props) {
    */
   const laneHeight = annotationLayout ? annotationLayout.laneHeight : 0;
   const headerSplit = useMemo(
-    () => splitScaleHeaderForLane(scales, laneHeight),
-    [scales, laneHeight],
+    () => splitScaleHeaderForLane(scales, laneHeight, reserveTopScaleRow),
+    [scales, laneHeight, reserveTopScaleRow],
   );
 
   // SVAR-M8: the header half of every annotation's vertical line — the band

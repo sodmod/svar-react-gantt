@@ -35,6 +35,9 @@ function Chart(props) {
     taskTemplate,
     scaleCellAriaLabel,
     annotationLayout,
+    // SVAR-M12 (SVAR Production Planner): forwarded untouched to the scale
+    // header, which asks the one split owner with it. See `Layout.jsx`.
+    reserveTopScaleRow,
     onBarDragPreview,
   } = props;
 
@@ -295,6 +298,7 @@ function Chart(props) {
         api={api}
         scaleCellAriaLabel={scaleCellAriaLabel}
         annotationLayout={annotationLayout}
+        reserveTopScaleRow={reserveTopScaleRow}
       />
       {markers && markers.length ? (
         <div

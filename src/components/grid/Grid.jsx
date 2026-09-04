@@ -74,7 +74,20 @@ export default function Grid(props) {
    * annotation is; a second answer to "how tall is the lane" would be a
    * second owner, and that is exactly what this prop exists to avoid.
    */
-  const { readonly, onTableAPIChange, annotationLaneHeight } = props;
+  /*
+   * SVAR-M12 (SVAR Production Planner): `gridActionSlot` — consumer-owned
+   * content rendered in the blank band this grid already reserves above its
+   * column headers, and `reserveTopScaleRow`, the flag that guarantees the
+   * band exists. Both arrive from `Layout.jsx`; see the render below and
+   * `Gantt.jsx` for what the seam is and what it deliberately is not.
+   */
+  const {
+    readonly,
+    onTableAPIChange,
+    annotationLaneHeight,
+    gridActionSlot,
+    reserveTopScaleRow,
+  } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
     ? Math.max(0, annotationLaneHeight)
     : 0;
@@ -310,8 +323,8 @@ export default function Grid(props) {
    * BELOW it through `bodyOffset`, as SVAR-M6 always did.
    */
   const headerSplit = useMemo(
-    () => splitScaleHeaderForLane(scalesVal, laneHeight),
-    [scalesVal, laneHeight],
+    () => splitScaleHeaderForLane(scalesVal, laneHeight, reserveTopScaleRow),
+    [scalesVal, laneHeight, reserveTopScaleRow],
   );
   const headerHeight = useMemo(
     () =>
@@ -681,6 +694,29 @@ export default function Grid(props) {
               height: `${laneHeight}px`,
             }}
           />
+        ) : null}
+        {/* SVAR-M12 (SVAR Production Planner): the consumer's own controls,
+            in the blank band above the column headers.
+
+            It is the SAME band the two spacers above occupy — `headerOffset`
+            is the one number this file already computes for them, from the one
+            split owner — so this slot can never disagree with the reservation
+            it sits in, and it adds no height of its own. `align-items: flex-end`
+            in the stylesheet keeps the content directly on top of the column
+            titles: when the marker lane grows, the new room appears ABOVE the
+            content, not between it and the headers.
+
+            What arrives here is an opaque React node. This component does not
+            know what the controls do, when they are enabled, what they are
+            called or in which language — it renders them, and it stops there. */}
+        {gridActionSlot && headerOffset > 0 ? (
+          <div
+            className="wx-rHj6070p wx-grid-action-slot"
+            data-grid-action-slot="true"
+            style={{ top: '0px', height: `${headerOffset}px` }}
+          >
+            {gridActionSlot}
+          </div>
         ) : null}
         <WxGrid
           init={init}
