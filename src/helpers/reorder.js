@@ -1,14 +1,24 @@
 import { locate, getID } from '@svar-ui/lib-dom';
 
-function getOffset(node, relative, ev) {
+/*
+ * SVAR-M14 (R4, SVAR Production Planner): the dragged row's own edges are no
+ * longer part of this.
+ *
+ * Upstream measured two offsets here — the pointer's distance to the dragged
+ * row's top and bottom — and the hit test below compared THOSE against the
+ * target's midline to decide "before" or "after". Phase 3.3's manual
+ * acceptance chose a fully CURSOR-BASED model instead (D-117 §AC), so the
+ * offsets have no remaining reader and are gone rather than left to rot. What
+ * stays is the clone's placement, which is a presentation offset and always
+ * was.
+ */
+function getOffset(node, relative) {
   const box = node.getBoundingClientRect();
   const base = relative.querySelector('.wx-body').getBoundingClientRect();
 
   return {
     top: box.top - base.top,
     left: box.left - base.left,
-    dt: box.bottom - ev.clientY,
-    db: ev.clientY - box.top,
   };
 }
 
@@ -25,8 +35,57 @@ const SHIFT = 5;
  * 0.3 leaves the middle 40% as the child band. Small enough that dropping
  * between two rows stays easy, large enough that hitting it is not a matter of
  * luck at the 48px row heights this renderer is used at.
+ *
+ * MEASURED in real Chromium on the consuming product (48px rows): the three
+ * bands come out 0..14.4 / 14.4..33.6 / 33.6..48 px, which is comfortably
+ * larger than the pointer precision a person actually has.
  */
 const CHILD_BAND_EDGE = 0.3;
+
+/*
+ * SVAR-M14 (R4, SVAR Production Planner): the boundary magnet.
+ *
+ * Rows are contiguous — one row's bottom edge IS the next row's top edge — so
+ * a single visible separator can be expressed two ways: "after the row above"
+ * or "before the row below". A pointer resting on the separator flickers
+ * between the two rows as it jitters by a pixel, and where those two
+ * expressions do NOT mean the same canonical placement (the last row of a
+ * group followed by a root-level row, say) the RESULT flickers with it.
+ *
+ * Within this many pixels of a separator the two expressions are collapsed
+ * into one: the consumer is asked to re-express a boundary hit as "before the
+ * row below", which is what the other side of that same separator already
+ * produces. One separator, one descriptor, from either side.
+ *
+ * It is deliberately SMALLER than the insertion band (8 against 14.4 px at the
+ * product's row height), so aiming at a row's lower band still expresses "after
+ * THIS row" — dropping as the last child of a group stays reachable — and only
+ * the last few pixels before the separator are canonicalized. `snapFor` clamps
+ * it so it can never swallow the band on a shorter row.
+ */
+const BOUNDARY_SNAP_PX = 8;
+
+function snapFor(height) {
+  return Math.min(BOUNDARY_SNAP_PX, height * CHILD_BAND_EDGE * 0.6);
+}
+
+/**
+ * Which of the three zones the POINTER is in, and nothing else (SVAR-M14, R4).
+ *
+ * The whole hit test, in one pure function of the pointer and the target's own
+ * box. No dragged-row geometry, no DOM adjacency, no previous pointer position,
+ * no time: the same coordinate over the same row is the same answer, always,
+ * whatever route the pointer took to get there and however fast it moved.
+ */
+function pointerZone(box, clientY) {
+  if (!(box.height > 0)) return 'child';
+  const fromTop = clientY - box.top;
+  const fromBottom = box.bottom - clientY;
+  const band = box.height * CHILD_BAND_EDGE;
+  if (fromTop < band) return 'before';
+  if (fromBottom < band) return 'after';
+  return 'child';
+}
 
 /*
  * SVAR-M14 (SVAR Production Planner): the attribute that says where the drop
@@ -147,7 +206,7 @@ export function reorder(node, config) {
     x = event.clientX;
     y = event.clientY;
     base = {
-      ...getOffset(source, node, event),
+      ...getOffset(source, node),
       y: config.getTask(sid).$y,
     };
 
@@ -272,83 +331,59 @@ export function reorder(node, config) {
     }
   }
 
-  /** Recomputes `current` from where the pointer is now. */
+  /**
+   * Recomputes `current` from where the pointer is now (SVAR-M14, R4).
+   *
+   * Three steps, in this order, and nothing else:
+   *
+   * ```text
+   * 1  which ROW   `elementFromPoint` — the row the cursor is over
+   * 2  which ZONE  `pointerZone` — the cursor's position inside that row
+   * 3  what it MEANS  `config.resolve` — the consumer, which owns the task
+   *                   list and therefore the adjacency and boundary rules
+   * ```
+   *
+   * The result of step 3 is the one descriptor that is marked, dispatched and
+   * dropped. Nothing here reads the dragged row's geometry, the previous
+   * pointer position, or a clock.
+   */
   function resolveDropAt(event) {
-    {
-      const targetNode = document.elementFromPoint(
-        event.clientX,
-        event.clientY,
-      );
-      const target = locate(targetNode);
+    const targetNode = document.elementFromPoint(event.clientX, event.clientY);
+    const target = locate(targetNode);
 
-      if (target && target !== source) {
-        const tid = getID(target);
-        const box = target.getBoundingClientRect();
-        const line = box.top + box.height / 2;
-
-        const after =
-          event.clientY + base.db > line &&
-          target.nextElementSibling !== source;
-        const before =
-          event.clientY - base.dt < line &&
-          target.previousElementSibling !== source;
-
-        /*
-         * SVAR-M13 (SVAR Production Planner): the row's middle band means
-         * "into this row", not "next to it".
-         *
-         * Before this, a row was split in two and a drag could only ever
-         * express a position in an existing sibling list. Making one task the
-         * parent of another was therefore impossible by direct manipulation,
-         * even though `move-task` has always accepted `mode: 'child'` and the
-         * store has always implemented it — `indent-task` is written in terms
-         * of exactly that call.
-         *
-         * The band is measured from the POINTER against the target's own box,
-         * unlike the two edge tests above, which compare the dragged row's
-         * edges to the target's midline. That difference is deliberate: an
-         * edge test asks "which side is the row falling on", and there is no
-         * third side; "am I over the middle of that row" is a question about
-         * where the user is pointing.
-         */
-        const middleTop = box.top + box.height * CHILD_BAND_EDGE;
-        const middleBottom = box.bottom - box.height * CHILD_BAND_EDGE;
-        const onto = event.clientY > middleTop && event.clientY < middleBottom;
-
-        const zone = onto
-          ? 'child'
-          : after
-            ? 'after'
-            : before
-              ? 'before'
-              : null;
-
-        /*
-         * SVAR-M14 (R3): the RAW zone is a statement about the pointer; the
-         * drop is what the consumer resolves it to.
-         *
-         * `config.resolve` owns the two adjacency corrections, because they
-         * need the task list and this helper only has the DOM. Whatever it
-         * returns is the whole truth of this gesture from here on: it is
-         * marked, it is dispatched, and it is dropped. A consumer that does
-         * not supply one gets the raw zone, unchanged.
-         */
-        const raw = zone === null ? null : { id: sid, mode: zone, target: tid };
-        const resolved =
-          raw === null ? null : config.resolve ? config.resolve(raw) : raw;
-        publishDrop(
-          resolved === null || resolved === undefined
-            ? null
-            : { id: sid, mode: resolved.mode, target: resolved.target },
-        );
-      } else {
-        // SVAR-M14: over nothing droppable — the pointer left the rows, or is
-        // over the dragged row itself. Nothing is going to happen here, and the
-        // marker has to say so — and so must the intent, or a release here
-        // would drop where the pointer used to be.
-        publishDrop(null);
-      }
+    if (!target || target === source) {
+      // Over nothing droppable — the pointer left the rows, or is over the
+      // dragged row itself. Nothing is going to happen here, and the marker
+      // has to say so, and so must the intent: releasing here drops nothing
+      // rather than dropping where the pointer used to be.
+      publishDrop(null);
+      return;
     }
+
+    const box = target.getBoundingClientRect();
+    const zone = pointerZone(box, event.clientY);
+
+    /*
+     * Is the pointer ON the separator this zone names? The consumer needs to
+     * know, because collapsing a boundary to one descriptor means naming the
+     * row on the other side of it, and only the consumer knows which row that
+     * is in the CURRENT list.
+     */
+    const snap = snapFor(box.height);
+    const atBoundary =
+      zone === 'before'
+        ? event.clientY - box.top <= snap
+        : zone === 'after'
+          ? box.bottom - event.clientY <= snap
+          : false;
+
+    const raw = { id: sid, mode: zone, target: getID(target), atBoundary };
+    const resolved = config.resolve ? config.resolve(raw) : raw;
+    publishDrop(
+      resolved === null || resolved === undefined
+        ? null
+        : { id: sid, mode: resolved.mode, target: resolved.target },
+    );
   }
 
   function handleMousemove(event) {

@@ -156,11 +156,13 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M8 — puts that reservation ABOVE the column-header block, whose own height becomes the lower scale rows\' band; ' +
     'SVAR-M12 — renders the consumer\'s action slot in that same reserved band; ' +
     'SVAR-M13 — maps the reorder helper\'s new `child` zone onto move-task mode "child"; ' +
-    'SVAR-M14 (R3) — the two adjacency corrections become `resolveDrop`, a pure resolution the reorder helper asks for BEFORE it marks anything, so the marker and the dispatched move-task are one descriptor',
+    'SVAR-M14 (R3) — the two adjacency corrections become `resolveDrop`, a pure resolution the reorder helper asks for BEFORE it marks anything, so the marker and the dispatched move-task are one descriptor; ' +
+    'SVAR-M14 (R4) — `resolveDrop` becomes the cursor model\'s meaning layer: the open-container rewrite is unconditional, a hit ON a separator is re-expressed as "before the row below" so one boundary has one descriptor, and the direction-inverting adjacency correction is gone',
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +
-    'SVAR-M14 (R3) — one live resolved drop descriptor is marked, dispatched and dropped, so the indicator cannot describe a different result from the drop',
+    'SVAR-M14 (R3) — one live resolved drop descriptor is marked, dispatched and dropped, so the indicator cannot describe a different result from the drop; ' +
+    'SVAR-M14 (R4) — the hit test is FULLY CURSOR-BASED: `pointerZone` is a pure function of the pointer and the target box, the dragged row\'s own edges are gone, and a boundary magnet collapses each separator to one descriptor',
   'src/components/grid/Grid.css':
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +

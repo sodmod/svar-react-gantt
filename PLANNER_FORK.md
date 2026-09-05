@@ -279,10 +279,45 @@ Two kinds of change, deliberately kept in separate commits:
      droppable clears the intent as well as the marker, so releasing there
      drops nothing instead of dropping where the pointer used to be.
 
-     Deliberately NOT changed: the hit test still follows the POINTER for the
-     target row and the dragged row's own edges for the before/after side.
-     Replacing that with a dragged-body intersection model is a different
-     interaction, and an open product question rather than a defect.
+     **R4 — the hit test is now FULLY CURSOR-BASED.** R3 left the model open
+     and said so; the consuming product's manual acceptance then chose the
+     cursor. The dragged row's own edges are gone from `getOffset` and from the
+     decision, and `pointerZone` is a pure function of the pointer and the
+     target's box:
+
+     ```text
+     upper third     before
+     middle          child
+     lower third     after
+     ```
+
+     Two things follow, and both are the point rather than side effects. The
+     answer no longer depends on WHERE the row was grabbed — measured in real
+     Chromium, a sweep from a top, a middle and a bottom grab produces three
+     identical zone maps — and the DOM-adjacency guards that used to suppress a
+     zone entirely (`nextElementSibling !== source`) are gone with the body
+     test they served, so there is no longer a band of a row where the gesture
+     silently means nothing.
+
+     A **boundary magnet** completes it. Rows are contiguous, so one visible
+     separator can be named from either side — "after the row above" or "before
+     the row below" — and a cursor resting on it jitters between the two rows.
+     Within `BOUNDARY_SNAP_PX` of a separator the helper tells the consumer it
+     is ON a boundary, and the consumer re-expresses the hit as "before the row
+     below": one separator, one descriptor, identical from both sides, so the
+     RESULT cannot flicker with the jitter. The magnet is deliberately smaller
+     than the insertion band, so a row's lower band still means "after THIS
+     row" and dropping as the last child of a group stays reachable.
+
+     `Grid.jsx`'s resolution lost one rule and gained one. The open-container
+     rewrite is now unconditional — "after C" draws its line on C's bottom
+     edge, which is where C's first child begins, so it must MEAN that
+     wherever in the band it was asked. And upstream's "after T becomes before
+     T when the dragged row already sits under T" is **removed**: it existed to
+     rescue the body test, and under a cursor model silently inverting the
+     user's stated direction is a surprise, not a repair. That drop is a no-op
+     now — the consumer declines a command that would change nothing, and the
+     line is drawn exactly where the row already is.
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

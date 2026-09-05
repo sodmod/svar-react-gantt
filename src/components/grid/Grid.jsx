@@ -199,46 +199,62 @@ export default function Grid(props) {
   }, [allTasks]);
 
   /*
-   * SVAR-M13/M14 (SVAR Production Planner, R3): what the reorder helper's RAW
-   * zone actually means, once the task list is taken into account.
+   * SVAR-M13/M14 (SVAR Production Planner, R4): what the reorder helper's
+   * cursor zone MEANS, once the task list is taken into account.
    *
-   * These two corrections are upstream's, and they are not cosmetic: without
-   * them a drag onto the row directly above the dragged one, and a drag onto
-   * the bottom edge of an open container, would both dispatch a `move-task`
-   * that changes nothing. What R3 changes is WHEN they are applied.
+   * `reorder.js` owns the geometry and answers one question: which row is the
+   * cursor over, and which third of it is it in. It cannot answer what that
+   * means, because meaning needs the list — which row follows this one, and
+   * whether this one is an open container whose own subtree comes next. That
+   * is this function, and it is pure.
    *
-   * Until R3 they ran inside the dispatch, AFTER `reorder.js` had already
-   * drawn its marker from the raw zone, so the two disagreed on exactly the
-   * cases the corrections exist for: the line sat on a row's BOTTOM edge while
-   * the task was about to land ABOVE that row, or INSIDE it. The Planner's
-   * manual acceptance (R3-P4/R3-P6) found both.
+   * ```text
+   * before / child        returned untouched: a cursor in a row's upper band
+   *                       or its middle says exactly what it means already.
+   * after an OPEN         rewritten to "before its first child". The line for
+   *   container           "after C" is drawn on C's bottom edge, and C's bottom
+   *                       edge is where its first child begins — so "after the
+   *                       whole subtree" would draw the promise in the wrong
+   *                       place. Unconditional, not only at the boundary.
+   * after, ON the         rewritten to "before the row below". One visible
+   *   separator           separator can be named from either side, and a
+   *                       cursor resting on it jitters between the two rows;
+   *                       naming it one way means the RESULT cannot flicker
+   *                       with the jitter. Above the snap band the lower part
+   *                       of a row still means "after THIS row", so dropping
+   *                       as the last child of a group stays reachable.
+   * ```
    *
-   * They are now a pure resolution handed to `reorder.js`, which asks for it
-   * on every pointer move and then marks, dispatches and drops that ONE
-   * answer. `mode: 'child'` and `mode: 'before'` are returned untouched: a
-   * correction about a position in a sibling list says nothing about a drop
-   * INTO a row, and "before" has no adjacent no-op to repair.
+   * ## What R4 deliberately REMOVED
+   *
+   * Upstream also rewrote "after T" to "before T" whenever the dragged row
+   * already sat directly under T. That existed to rescue the BODY-based hit
+   * test, which produced "after T" for a gesture the user made by reaching
+   * upward. Under a cursor model the same gesture is unambiguous — the cursor
+   * is in T's lower band, on the separator the row is already at — and
+   * silently inverting the direction is the surprise Pavel's manual acceptance
+   * reported. It is gone: that drop is now a no-op, the consumer declines a
+   * command that would change nothing, and the line is drawn exactly where the
+   * row already is. Aiming at T's UPPER band is how you go above T.
    *
    * It decides nothing about LEGALITY — a consumer that owns hierarchy rules
    * refuses the drop it does not allow, and that is still its own business.
    */
-  const resolveDrop = useCallback(({ id, mode, target }) => {
+  const resolveDrop = useCallback(({ id, mode, target, atBoundary }) => {
     if (mode !== 'after') return { mode, target };
 
     const rows = allTasksRef.current;
-    const index = rows.findIndex((t) => t.id === id);
     const targetIndex = rows.findIndex((t) => t.id === target);
     if (targetIndex === -1) return { mode, target };
     const task = rows[targetIndex];
 
-    // The dragged row already sits directly under the target, so "after it" is
-    // where it is. The gesture means the other side of that boundary.
-    if (index - targetIndex === 1) return { mode: 'before', target };
-
-    // The target is an OPEN container: the boundary under its own row is the
-    // one above its first child, not one after the whole subtree.
     if (task && task.data && task.open && task.data.length > 0) {
       return { mode: 'before', target: task.data[0].id };
+    }
+
+    if (atBoundary) {
+      const below = rows[targetIndex + 1];
+      if (below && below.id !== id) return { mode: 'before', target: below.id };
     }
 
     return { mode, target };
