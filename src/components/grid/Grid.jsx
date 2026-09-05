@@ -581,21 +581,65 @@ export default function Grid(props) {
     groupByRef.current = groupByVal;
   }, [groupByVal]);
 
+  /*
+   * SVAR-M14 (R7): the live drag callbacks, reachable without re-installing
+   * the gesture.
+   *
+   * ## The defect this replaces, measured
+   *
+   * The effect below used to list `moveReorder`, `endReorder` and the rest in
+   * its dependency array. Both of those are `useCallback`s that close over
+   * `scrollDelta`, which is `area.from` — the top of the grid's virtual render
+   * window. So ANY vertical scroll far enough to move that window changed
+   * their identity, re-ran the effect, and called `action.destroy()` on a
+   * gesture that was still being held.
+   *
+   * `destroy()` ran `end(true)`, which detaches listeners and nothing else: it
+   * never removed the floating clone, never restored the source row's
+   * visibility, never cleared the drop marker and never told this grid the
+   * gesture was over. The replacement `reorder()` closure started empty, so
+   * the pointer no longer moved anything and the release had nothing left to
+   * end.
+   *
+   * Measured in real Chromium on the consuming product, mouse held down
+   * throughout:
+   *
+   * ```text
+   * wheel   12px   render window unchanged  preview follows pointer, clean end
+   * wheel  300px   render window moves      preview frozen, drop marker stuck,
+   *                                         2 orphan clones and a permanently
+   *                                         hidden source row survive mouseup
+   * ```
+   *
+   * That is the whole of the reported "the drag gets stuck and the page has to
+   * be reloaded", and it is also why edge auto-scroll could not have worked
+   * before it was fixed: auto-scroll scrolls, and scrolling killed the drag.
+   *
+   * The fix is the pattern this file already uses for `groupBy` two lines up:
+   * the changing values live in a ref, the action is installed ONCE per grid
+   * node, and the thunks handed to it read the ref when they are called. The
+   * callbacks themselves are unchanged — `scrollDelta` is still read, and is
+   * still read at the moment of the move rather than at install time, which is
+   * the value that was wanted all along.
+   */
+  const dragRef = useRef(null);
+  dragRef.current = { startReorder, endReorder, moveReorder, resolveDrop, api };
+
   useEffect(() => {
     const node = tableRef.current;
     if (!node) return;
     const action = reorder(node, {
       isDisabled: () => !!groupByRef.current?.field,
-      start: startReorder,
-      end: endReorder,
-      move: moveReorder,
+      start: (a) => dragRef.current.startReorder(a),
+      end: (a) => dragRef.current.endReorder(a),
+      move: (a) => dragRef.current.moveReorder(a),
       // SVAR-M14 (R3): the raw zone becomes the drop this grid would actually
       // dispatch, BEFORE anything is drawn from it.
-      resolve: resolveDrop,
-      getTask: api.getTask,
+      resolve: (a) => dragRef.current.resolveDrop(a),
+      getTask: (id) => dragRef.current.api.getTask(id),
     });
     return action.destroy;
-  }, [api, startReorder, endReorder, moveReorder, resolveDrop]);
+  }, []);
 
   const handleHotkey = useCallback(
     (ev) => {

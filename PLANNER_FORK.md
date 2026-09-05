@@ -362,6 +362,84 @@ Two kinds of change, deliberately kept in separate commits:
      which is not a property to depend on by accident. Both are now removed
      from the target they were added to.
 
+     **R7 — the gesture survives the list moving under it, and can move the
+     list itself.** R6 made the END honest. R7 closes the case where the
+     gesture ended without anyone asking, and then adds the thing whose absence
+     that bug had been hiding.
+
+     The defect, measured in real Chromium on the consuming product with the
+     button held down throughout:
+
+     ```text
+     wheel   12px   virtual render window unchanged   drag fine, clean release
+     wheel  300px   render window moves               preview frozen, marker
+                                                      stuck, two orphan clones
+                                                      and a permanently hidden
+                                                      source row survive mouseup
+     ```
+
+     The cause is in `Grid.jsx`, not here. The effect that installs this helper
+     listed `moveReorder` and `endReorder` in its dependency array, and both
+     close over `scrollDelta` — the top of the grid's virtual render window. So
+     any scroll far enough to re-slice that window changed their identity,
+     re-ran the effect, and called `action.destroy()` on a gesture that was
+     still being held. `destroy()` ran `end(true)`, which detaches listeners
+     and NOTHING else, and the replacement closure started empty. The
+     dependency array is now empty and the changing callbacks are reached
+     through a ref — the pattern the same file already used for `groupBy` — so
+     the action is installed once per grid node, and `destroy()` now runs
+     `up()` first, so a teardown mid-gesture ends the gesture instead of
+     abandoning it.
+
+     With that fixed the wheel scrolls the list mid-drag by itself, which
+     leaves two things this helper has to answer:
+
+     ```text
+     where is the held row   the clone lives inside the body, and the body
+                             MOVES: the renderer offsets it by (window top −
+                             scroll position) and recomputes that on its own
+                             schedule, a commit LATER
+     what is under the       the rows moved and the pointer did not, so no
+     cursor                  event is coming to ask the question again
+     ```
+
+     Both are answered by ONE `requestAnimationFrame` loop per gesture, started
+     where the clone is created and stopped in `end()`. Each frame it compares
+     the body's position and the pane's scroll offset with the previous frame's
+     and, when either moved, re-runs the ordinary `move` path at the last known
+     pointer position — so there is no second idea of where the drop would land,
+     only a second reason to ask. When nothing moved it costs one rect read:
+     measured over 40 consecutive frames with a drag parked mid-list, the body
+     position and the clone's placement are each a single value, so the loop
+     dispatches nothing and cannot oscillate.
+
+     A scroll LISTENER was tried first and is not enough: it runs before the
+     renderer re-offsets the body, so the correction was computed against a
+     position that was about to change again — measured as the held row jumping
+     one row away from the cursor on every wheel notch.
+
+     The clone is also no longer placed from the pointer's total travel since
+     mousedown (`base.top + dy`), which is only "under the cursor" while
+     nothing else moves. It is placed from where in the row it was GRABBED,
+     against the body's box as it is now — arithmetically the same placement
+     when nothing scrolls, and correct at any scroll position without this
+     helper knowing anything about how the rows are windowed.
+
+     **Edge auto-scroll.** The same loop scrolls the pane when the pointer is
+     in the last band at either end of the ROW area — measured from the sticky
+     header's lower edge rather than the pane's own top, because at the
+     product's sizes a zone measured from the pane would lie entirely on the
+     header, where there is nothing to aim at. Speed is expressed per second
+     and multiplied by the real frame interval, so it is the same movement at
+     any refresh rate, and rises quadratically from the inner boundary to the
+     edge. A pointer PAST an edge counts as being at it. The pane is written to
+     only when the write can move it: the target is clamped to the pane's own
+     range and compared first, so resting against the top or the bottom of the
+     list issues no scroll at all. The scrollport is found by measurement — the
+     nearest ancestor that both declares a vertical overflow and has more
+     content than room — so this helper still knows nothing about the component
+     tree above it.
+
    - **`SVAR-M15` — a dragged container keeps the expanded state it had.**
      `startReorder` opened a grid reorder by collapsing the dragged row, if it
      was a container, with an ordinary command:

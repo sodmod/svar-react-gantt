@@ -69,6 +69,63 @@ function snapFor(height) {
   return Math.min(BOUNDARY_SNAP_PX, height * CHILD_BAND_EDGE * 0.6);
 }
 
+/*
+ * SVAR-M14 (R7): how close to an edge of the scrolling pane counts as "carry
+ * on past here", and how fast that goes.
+ *
+ * A row reorder can only reach rows that are on screen, because the only way
+ * to name a target is to put the pointer on it. With a list longer than the
+ * pane that makes whole regions unreachable in one gesture: the pointer
+ * arrives at the bottom edge, there is nowhere further to go, and the button
+ * has to be released and the drag started again — repeatedly, for a list a few
+ * screens long.
+ *
+ * So the last band at each end means "keep going". The zone is a little larger
+ * than one row at the heights this renderer is used at, which is enough to aim
+ * at deliberately and small enough that the middle of the pane — where most
+ * drops are aimed — never scrolls by accident. It is clamped to a quarter of
+ * the pane so a short pane cannot end up with two overlapping zones and no
+ * neutral middle.
+ *
+ * The speed is expressed per SECOND and multiplied by the real frame interval,
+ * so it is the same movement on a 60Hz and a 144Hz display, and it rises
+ * QUADRATICALLY from the inner boundary to the edge: resting just inside the
+ * zone creeps, which is what precise work near the current view needs, and
+ * pushing to the very edge covers a long list quickly. Both numbers, and the
+ * curve, are reversible interaction detail.
+ */
+const EDGE_ZONE_PX = 56;
+const EDGE_MIN_SPEED = 140;
+const EDGE_MAX_SPEED = 1500;
+
+function edgeSpeed(t) {
+  return EDGE_MIN_SPEED + (EDGE_MAX_SPEED - EDGE_MIN_SPEED) * t * t;
+}
+
+/**
+ * The pane this grid scrolls vertically in, or `null` if it does not scroll.
+ *
+ * Found by measurement rather than named by selector: the nearest ancestor
+ * that both declares a vertical overflow and actually has more content than
+ * room. That keeps this helper free of any knowledge of the component tree
+ * above it — it is installed on a node and asks the document what that node
+ * lives in.
+ */
+function scrollportFor(node) {
+  let el = node.parentNode;
+  while (el && el.nodeType === 1) {
+    const overflow = getComputedStyle(el).overflowY;
+    if (
+      (overflow === 'auto' || overflow === 'scroll') &&
+      el.scrollHeight > el.clientHeight + 1
+    ) {
+      return el;
+    }
+    el = el.parentNode;
+  }
+  return null;
+}
+
 /**
  * Which of the three zones the POINTER is in, and nothing else (SVAR-M14, R4).
  *
@@ -166,6 +223,26 @@ export function reorder(node, config) {
   /** The descriptor last handed to `config.move`, to avoid re-dispatching it. */
   let dispatched = null;
 
+  /*
+   * SVAR-M14 (R7): where the pointer last actually was, the pane the rows
+   * scroll in, and the ONE animation frame that scrolls it.
+   *
+   * The pointer position is kept because the rows can now move underneath a
+   * pointer that is not moving — the wheel, and the edge auto-scroll below —
+   * and every one of those cases has to re-answer "what is under the cursor
+   * now" from a position no fresh event is going to supply.
+   *
+   * `frame` is a single id, never a set: there is one gesture, so there is one
+   * loop. It is started where the clone is created and stopped in `end()`,
+   * which every terminator already goes through.
+   */
+  let pointer = null;
+  let port = null;
+  let frame = null;
+  let scrollAt = 0;
+  let lastBodyTop = null;
+  let lastScroll = null;
+
   function sameDrop(a, b) {
     if (a === null || b === null) return a === b;
     return a.mode === b.mode && a.target === b.target;
@@ -208,7 +285,27 @@ export function reorder(node, config) {
     base = {
       ...getOffset(source, node),
       y: config.getTask(sid).$y,
+      /*
+       * SVAR-M14 (R7): WHERE IN THE ROW the row was picked up.
+       *
+       * The clone used to be placed from the pointer's total travel since
+       * mousedown, `base.top + dy`, which is only the same thing as "under the
+       * cursor" while nothing else moves. It moves now — the wheel scrolls the
+       * pane mid-gesture, and so does edge auto-scroll — and every one of
+       * those shifts the coordinate space `base.top` was measured in, so the
+       * held row slid away from the cursor by exactly the distance scrolled.
+       *
+       * This offset is a property of the GRAB and never changes, so placing
+       * the clone at `pointer − grab` against the body's CURRENT box is
+       * correct at any scroll position without the helper having to know
+       * anything about how the pane scrolls or how the rows are windowed. With
+       * nothing scrolling it is arithmetically the same placement as before.
+       */
+      grabY: event.clientY - source.getBoundingClientRect().top,
     };
+
+    pointer = { clientX: event.clientX, clientY: event.clientY };
+    port = scrollportFor(node);
 
     document.body.style.userSelect = 'none';
   }
@@ -309,6 +406,13 @@ export function reorder(node, config) {
     window.removeEventListener('mouseup', handleMouseup);
     window.removeEventListener('blur', handleMouseup);
     window.removeEventListener('touchend', handleTouchend);
+    // SVAR-M14 (R7): the two things a drag can leave RUNNING rather than
+    // merely listening. Both are detached here, on the one path every
+    // terminator already goes through, so auto-scroll and the pane
+    // subscription cannot outlive the gesture that started them.
+    stopDragFrames();
+    port = null;
+    pointer = null;
     document.body.style.userSelect = '';
 
     if (full) {
@@ -335,10 +439,19 @@ export function reorder(node, config) {
 
       source.style.visibility = 'hidden';
       source.parentNode.insertBefore(clone, source);
+      // There is something to hold now, so the loop that keeps holding it can
+      // start. Before this point a gesture is only a press.
+      startDragFrames();
     }
 
     if (clone) {
-      const top = Math.round(Math.max(0, base.top + dy));
+      // SVAR-M14 (R7): measured against the body as it is NOW, so a pane that
+      // scrolled mid-gesture does not drag the held row out from under the
+      // cursor. See `base.grabY`.
+      const bodyTop = node
+        .querySelector('.wx-body')
+        .getBoundingClientRect().top;
+      const top = Math.round(Math.max(0, event.clientY - base.grabY - bodyTop));
 
       /*
        * SVAR-M14 (R3): the hit test runs BEFORE the dispatch, not after it.
@@ -438,14 +551,165 @@ export function reorder(node, config) {
     );
   }
 
+  /**
+   * How fast, and which way, the pane should be scrolling right now
+   * (SVAR-M14, R7).
+   *
+   * Signed pixels per second: negative is up, positive is down, 0 is "the
+   * pointer is not near either end, leave the pane alone". A pointer that has
+   * gone PAST an edge counts as being at that edge rather than as having left
+   * the zone, so dragging out of the pane keeps scrolling instead of stopping
+   * dead at the boundary the user is trying to cross.
+   */
+  function edgeVelocity() {
+    if (!port || !pointer) return 0;
+    const box = port.getBoundingClientRect();
+
+    /*
+     * The zone is measured against the ROWS, not against the pane.
+     *
+     * The column header is sticky and sits inside the same scrolling pane, and
+     * at the product's sizes it is taller than the zone — so a zone measured
+     * from the pane's own top edge would lie entirely ON the header, where
+     * there is no row to drop on. Scrolling up would then work only from a
+     * position where the user cannot see, or aim at, what they are scrolling
+     * towards. Starting the zone at the header's lower edge puts it on the
+     * first rows instead, which is where someone reaching for the row above
+     * actually points.
+     */
+    const header = node.querySelector('.wx-header');
+    const top = header
+      ? Math.max(box.top, header.getBoundingClientRect().bottom)
+      : box.top;
+    const zone = Math.min(EDGE_ZONE_PX, (box.bottom - top) / 4);
+    if (!(zone > 0)) return 0;
+
+    const fromTop = pointer.clientY - top;
+    if (fromTop < zone) {
+      return -edgeSpeed(Math.min(1, (zone - fromTop) / zone));
+    }
+    const fromBottom = box.bottom - pointer.clientY;
+    if (fromBottom < zone) {
+      return edgeSpeed(Math.min(1, (zone - fromBottom) / zone));
+    }
+    return 0;
+  }
+
+  /**
+   * How far down the page the row body currently starts.
+   *
+   * The clone lives inside the body, and the body MOVES: the renderer offsets
+   * it by the difference between the top of its virtual window and the scroll
+   * position, and recomputes that on its own schedule after a scroll. So the
+   * coordinate the clone is placed in is not stable during a gesture, and this
+   * is the value that says where it is right now.
+   */
+  function bodyTop() {
+    const body = node.querySelector('.wx-body');
+    return body ? body.getBoundingClientRect().top : 0;
+  }
+
+  /**
+   * One scroll step, or nothing (SVAR-M14, R7).
+   *
+   * Writes to the pane only when the write can actually move it: the target is
+   * clamped to the pane's own range first and compared, so resting against the
+   * top or the bottom of the list issues no scroll at all rather than issuing
+   * one that does nothing, every frame, until the button is released.
+   */
+  function autoScrollStep(now) {
+    if (!port) return;
+    const velocity = edgeVelocity();
+    if (velocity === 0) {
+      scrollAt = 0;
+      return;
+    }
+    // Real elapsed time, capped so a stalled tab cannot resume with one huge
+    // jump. The first frame of a run has no previous timestamp to measure
+    // against and is charged one nominal interval.
+    const elapsed = scrollAt === 0 ? 16 : Math.min(64, now - scrollAt);
+    scrollAt = now;
+
+    const limit = port.scrollHeight - port.clientHeight;
+    const next = Math.max(
+      0,
+      Math.min(limit, port.scrollTop + (velocity * elapsed) / 1000),
+    );
+    if (next === port.scrollTop) {
+      scrollAt = 0;
+      return;
+    }
+    port.scrollTop = next;
+  }
+
+  /**
+   * THE frame loop of a hierarchy drag (SVAR-M14, R7). One per gesture.
+   *
+   * It does two things, and they are the same thing: scroll the pane when the
+   * pointer is against an edge, and — however the rows came to move — put the
+   * held row back under the cursor and re-answer what the cursor is now over.
+   *
+   * "However they came to move" is the reason this is a loop rather than a
+   * scroll handler. Three different things move the rows under a pointer that
+   * is not moving, and only one of them is this helper's own auto-scroll: the
+   * wheel scrolls the pane directly, and the renderer re-offsets the body a
+   * commit LATER when its virtual window re-slices. A scroll listener sees the
+   * first two and runs before the third, so it corrected the clone against a
+   * body position that was about to change again — measured as the held row
+   * jumping a row away from the cursor on every wheel notch.
+   *
+   * Comparing the two values that actually decide what is on screen — where
+   * the body is, and where the pane is scrolled to — catches all three, one
+   * frame after the fact and therefore before the next paint. When neither has
+   * changed this costs one rect read and nothing else: no dispatch, no
+   * re-resolve, no store write.
+   */
+  function dragFrame(now) {
+    frame = null;
+    if (!clone || !pointer) return;
+
+    autoScrollStep(now);
+
+    const top = bodyTop();
+    const scrolled = port ? port.scrollTop : 0;
+    if (top !== lastBodyTop || scrolled !== lastScroll) {
+      lastBodyTop = top;
+      lastScroll = scrolled;
+      // The same move path a real pointer move takes, so there is no second
+      // idea of where the drop would land — only a second reason to ask.
+      move(pointer);
+    }
+
+    frame = requestAnimationFrame(dragFrame);
+  }
+
+  function startDragFrames() {
+    if (frame !== null) return;
+    lastBodyTop = bodyTop();
+    lastScroll = port ? port.scrollTop : 0;
+    scrollAt = 0;
+    frame = requestAnimationFrame(dragFrame);
+  }
+
+  function stopDragFrames() {
+    if (frame !== null) cancelAnimationFrame(frame);
+    frame = null;
+    scrollAt = 0;
+    lastBodyTop = null;
+    lastScroll = null;
+  }
+
   function handleMousemove(event) {
+    pointer = { clientX: event.clientX, clientY: event.clientY };
     move(event);
   }
 
   function handleTouchmove(event) {
     if (touched) {
       event.preventDefault();
-      move(event.touches[0]);
+      const touch = event.touches[0];
+      pointer = { clientX: touch.clientX, clientY: touch.clientY };
+      move(touch);
     } else if (touchTimer) {
       clearTimeout(touchTimer);
       touchTimer = null;
@@ -502,6 +766,23 @@ export function reorder(node, config) {
 
   return {
     destroy() {
+      /*
+       * SVAR-M14 (R7): teardown ENDS the gesture rather than only unsubscribing
+       * from it.
+       *
+       * `end(true)` detaches listeners and nothing else, so a teardown while
+       * the button was still down used to leave the floating clone in the DOM,
+       * the source row permanently invisible and the drop marker painted on a
+       * row nothing was going to be dropped on. That is not a hypothetical: it
+       * is what a scroll-driven re-install did on every wheel gesture until R7
+       * (see `Grid.jsx`), and it is the shape any future unmount mid-drag
+       * would take.
+       *
+       * `up()` is the one terminal path and is idempotent — with no gesture in
+       * progress every step is a no-op — so calling it here costs nothing when
+       * there is nothing to end, and restores everything when there is.
+       */
+      up();
       end(true);
     },
   };
