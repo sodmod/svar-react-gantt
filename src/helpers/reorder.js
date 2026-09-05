@@ -716,20 +716,51 @@ export function reorder(node, config) {
     }
   }
 
-  function handleTouchend() {
+  function handleTouchend(event) {
     touched = null;
     if (touchTimer) {
       clearTimeout(touchTimer);
       touchTimer = null;
     }
-    up();
+    // SVAR-M14 (R8): a touch release has a position too — it is in
+    // `changedTouches`, because the touch that ended is by then no longer in
+    // `touches`. Without it every touch drop would read as a release on
+    // nothing and cancel.
+    up(event?.changedTouches?.[0]);
   }
 
-  function handleMouseup() {
-    up();
+  function handleMouseup(event) {
+    up(event);
   }
 
-  function up() {
+  /**
+   * Is the RELEASE happening on a row of this grid (SVAR-M14, R8)?
+   *
+   * The move listener is on the grid, so once the pointer leaves it sideways
+   * no further move is delivered and `current` keeps describing the last row
+   * the grid saw — which is off screen, or behind the timeline, or under the
+   * toolbar. Releasing there used to commit that stale position: the consuming
+   * product's manual acceptance reported it as a task jumping somewhere nobody
+   * pointed at.
+   *
+   * This asks only WHERE the button came up, and only of the events that can
+   * answer. `blur` and `pointercancel` carry no position and are not releases
+   * on anything, so they cancel — which is what they mean.
+   *
+   * It deliberately does NOT re-resolve the drop. The descriptor the insertion
+   * line was painted from is the descriptor that drops; this decides whether
+   * there is a drop at all, and nothing else.
+   */
+  function releasedOnRows(event) {
+    if (!event || typeof event.clientX !== 'number') return false;
+    if (typeof event.clientY !== 'number') return false;
+    const under = document.elementFromPoint(event.clientX, event.clientY);
+    if (!under || !node.contains(under)) return false;
+    const row = locate(under);
+    return !!row && checkSource(row) && row !== clone;
+  }
+
+  function up(event) {
     /*
      * SVAR-M14 (R3): the drop is the descriptor that was on screen.
      *
@@ -739,8 +770,13 @@ export function reorder(node, config) {
      * moves the browser coalesced after that crossing is not something a user
      * controls. Reading the same `current` the marker was painted from is what
      * makes the same pointer position give the same result every time.
+     *
+     * SVAR-M14 (R8): and only when the button came up ON the rows. Leaving the
+     * grid does not cancel — coming back makes a drop available again, because
+     * re-entering resumes the move events that keep `current` truthful — but
+     * the RELEASE decides, and a release anywhere else is a cancel.
      */
-    const drop = current;
+    const drop = releasedOnRows(event) ? current : null;
 
     // Drop, cancel, or a gesture that never started — the marker goes in every
     // one of those cases, because it describes a drag in progress.

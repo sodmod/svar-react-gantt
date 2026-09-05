@@ -548,14 +548,45 @@ export default function Grid(props) {
        * and which one won depended on how many moves the browser coalesced.
        * There is nothing to cache now: one descriptor, painted and dropped.
        */
+      /*
+       * SVAR-M14 (R8): the VISUAL drag is ended first, and unconditionally.
+       *
+       * This is the whole of a defect the consuming product's manual
+       * acceptance found as "the dragged row gets stuck and needs another drag
+       * to recover", measured in real Chromium as a row left carrying
+       * `$reorder` — painted as the floating drag card, in place, after the
+       * button came up.
+       *
+       * The store clears `$reorder` in exactly two places, and both used to be
+       * reachable only through the branch below:
+       *
+       * ```text
+       * drag-task  inProgress:false   sets $reorder = false and returns $y
+       * move-task  inProgress:false   clears $reorder inside the move handler
+       * ```
+       *
+       * So a drop dispatched `move-task` and relied on the STORE's own move
+       * handler to end the drag. A consumer that owns hierarchy cancels
+       * `move-task` and runs its own canonical command instead — which is the
+       * supported arrangement, and it means that clearing never runs. An
+       * ACCEPTED drop hid it: the consumer re-projects afterwards, and fresh
+       * task objects carry no `$reorder`. A drop that changes nothing — a
+       * no-op, or one the consumer's domain refuses — re-projects to the same
+       * state, so nothing replaced the flag and the row stayed a card.
+       *
+       * Ending the visual drag is this grid's own business and cannot depend
+       * on whether someone else accepts the command that follows. `top` is the
+       * gesture's ORIGINAL top, so this also puts the bar back where it was
+       * picked up; on an accepted drop the consumer's reprojection then places
+       * it properly, and the two happen in one batch.
+       */
+      api.exec('drag-task', {
+        id,
+        top: top + (scrollDelta ?? 0),
+        inProgress: false,
+      });
       if (drop) {
         reorderTasks({ ...drop, inProgress: false });
-      } else {
-        api.exec('drag-task', {
-          id,
-          top: top + (scrollDelta ?? 0),
-          inProgress: false,
-        });
       }
       setDragTask(null);
     },
