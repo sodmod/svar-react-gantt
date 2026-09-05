@@ -318,6 +318,51 @@ Two kinds of change, deliberately kept in separate commits:
      user's stated direction is a surprise, not a repair. That drop is a no-op
      now — the consumer declines a command that would change nothing, and the
      line is drawn exactly where the row already is.
+   - **`SVAR-M15` — a dragged container keeps the expanded state it had.**
+     `startReorder` opened a grid reorder by collapsing the dragged row, if it
+     was a container, with an ordinary command:
+
+     ```js
+     if (api.getTask(id).open) api.exec('open-task', { id, mode: false });
+     ```
+
+     Nothing ever put it back. `open-task` is the same command the row's own
+     chevron dispatches, so the collapse outlives the gesture exactly like a
+     collapse the user asked for: pick a group up, change your mind, release it
+     where it already was, and the group is now closed with the rows the user
+     was reading hidden. The consuming product's manual acceptance found it on
+     the mildest case there is — a drop that changes nothing at all.
+
+     The line is **removed and nothing replaces it.** Two things make that
+     safe here rather than a revert of a deliberate upstream choice:
+
+     ```text
+     why upstream collapses   an open subtree left behind while its parent's
+                              row travels looks like the children were
+                              abandoned mid-gesture
+     why this fork need not   the drop is routed to ONE canonical command that
+                              moves the whole subtree, and the consumer marks
+                              the travelling row's own identity (`$reorder`,
+                              plus the consumer's kind markers), so the group
+                              reads as a group without hiding its children
+     ```
+
+     The wider point is ownership, and it is the reason this is a renderer
+     change rather than a consumer workaround. Expanded/collapsed is
+     **presentation state**, and after this the drag no longer writes any of
+     its own: the only thing that opens or closes a row is a Collapse/Expand
+     the user asked for. A consumer that owns `open` per task therefore keeps
+     it across a drag, a rejected drop and a successful reparent alike, without
+     having to observe the gesture and repair state behind it — which is not a
+     thing a consumer can do correctly anyway, because it cannot tell the
+     renderer's collapse apart from the user's.
+
+     Dropping a group into its own descendant is now reachable in the UI, where
+     the collapse used to make it unreachable by hiding the descendants. That
+     is not a regression this fork has to answer: legality has one owner in the
+     consuming product, which refuses the cycle and says so, exactly as it
+     already refuses every other illegal drop the cursor can name.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

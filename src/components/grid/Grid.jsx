@@ -497,7 +497,32 @@ export default function Grid(props) {
     ({ id }) => {
       if (readonly) return false;
 
-      if (api.getTask(id).open) api.exec('open-task', { id, mode: false });
+      /*
+       * SVAR-M15 (SVAR Production Planner): a dragged container KEEPS its
+       * expanded state.
+       *
+       * Upstream collapsed it here, unconditionally:
+       *
+       *   if (api.getTask(id).open) api.exec('open-task', { id, mode: false });
+       *
+       * and nothing ever re-opened it. The collapse is an ordinary
+       * `open-task`, so it survives the gesture exactly like a collapse the
+       * user asked for — which is the bug: picking a group up, changing your
+       * mind and putting it back leaves it closed, and the rows the user was
+       * looking at are gone.
+       *
+       * The reason upstream collapses is presentational — a dragged subtree
+       * that stays open leaves its children behind while their parent's row
+       * travels. This product answers that differently and does not need the
+       * collapse: the drop is routed to ONE canonical command that moves the
+       * whole subtree, so the children are not being left anywhere, and the
+       * consumer marks the dragged row's own identity instead (`$reorder`,
+       * plus the consumer's own kind markers).
+       *
+       * Nothing replaces it. The line is simply gone, so a drag no longer
+       * writes presentation state of its own — which is also what lets the
+       * consumer own expanded/collapsed as ordinary UI state.
+       */
 
       const t = api.getState()._tasks.find((t) => t.id === id);
       setDragTask(t || null);
