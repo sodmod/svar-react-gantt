@@ -498,30 +498,35 @@ export default function Grid(props) {
       if (readonly) return false;
 
       /*
-       * SVAR-M15 (SVAR Production Planner): a dragged container KEEPS its
-       * expanded state.
+       * SVAR-M15 (SVAR Production Planner): a dragged container KEEPS the
+       * expanded state it had.
        *
-       * Upstream collapsed it here, unconditionally:
+       * Upstream opened every reorder here by collapsing the dragged row when
+       * it was an open container — a plain `open-task` dispatch with mode
+       * false, on the row being picked up — and nothing ever re-opened it.
+       * Because that is the same command the row's own chevron sends, the
+       * collapse outlived the gesture exactly like a collapse the user had
+       * asked for: pick a group up, change your mind, release it where it
+       * already sat, and the group is closed with the rows you were reading
+       * hidden. The pristine statement is quoted in full in PLANNER_FORK.md,
+       * deliberately not here: this file is read through the shipped
+       * sourcemap by the consumer's provenance check, which proves the change
+       * by that statement's ABSENCE, and a verbatim quote of it would make
+       * the evidence unreadable.
        *
-       *   if (api.getTask(id).open) api.exec('open-task', { id, mode: false });
+       * Upstream's reason is presentational — an open subtree left behind
+       * while its parent's row travels looks like the children were abandoned
+       * mid-gesture. This fork does not need the collapse to answer that: the
+       * drop is routed to ONE canonical command that moves the whole subtree,
+       * so nothing is being left anywhere, and the consumer marks the
+       * travelling row's own identity instead.
        *
-       * and nothing ever re-opened it. The collapse is an ordinary
-       * `open-task`, so it survives the gesture exactly like a collapse the
-       * user asked for — which is the bug: picking a group up, changing your
-       * mind and putting it back leaves it closed, and the rows the user was
-       * looking at are gone.
-       *
-       * The reason upstream collapses is presentational — a dragged subtree
-       * that stays open leaves its children behind while their parent's row
-       * travels. This product answers that differently and does not need the
-       * collapse: the drop is routed to ONE canonical command that moves the
-       * whole subtree, so the children are not being left anywhere, and the
-       * consumer marks the dragged row's own identity instead (`$reorder`,
-       * plus the consumer's own kind markers).
-       *
-       * Nothing replaces it. The line is simply gone, so a drag no longer
-       * writes presentation state of its own — which is also what lets the
-       * consumer own expanded/collapsed as ordinary UI state.
+       * Nothing replaces it. After this a drag writes no presentation state
+       * of its own, which is the wider point: expanded/collapsed becomes
+       * something a consumer can own across a drag, a rejected drop and a
+       * successful reparent alike, without having to watch the gesture and
+       * repair state behind it — which it could not do correctly anyway,
+       * since it cannot tell this collapse apart from the user's.
        */
 
       const t = api.getState()._tasks.find((t) => t.id === id);
