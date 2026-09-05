@@ -229,6 +229,10 @@ export function reorder(node, config) {
     node.addEventListener('touchmove', handleTouchmove);
     node.addEventListener('contextmenu', handleContext);
     window.addEventListener('touchend', handleTouchend);
+    // SVAR-M14 (R6): touch gets the same terminators, and `pointercancel` is
+    // exactly the case a touch gesture is most likely to end on — the platform
+    // deciding the pointer is now a scroll.
+    armTerminators();
   }
 
   function handleContext(event) {
@@ -247,16 +251,64 @@ export function reorder(node, config) {
     sid = getID(source);
 
     node.addEventListener('mousemove', handleMousemove);
-    window.addEventListener('mouseup', handleMouseup);
+    armTerminators();
 
     down(event);
+  }
+
+  /*
+   * SVAR-M14 (R6): a gesture that ALWAYS terminates.
+   *
+   * Upstream ended a mouse reorder on one event, `mouseup`, and Chromium is
+   * not obliged to deliver it. Measured in real Chromium on the consuming
+   * product: press on a grid row, drag onto the utility strip above the grid,
+   * release. `pointerdown`, `mousedown` and `pointerup` all fire; `mouseup` is
+   * never dispatched — not on the target, not on the document, not at window
+   * capture. The compatibility mouse event is simply not produced for that
+   * pointer, so the ONE path that removed the clone, restored the source row's
+   * visibility, cleared the drop marker and told the consumer the gesture was
+   * over never ran. The floating clone stayed on screen, the source row stayed
+   * hidden, and the drag state stayed live until the page was reloaded.
+   *
+   * So the terminators are the POINTER events, which are always delivered:
+   *
+   * ```text
+   * pointerup      the release, whatever the release landed on
+   * pointercancel  the platform taking the pointer away
+   * mouseup        kept, because a device or browser without pointer events
+   *                still has to end the gesture
+   * blur           the window losing focus mid-gesture
+   * ```
+   *
+   * `up()` is idempotent — it nulls the gesture and everything it does is
+   * guarded on what it nulls — so several terminators firing for one gesture
+   * cost one cleanup and one `config.end`, which is what makes listening to
+   * all four safe rather than merely thorough.
+   */
+  function armTerminators() {
+    window.addEventListener('pointerup', handleMouseup);
+    window.addEventListener('pointercancel', handleMouseup);
+    window.addEventListener('mouseup', handleMouseup);
+    window.addEventListener('blur', handleMouseup);
   }
 
   function end(full) {
     node.removeEventListener('mousemove', handleMousemove);
     node.removeEventListener('touchmove', handleTouchmove);
-    document.body.removeEventListener('mouseup', handleMouseup);
-    document.body.removeEventListener('touchend', handleTouchend);
+    /*
+     * SVAR-M14 (R6): removed from the target they were ADDED to.
+     *
+     * Upstream removed `mouseup` and `touchend` from `document.body` while
+     * adding them to `window`, so neither was ever detached: one live listener
+     * per helper survived every gesture, and every subsequent release ran the
+     * handler again. Harmless only because `up()` happens to be idempotent —
+     * which is not a thing to rely on by accident.
+     */
+    window.removeEventListener('pointerup', handleMouseup);
+    window.removeEventListener('pointercancel', handleMouseup);
+    window.removeEventListener('mouseup', handleMouseup);
+    window.removeEventListener('blur', handleMouseup);
+    window.removeEventListener('touchend', handleTouchend);
     document.body.style.userSelect = '';
 
     if (full) {

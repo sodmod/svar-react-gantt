@@ -163,7 +163,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +
     'SVAR-M14 (R3) — one live resolved drop descriptor is marked, dispatched and dropped, so the indicator cannot describe a different result from the drop; ' +
-    'SVAR-M14 (R4) — the hit test is FULLY CURSOR-BASED: `pointerZone` is a pure function of the pointer and the target box, the dragged row\'s own edges are gone, and a boundary magnet collapses each separator to one descriptor',
+    'SVAR-M14 (R4) — the hit test is FULLY CURSOR-BASED: `pointerZone` is a pure function of the pointer and the target box, the dragged row\'s own edges are gone, and a boundary magnet collapses each separator to one descriptor; ' +
+    'SVAR-M14 (R6) — the gesture ALWAYS terminates: `pointerup`/`pointercancel`/`blur` join `mouseup` as terminators (Chromium does not always deliver the compatibility `mouseup`), and the listeners are removed from the target they were added to',
   'src/components/grid/Grid.css':
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +

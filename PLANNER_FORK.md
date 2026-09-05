@@ -318,6 +318,50 @@ Two kinds of change, deliberately kept in separate commits:
      user's stated direction is a surprise, not a repair. That drop is a no-op
      now — the consumer declines a command that would change nothing, and the
      line is drawn exactly where the row already is.
+     **R6 — the gesture always terminates.** R4 made the hit test honest; R6
+     makes the END of the gesture honest, and the defect it closes was found on
+     the consuming product rather than reasoned about.
+
+     Upstream ended a mouse reorder on ONE event:
+
+     ```js
+     window.addEventListener('mouseup', handleMouseup);
+     ```
+
+     Chromium is not obliged to deliver it. Measured, in real Chromium, on the
+     product: press a grid row, drag onto the utility strip above the grid,
+     release. `pointerdown`, `mousedown` and `pointerup` all fire; `mouseup` is
+     never dispatched — not on the target, not on the document, not at window
+     capture. The compatibility mouse event is simply not produced for that
+     pointer. So the one path that removes the clone, restores the source row's
+     visibility, clears the drop marker and tells the consumer the gesture is
+     over never ran: the floating clone stayed on screen, the source row stayed
+     hidden, and the drag state stayed live until the page was reloaded. It
+     reproduces on a leaf as readily as on a group.
+
+     The terminators are now the pointer events, which ARE always delivered,
+     with the old ones kept beside them:
+
+     ```text
+     pointerup      the release, whatever it landed on
+     pointercancel  the platform taking the pointer away
+     mouseup        a device or browser without pointer events still has to end
+     blur           the window losing focus mid-gesture
+     ```
+
+     `up()` is idempotent — everything it does is guarded on the state it nulls
+     — so four terminators cost one cleanup and one `config.end`. That is what
+     makes listening to all of them safe rather than merely thorough, and it is
+     why the fix is a wider net rather than a swap.
+
+     A second upstream bug fell out of reading that code: `end()` removed
+     `mouseup` and `touchend` from `document.body` while `handleMousedown` and
+     `handleTouchstart` added them to `window`, so neither was ever detached.
+     One live listener per helper survived every gesture and ran again on every
+     later release — harmless only because `up()` happens to be idempotent,
+     which is not a property to depend on by accident. Both are now removed
+     from the target they were added to.
+
    - **`SVAR-M15` — a dragged container keeps the expanded state it had.**
      `startReorder` opened a grid reorder by collapsing the dragged row, if it
      was a container, with an ordinary command:
