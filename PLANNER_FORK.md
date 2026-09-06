@@ -485,6 +485,43 @@ Two kinds of change, deliberately kept in separate commits:
      consuming product, which refuses the cycle and says so, exactly as it
      already refuses every other illegal drop the cursor can name.
 
+   - **`SVAR-M16` — `pointercancel` and `blur` are cancels, unconditionally,
+     never a drop.** `SVAR-M14 (R6)` widened the reorder gesture's terminators
+     from `mouseup` alone to `pointerup`/`pointercancel`/`mouseup`/`blur`, all
+     four routed through the same handler and the same
+     `releasedOnRows(event)` — "is the position this event carries over a
+     droppable row?" — because `blur` and `pointercancel` were believed to
+     carry no position at all, so they would answer `false` on their own and
+     need no separate treatment.
+
+     That belief was not measured against the consuming product, and it was
+     wrong for one of the two. Measured directly, in real Chromium: a genuine
+     `pointercancel` — the browser withdrawing the pointer, which is exactly
+     what happens on the consuming product's own real-device gestures, not
+     only in a synthetic test — CARRIES the pointer's last `clientX`/`clientY`,
+     the same way `pointerup` does. Dispatched over a legitimate droppable row,
+     it therefore satisfied `releasedOnRows` and committed a drop — the exact
+     shape the Planner project's independent Phase 3.3 R11 review (finding
+     M-2) found: a gesture the platform was actively taking away from the user
+     re-read as a release the user had chosen. `blur`, a `FocusEvent`, never
+     carries a position at all and was never the affected half.
+
+     `pointercancel` and `blur` now terminate through a separate handler,
+     `handleCancel`, which calls `up()` with **no event argument**:
+     `releasedOnRows(undefined)` answers `false` on its very first guard, so no
+     coordinates a cancelled or unfocused gesture happens to carry can reach
+     the question at all. `pointerup` and `mouseup` are unchanged — they still
+     call `up(event)` through `handleMouseup` exactly as `SVAR-M14 (R6)` left
+     them, and still commit a drop wherever the button genuinely came up on a
+     row.
+
+     Nothing else about `up()` moved: the drop marker is still cleared
+     unconditionally, the visual drag still ends unconditionally through
+     `config.end`, and the listener bookkeeping is unchanged apart from naming
+     `handleCancel` where `pointercancel`/`blur` used to name `handleMouseup`.
+     A cancelled gesture is therefore still exactly one idempotent cleanup —
+     it simply can no longer also be a drop.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
