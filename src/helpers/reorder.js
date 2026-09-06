@@ -384,9 +384,9 @@ export function reorder(node, config) {
    */
   function armTerminators() {
     window.addEventListener('pointerup', handleMouseup);
-    window.addEventListener('pointercancel', handleMouseup);
+    window.addEventListener('pointercancel', handleCancel);
     window.addEventListener('mouseup', handleMouseup);
-    window.addEventListener('blur', handleMouseup);
+    window.addEventListener('blur', handleCancel);
   }
 
   function end(full) {
@@ -402,9 +402,9 @@ export function reorder(node, config) {
      * which is not a thing to rely on by accident.
      */
     window.removeEventListener('pointerup', handleMouseup);
-    window.removeEventListener('pointercancel', handleMouseup);
+    window.removeEventListener('pointercancel', handleCancel);
     window.removeEventListener('mouseup', handleMouseup);
-    window.removeEventListener('blur', handleMouseup);
+    window.removeEventListener('blur', handleCancel);
     window.removeEventListener('touchend', handleTouchend);
     // SVAR-M14 (R7): the two things a drag can leave RUNNING rather than
     // merely listening. Both are detached here, on the one path every
@@ -734,6 +734,19 @@ export function reorder(node, config) {
   }
 
   /**
+   * `pointercancel` / `blur` (SVAR-M14, R11, Planner Phase 3.3 R11 M-2
+   * remediation): the platform taking the pointer away, or the window losing
+   * focus mid-gesture. Neither is a release ON anything — see `up`'s own
+   * comment for why this is the one caller `releasedOnRows` must never see a
+   * real event from — so this calls `up()` with no argument at all rather
+   * than forwarding the terminating event, unconditionally: no coordinates a
+   * `pointercancel` happens to carry can turn it into a drop.
+   */
+  function handleCancel() {
+    up();
+  }
+
+  /**
    * Is the RELEASE happening on a row of this grid (SVAR-M14, R8)?
    *
    * The move listener is on the grid, so once the pointer leaves it sideways
@@ -743,9 +756,25 @@ export function reorder(node, config) {
    * product's manual acceptance reported it as a task jumping somewhere nobody
    * pointed at.
    *
-   * This asks only WHERE the button came up, and only of the events that can
-   * answer. `blur` and `pointercancel` carry no position and are not releases
-   * on anything, so they cancel — which is what they mean.
+   * This asks only WHERE the button came up. It is COORDINATE geometry only —
+   * whatever `event` is handed a real position for is asked "is that position
+   * over a droppable row" — and it answers that question honestly whenever it
+   * is asked, `pointercancel` included.
+   *
+   * SVAR-M14 (R11, Planner Phase 3.3 R11 M-2 remediation): that is exactly why
+   * this function must never be asked about a `pointercancel` or a `blur`.
+   * Measured in real Chromium on the consuming product: a genuine
+   * `pointercancel` dispatched over a legitimate drop target CARRIES that
+   * target's `clientX`/`clientY` — the prior claim that it "carries no
+   * position" was not true of the real event, only of the coincidental cases
+   * this file had been exercised against, and asking this function about such
+   * an event answered "yes, drop it" for a gesture the platform was actively
+   * taking away from the user. Terminal-reason discipline is owned by the two
+   * callers below, `handleMouseup` and `handleCancel`, not by this function:
+   * one release-worthy terminator asks this function with the real event, the
+   * other forces the cancel unconditionally and never lets this function see
+   * the event at all — so a `pointercancel`'s coordinates, real or not, cannot
+   * reach here to be asked about in the first place.
    *
    * It deliberately does NOT re-resolve the drop. The descriptor the insertion
    * line was painted from is the descriptor that drops; this decides whether
@@ -775,6 +804,12 @@ export function reorder(node, config) {
      * grid does not cancel — coming back makes a drop available again, because
      * re-entering resumes the move events that keep `current` truthful — but
      * the RELEASE decides, and a release anywhere else is a cancel.
+     *
+     * SVAR-M14 (R11, M-2): `event` here is never a real `pointercancel` or
+     * `blur` — see `releasedOnRows` and `handleCancel` — so `undefined` is
+     * exactly what a forced cancel passes, and `releasedOnRows(undefined)`
+     * answers `false` on its very first guard without reading anything a
+     * cancelled platform event might otherwise have populated.
      */
     const drop = releasedOnRows(event) ? current : null;
 
