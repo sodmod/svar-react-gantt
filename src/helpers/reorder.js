@@ -734,7 +734,7 @@ export function reorder(node, config) {
   }
 
   /**
-   * `pointercancel` / `blur` (SVAR-M14, R11, Planner Phase 3.3 R11 M-2
+   * `pointercancel` / `blur` (SVAR-M16, Planner Phase 3.3 R11 M-2
    * remediation): the platform taking the pointer away, or the window losing
    * focus mid-gesture. Neither is a release ON anything — see `up`'s own
    * comment for why this is the one caller `releasedOnRows` must never see a
@@ -761,7 +761,7 @@ export function reorder(node, config) {
    * over a droppable row" — and it answers that question honestly whenever it
    * is asked, `pointercancel` included.
    *
-   * SVAR-M14 (R11, Planner Phase 3.3 R11 M-2 remediation): that is exactly why
+   * SVAR-M16 (Planner Phase 3.3 R11 M-2 remediation): that is exactly why
    * this function must never be asked about a `pointercancel` or a `blur`.
    * Measured in real Chromium on the consuming product: a genuine
    * `pointercancel` dispatched over a legitimate drop target CARRIES that
@@ -805,7 +805,7 @@ export function reorder(node, config) {
      * re-entering resumes the move events that keep `current` truthful — but
      * the RELEASE decides, and a release anywhere else is a cancel.
      *
-     * SVAR-M14 (R11, M-2): `event` here is never a real `pointercancel` or
+     * SVAR-M16 (R11, M-2): `event` here is never a real `pointercancel` or
      * `blur` — see `releasedOnRows` and `handleCancel` — so `undefined` is
      * exactly what a forced cancel passes, and `releasedOnRows(undefined)`
      * answers `false` on its very first guard without reading anything a
