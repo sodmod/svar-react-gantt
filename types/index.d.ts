@@ -167,6 +167,17 @@ export declare const Gantt: ForwardRefExoticComponent<
     // with the data. The renderer renders the node and knows nothing else
     // about it: no action, no availability, no selection, no history, no dates.
     gridActionSlot?: ReactNode;
+    // SVAR-M17 (SVAR Production Planner): the minimum total height, in px, the
+    // `gridActionSlot`'s own persistent content needs the band it lives in to
+    // have. The band is naturally the top scale row plus the marker lane, and
+    // the lane's height follows the consumer's annotations — so in a visible
+    // range with none, the band is the top scale row alone. With a minimum
+    // declared, the renderer adds one blank reserve band of exactly the
+    // shortfall between the top scale row and the lane, on the grid side and
+    // the chart side alike; when the natural band already meets the minimum,
+    // nothing changes at all. Applies only together with `gridActionSlot`, and
+    // only to the surface that asks for it: it is never a global floor.
+    gridActionSlotMinHeight?: number;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

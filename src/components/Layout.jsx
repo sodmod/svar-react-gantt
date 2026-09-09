@@ -15,6 +15,7 @@ import storeContext from '../context';
 import './Layout.css';
 import { flushSync } from 'react-dom';
 import { useTimelineAnnotationLayout } from './chart/annotations/useTimelineAnnotationLayout.js';
+import { splitScaleHeaderForLane } from './chart/annotations/timelineAnnotationLayout.js';
 import AnnotationMeasurer from './chart/annotations/AnnotationMeasurer.jsx';
 import {
   collectFollowedTaskIds,
@@ -36,12 +37,17 @@ function Layout(props) {
   // This component owns the flag below for the same reason it owns the lane
   // layout: the grid's blank reservation and the header's own composition are
   // one arrangement, and both halves must be told the same thing about it.
+  // SVAR-M17 (SVAR Production Planner): `gridActionSlotMinHeight` — see
+  // `Gantt.jsx`. Resolved here, once, for the same reason: the reserve it can
+  // produce is part of that one arrangement, and both halves are handed the
+  // SAME resolved number so they cannot answer differently.
   const {
     taskTemplate,
     scaleCellAriaLabel,
     timelineAnnotations,
     onTimelineDragPreview,
     gridActionSlot,
+    gridActionSlotMinHeight,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -131,7 +137,46 @@ function Layout(props) {
    * gives one answer; on the chart side a zero-height lane renders nothing, so
    * the header looks exactly as it did.
    */
-  const reserveTopScaleRow = laneHeight > 0 || gridActionSlot != null;
+  const hasGridActionSlot = gridActionSlot != null;
+  const reserveTopScaleRow = laneHeight > 0 || hasGridActionSlot;
+
+  /*
+   * SVAR-M17 (SVAR Production Planner): the minimum the consumer's own slot
+   * content asks the band to have, resolved to a plain number ONCE.
+   *
+   * Two things are decided here and nowhere else. That the minimum applies at
+   * all: it is dropped unless the consumer actually passed a `gridActionSlot`,
+   * so it is a request from THAT consumer about THAT content rather than a
+   * floor every surface pays — a harness with a strip and no minimum keeps the
+   * band it has today. And that both halves are told the same number, for the
+   * same reason `reserveTopScaleRow` is: the grid's reservation and the
+   * header's own composition are one arrangement, and a disagreement between
+   * them is a vertical desynchronization of the two panes.
+   */
+  const slotMinHeight =
+    hasGridActionSlot &&
+    Number.isFinite(gridActionSlotMinHeight) &&
+    gridActionSlotMinHeight > 0
+      ? gridActionSlotMinHeight
+      : 0;
+
+  /*
+   * SVAR-M17: the shortfall this layout has to pay for, from the ONE split
+   * owner both halves ask — asked here as well because the reserve is real
+   * vertical room above the chart body, so it belongs in the scroll travel and
+   * in the chart height published to the store exactly as the lane does.
+   */
+  const headerSplit = useMemo(
+    () =>
+      splitScaleHeaderForLane(
+        rScales,
+        laneHeight,
+        reserveTopScaleRow,
+        slotMinHeight,
+      ),
+    [rScales, laneHeight, reserveTopScaleRow, slotMinHeight],
+  );
+  const slotReserveExtraHeight = headerSplit.slotReserveExtraHeight;
 
   const [ganttWidth, setGanttWidth] = useWritableProp(props.ganttWidth);
   const [ganttHeight, setGanttHeight] = useState(0);
@@ -150,8 +195,17 @@ function Layout(props) {
     // SVAR-M4 (SVAR Production Planner): + laneHeight — the lane sits between
     // the scale rows and the body, so the last row needs that much more
     // scroll travel to come fully into view.
-    () => rScales.height + laneHeight + fullHeight + scrollSize,
-    [rScales, laneHeight, fullHeight, scrollSize],
+    // SVAR-M17 (SVAR Production Planner): + the slot's reserve, for exactly
+    // the same reason — it is another band between the scale rows and the
+    // body, and a row hidden behind room nobody counted is a row the user
+    // cannot scroll to.
+    () =>
+      rScales.height +
+      laneHeight +
+      slotReserveExtraHeight +
+      fullHeight +
+      scrollSize,
+    [rScales, laneHeight, slotReserveExtraHeight, fullHeight, scrollSize],
   );
 
   const chartRef = useRef(null);
@@ -171,10 +225,22 @@ function Layout(props) {
       ganttHeight: ganttHeight ?? 0,
       // SVAR-M4 (SVAR Production Planner): the header block the chart body
       // sits under is the scale rows PLUS the annotation lane.
-      rScalesHeight: rScales.height + laneHeight,
+      // SVAR-M17 (SVAR Production Planner): PLUS the slot's reserve band. The
+      // store learns the chart's height by subtracting this from the surface
+      // height, so a reserve missing here would give the body more height than
+      // it has and put the last rows under the header.
+      rScalesHeight: rScales.height + laneHeight + slotReserveExtraHeight,
       scrollSize,
     };
-  }, [ganttWidth, columnsWidth, ganttHeight, rScales, laneHeight, scrollSize]);
+  }, [
+    ganttWidth,
+    columnsWidth,
+    ganttHeight,
+    rScales,
+    laneHeight,
+    slotReserveExtraHeight,
+    scrollSize,
+  ]);
 
   const chartResizeHandler = useCallback(() => {
     const {
@@ -206,12 +272,17 @@ function Layout(props) {
   // resize of the chart element, so the ResizeObserver above does not see it;
   // re-publish the chart height whenever the lane actually changes height.
   // Declared AFTER the `latestLayout` effect so it reads the updated value.
-  const publishedLaneHeight = useRef(laneHeight);
+  // SVAR-M17 (SVAR Production Planner): the slot's reserve is the same kind of
+  // change and is watched by the same ref — the two move in OPPOSITE
+  // directions (a lane appearing eats the shortfall it made), so watching the
+  // lane alone would miss the very moment the reserve appears or goes.
+  const publishedHeaderBand = useRef(laneHeight + slotReserveExtraHeight);
   useEffect(() => {
-    if (publishedLaneHeight.current === laneHeight) return;
-    publishedLaneHeight.current = laneHeight;
+    const band = laneHeight + slotReserveExtraHeight;
+    if (publishedHeaderBand.current === band) return;
+    publishedHeaderBand.current = band;
     chartResizeHandler();
-  }, [laneHeight, chartResizeHandler]);
+  }, [laneHeight, slotReserveExtraHeight, chartResizeHandler]);
 
   const ganttDivRef = useRef(null);
   const pseudoRowsRef = useRef(null);
@@ -314,6 +385,7 @@ function Layout(props) {
                   annotationLaneHeight={laneHeight}
                   gridActionSlot={gridActionSlot}
                   reserveTopScaleRow={reserveTopScaleRow}
+                  gridActionSlotMinHeight={slotMinHeight}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer containerWidth={ganttWidth} api={api} />
@@ -329,6 +401,7 @@ function Layout(props) {
                 scaleCellAriaLabel={scaleCellAriaLabel}
                 annotationLayout={annotationLayout}
                 reserveTopScaleRow={reserveTopScaleRow}
+                gridActionSlotMinHeight={slotMinHeight}
                 onBarDragPreview={onBarDragPreview}
               />
             </div>

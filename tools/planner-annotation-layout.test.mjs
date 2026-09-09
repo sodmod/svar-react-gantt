@@ -1332,3 +1332,218 @@ test('SVAR-M12: only `true` reserves — an absent flag is the old behaviour', (
     );
   }
 });
+
+/*
+ * SVAR-M17 — persistent slot content may declare a MINIMUM for the band it
+ * lives in.
+ *
+ * SVAR-M12 gave the consumer's slot a band and guaranteed the band EXISTS
+ * whatever the data does. It did not guarantee the band is big enough to hold
+ * anything: with no annotation in the visible range the band is the top scale
+ * row alone, and a consumer whose content is nearly that tall is left with a
+ * couple of pixels. `gridActionSlotMinHeight` is the consumer saying how much
+ * room its own persistent content needs; the renderer answers with a reserve
+ * band of exactly the shortfall, or with nothing at all when the natural band
+ * already suffices.
+ *
+ * The minimum is PER CONSUMER, never global: it arrives as a number, and a
+ * surface that passes none is byte-identical to what it was. `Layout.jsx` is
+ * the one place that decides a minimum reaches this function at all — it
+ * resolves to `0` unless the consumer actually passed a `gridActionSlot`, so
+ * "no slot means no minimum" is a fact of that one call site and is proved
+ * end-to-end by the Planner's own dependency-harness regression, not by a
+ * second rule written down here.
+ *
+ * Nothing about the marker lane changes: `laneHeightForRows` is untouched, the
+ * row assignment is untouched, and the reserve is not a row, not a lane and not
+ * part of `heightAboveLane`/`heightBelowLane` — the header's own rows still add
+ * up to exactly the header's own height.
+ */
+
+/**
+ * The Planner's real three-row day header: a 36 px top row over two 22 px date
+ * rows. Its numbers are the ones the accepted product geometry is stated in
+ * (36 alone, 64 with one marker row, 90 with two), so the cases below read as
+ * the product rather than as arbitrary arithmetic.
+ */
+const PRODUCT_HEADER = {
+  rows: [{ height: 36 }, { height: 22 }, { height: 22 }],
+  height: 80,
+};
+/** The accepted product minimum: a 34 px strip under 30 px of free room. */
+const PRODUCT_SLOT_MIN = 64;
+/** `laneHeightForRows(1)` — one row of marker chips. */
+const ONE_MARKER_ROW = laneHeightForRows(1);
+/** `laneHeightForRows(2)` — two rows of marker chips. */
+const TWO_MARKER_ROWS = laneHeightForRows(2);
+
+test('SVAR-M17: with no minimum asked for, the split is exactly what it was', () => {
+  for (const min of [undefined, null, 0, -10, NaN, '64']) {
+    const split = splitScaleHeaderForLane(
+      PRODUCT_HEADER,
+      ONE_MARKER_ROW,
+      true,
+      min,
+    );
+    assert.equal(
+      split.slotReserveExtraHeight,
+      0,
+      `slotMinHeight=${String(min)} must reserve nothing`,
+    );
+    assert.deepEqual(
+      split,
+      { ...splitScaleHeaderForLane(PRODUCT_HEADER, ONE_MARKER_ROW, true) },
+      'a minimum nobody asked for changes no field of the answer',
+    );
+  }
+});
+
+test('SVAR-M17: a minimum BELOW the natural band reserves nothing', () => {
+  const natural = 36 + ONE_MARKER_ROW;
+  assert.equal(natural, 64, 'the product geometry this case is stated in');
+  const split = splitScaleHeaderForLane(
+    PRODUCT_HEADER,
+    ONE_MARKER_ROW,
+    true,
+    40,
+  );
+  assert.equal(split.slotReserveExtraHeight, 0);
+  assert.equal(split.heightAboveLane, 36, 'the top row keeps its own height');
+  assert.equal(split.laneHeight, ONE_MARKER_ROW, 'and the lane keeps its own');
+});
+
+test('SVAR-M17: a minimum EQUAL to the natural band reserves nothing', () => {
+  const split = splitScaleHeaderForLane(
+    PRODUCT_HEADER,
+    ONE_MARKER_ROW,
+    true,
+    PRODUCT_SLOT_MIN,
+  );
+  assert.equal(36 + ONE_MARKER_ROW, PRODUCT_SLOT_MIN);
+  assert.equal(
+    split.slotReserveExtraHeight,
+    0,
+    'the ordinary one-marker product state pays nothing for the minimum',
+  );
+});
+
+test('SVAR-M17: a minimum ABOVE the natural band reserves EXACTLY the shortfall', () => {
+  // The state the whole modification exists for: nothing to put in the lane,
+  // so the natural band is the top scale row alone.
+  const split = splitScaleHeaderForLane(
+    PRODUCT_HEADER,
+    0,
+    true,
+    PRODUCT_SLOT_MIN,
+  );
+  assert.equal(split.laneSplitsHeader, true);
+  assert.equal(split.heightAboveLane, 36);
+  assert.equal(split.laneHeight, 0, 'no lane is invented to carry the reserve');
+  assert.equal(
+    split.slotReserveExtraHeight,
+    28,
+    '64 asked for, 36 naturally there',
+  );
+  assert.equal(
+    split.heightAboveLane + split.heightBelowLane,
+    PRODUCT_HEADER.height,
+    'the reserve is NOT taken from the scale rows — they still add up exactly',
+  );
+});
+
+test('SVAR-M17: one marker row and more are already tall enough', () => {
+  const one = splitScaleHeaderForLane(
+    PRODUCT_HEADER,
+    ONE_MARKER_ROW,
+    true,
+    PRODUCT_SLOT_MIN,
+  );
+  assert.equal(36 + ONE_MARKER_ROW, 64);
+  assert.equal(one.slotReserveExtraHeight, 0);
+
+  const two = splitScaleHeaderForLane(
+    PRODUCT_HEADER,
+    TWO_MARKER_ROWS,
+    true,
+    PRODUCT_SLOT_MIN,
+  );
+  assert.equal(36 + TWO_MARKER_ROWS, 90, 'the accepted two-row band');
+  assert.equal(two.slotReserveExtraHeight, 0);
+
+  // …and the lane itself is untouched in both: the reserve never becomes lane.
+  assert.equal(one.laneHeight, ONE_MARKER_ROW);
+  assert.equal(two.laneHeight, TWO_MARKER_ROWS);
+});
+
+test('SVAR-M17: the reserve grows as the lane shrinks, and never past the minimum', () => {
+  // The band the consumer ends up with is `max(natural, minimum)` at every
+  // lane height there is — one monotone rule, not a special case for zero.
+  for (const lane of [0, 4, 12, 28, 54, 120]) {
+    const split = splitScaleHeaderForLane(
+      PRODUCT_HEADER,
+      lane,
+      true,
+      PRODUCT_SLOT_MIN,
+    );
+    const natural = split.heightAboveLane + split.laneHeight;
+    assert.equal(
+      natural + split.slotReserveExtraHeight,
+      Math.max(natural, PRODUCT_SLOT_MIN),
+      `lane=${lane}`,
+    );
+    assert.ok(split.slotReserveExtraHeight >= 0, `lane=${lane}: never negative`);
+  }
+});
+
+test('SVAR-M17: a header that cannot be split cannot carry a reserve either', () => {
+  // A single-row scale has nothing to put below the lane, so SVAR-M8/SVAR-M12
+  // leave it alone — and so does this. The grid renders no band there, so a
+  // reserve would be room nothing could ever use.
+  const split = splitScaleHeaderForLane(
+    ONE_ROW_HEADER,
+    0,
+    true,
+    PRODUCT_SLOT_MIN,
+  );
+  assert.equal(split.laneSplitsHeader, false);
+  assert.equal(split.slotReserveExtraHeight, 0);
+  assert.equal(split.heightAboveLane, ONE_ROW_HEADER.height);
+
+  // The same for a malformed `_scales`: it degrades to no split at all.
+  for (const scales of [undefined, null, {}, { rows: null, height: 'x' }]) {
+    const degraded = splitScaleHeaderForLane(scales, 28, true, PRODUCT_SLOT_MIN);
+    assert.equal(degraded.laneSplitsHeader, false);
+    assert.equal(degraded.slotReserveExtraHeight, 0);
+  }
+});
+
+test('SVAR-M17: without the top-row reservation there is no band to raise', () => {
+  // `reserveTopRow` is false only when the consumer passed no slot AND there is
+  // no lane. There is then no band on the grid side at all, so a minimum that
+  // reached this far would reserve room above a header that starts at zero.
+  const split = splitScaleHeaderForLane(
+    PRODUCT_HEADER,
+    0,
+    false,
+    PRODUCT_SLOT_MIN,
+  );
+  assert.equal(split.laneSplitsHeader, false);
+  assert.equal(split.slotReserveExtraHeight, 0);
+});
+
+test('SVAR-M17 negative control: the M16 answer carries no reserve at all', () => {
+  // What the pre-SVAR-M17 function returned, restated as the oracle these
+  // tests are written against: in the no-annotation state the band was the top
+  // scale row and nothing else, whatever the consumer's content needed.
+  const m16 = splitScaleHeaderForLane(PRODUCT_HEADER, 0, true);
+  assert.equal(m16.heightAboveLane + m16.laneHeight, 36);
+  assert.equal(m16.slotReserveExtraHeight, 0, 'nothing asked for, nothing given');
+
+  const m17 = splitScaleHeaderForLane(PRODUCT_HEADER, 0, true, PRODUCT_SLOT_MIN);
+  assert.equal(
+    m17.heightAboveLane + m17.laneHeight + m17.slotReserveExtraHeight,
+    64,
+    'the same state, with a minimum asked for, is 28 px taller',
+  );
+  assert.notEqual(m17.slotReserveExtraHeight, m16.slotReserveExtraHeight);
+});

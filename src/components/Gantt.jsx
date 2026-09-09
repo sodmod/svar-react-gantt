@@ -138,6 +138,33 @@ const Gantt = forwardRef(function Gantt(
     // a place it already owns, and nothing else. `null` by default — without
     // it the header and the grid are byte-for-byte what they were.
     gridActionSlot = null,
+    // SVAR-M17 (SVAR Production Planner): new optional prop, purely additive.
+    //
+    // The minimum total height, in px, the content of `gridActionSlot` needs
+    // the band it lives in to have.
+    //
+    // SVAR-M12 guarantees that band EXISTS whatever the data does; it does not
+    // guarantee the band is big enough. Its natural height is the top scale
+    // row plus the marker lane, and the lane's height is decided by the
+    // consumer's own annotations: a project whose visible range happens to
+    // carry none leaves the band at the top scale row alone. Persistent
+    // controls that fit comfortably with markers on screen are then squeezed
+    // into whatever is left, which is a trap of exactly the kind SVAR-M12
+    // existed to close and closed only halfway.
+    //
+    // So a consumer may say how much room its own content needs. When the
+    // natural band is already at least that tall — the ordinary case, with one
+    // or more marker rows — this changes NOTHING, not a pixel; when it is not,
+    // the renderer adds one blank reserve band of exactly the shortfall,
+    // between the top scale row and the marker lane, on both halves of the
+    // surface at once.
+    //
+    // PER CONSUMER, never a global floor: it applies only when this consumer
+    // also passed a `gridActionSlot`, and a surface that passes no minimum
+    // renders byte-for-byte what it rendered before. The renderer still knows
+    // nothing about the content — this is a number of pixels, not a hint about
+    // what is in the slot, and nothing here measures the consumer's DOM.
+    gridActionSlotMinHeight = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -402,6 +429,7 @@ const Gantt = forwardRef(function Gantt(
           timelineAnnotations={timelineAnnotations}
           onTimelineDragPreview={onTimelineDragPreview}
           gridActionSlot={gridActionSlot}
+          gridActionSlotMinHeight={gridActionSlotMinHeight}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

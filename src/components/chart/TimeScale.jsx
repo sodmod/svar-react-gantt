@@ -41,8 +41,18 @@ function TimeScale(props) {
   // `Grid.jsx` is handed, so this header and the grid's blank reservation stay
   // one arrangement. With no lane it changes nothing visible here: the rows
   // keep their order and heights, and `AnnotationLane` renders nothing.
-  const { api, scaleCellAriaLabel, annotationLayout, reserveTopScaleRow } =
-    props;
+  // SVAR-M17 (SVAR Production Planner): `gridActionSlotMinHeight` — the same
+  // resolved number `Grid.jsx` is handed. It can add ONE blank band to this
+  // header, between the top scale row and the lane, and it changes nothing
+  // else: no row moves inside the header, no row changes height, and the lane
+  // is laid out exactly as it was.
+  const {
+    api,
+    scaleCellAriaLabel,
+    annotationLayout,
+    reserveTopScaleRow,
+    gridActionSlotMinHeight,
+  } = props;
 
   const scales = useStore(api, '_scales');
   const xArea = useStore(api, 'xArea');
@@ -78,9 +88,22 @@ function TimeScale(props) {
    */
   const laneHeight = annotationLayout ? annotationLayout.laneHeight : 0;
   const headerSplit = useMemo(
-    () => splitScaleHeaderForLane(scales, laneHeight, reserveTopScaleRow),
-    [scales, laneHeight, reserveTopScaleRow],
+    () =>
+      splitScaleHeaderForLane(
+        scales,
+        laneHeight,
+        reserveTopScaleRow,
+        gridActionSlotMinHeight,
+      ),
+    [scales, laneHeight, reserveTopScaleRow, gridActionSlotMinHeight],
   );
+  /**
+   * SVAR-M17: the blank reserve band, in px. Zero — and therefore no element
+   * at all — whenever the header's own rows and the lane already give the
+   * consumer's slot the room it asked for, which is what keeps the ordinary
+   * marker states pixel-identical to what they were.
+   */
+  const slotReserveHeight = headerSplit.slotReserveExtraHeight;
 
   // SVAR-M8: the header half of every annotation's vertical line — the band
   // the LOWER scale rows occupy, between the lane's bottom edge and the chart
@@ -90,7 +113,9 @@ function TimeScale(props) {
   // which the stylesheet lifts — see TimeScale.css.
   const lowerRowLinesStyle = useMemo(
     () => ({
-      top: `${headerSplit.heightAboveLane + headerSplit.laneHeight}px`,
+      // SVAR-M17: + the reserve band, because it sits between the top row and
+      // the lane, so the lower rows begin that much further down.
+      top: `${headerSplit.heightAboveLane + headerSplit.slotReserveExtraHeight + headerSplit.laneHeight}px`,
       height: `${headerSplit.heightBelowLane}px`,
     }),
     [headerSplit],
@@ -168,6 +193,31 @@ function TimeScale(props) {
       {renderedRows
         .slice(0, headerSplit.rowsAboveLane)
         .map((r, i) => renderRow(r, i))}
+
+      {/* SVAR-M17 (SVAR Production Planner): the blank reserve band.
+
+          It exists only when the consumer's own slot declared a minimum the
+          header could not meet on its own, and then it is EXACTLY the
+          shortfall — the one number the split owner reports, the very number
+          `Grid.jsx` adds to its header offset, so the two panes stay on one
+          line by construction rather than by two agreeing calculations.
+
+          Deliberately none of the things it could be mistaken for: not a
+          marker row, not a lane (the lane below is laid out from the same
+          `annotationLayout` it always was, and renders nothing when there is
+          nothing in it), not extra height on any scale row, and not an
+          overlay. It is in flow, so `.wx-scale` grows by exactly this much and
+          the chart body below it moves down by the same amount. It is not a
+          `.wx-row`, so the stylesheet's `:last-child` row-border rule sees the
+          same last row it saw before. */}
+      {slotReserveHeight > 0 ? (
+        <div
+          className="wx-ZkvhDKir wx-scale-slot-reserve"
+          data-scale-slot-reserve="true"
+          aria-hidden="true"
+          style={{ height: `${slotReserveHeight}px` }}
+        />
+      ) : null}
 
       {/* SVAR-M4 (SVAR Production Planner): the annotation lane. SVAR-M8
           moved it from under the last scale row to under the FIRST one, so

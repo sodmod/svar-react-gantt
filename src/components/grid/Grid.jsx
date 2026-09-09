@@ -80,6 +80,13 @@ export default function Grid(props) {
    * column headers, and `reserveTopScaleRow`, the flag that guarantees the
    * band exists. Both arrive from `Layout.jsx`; see the render below and
    * `Gantt.jsx` for what the seam is and what it deliberately is not.
+   *
+   * SVAR-M17 (SVAR Production Planner): `gridActionSlotMinHeight` — the
+   * already-resolved minimum that slot's own content asks the band to have,
+   * from the same `Layout.jsx`. A number of pixels and nothing else: this file
+   * does not know whether a consumer passed a slot (that is already folded
+   * into the number, which is `0` when none did), what the content is, or why
+   * it needs the room.
    */
   const {
     readonly,
@@ -87,6 +94,7 @@ export default function Grid(props) {
     annotationLaneHeight,
     gridActionSlot,
     reserveTopScaleRow,
+    gridActionSlotMinHeight,
   } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
     ? Math.max(0, annotationLaneHeight)
@@ -363,8 +371,14 @@ export default function Grid(props) {
    * BELOW it through `bodyOffset`, as SVAR-M6 always did.
    */
   const headerSplit = useMemo(
-    () => splitScaleHeaderForLane(scalesVal, laneHeight, reserveTopScaleRow),
-    [scalesVal, laneHeight, reserveTopScaleRow],
+    () =>
+      splitScaleHeaderForLane(
+        scalesVal,
+        laneHeight,
+        reserveTopScaleRow,
+        gridActionSlotMinHeight,
+      ),
+    [scalesVal, laneHeight, reserveTopScaleRow, gridActionSlotMinHeight],
   );
   const headerHeight = useMemo(
     () =>
@@ -377,9 +391,18 @@ export default function Grid(props) {
   const blankScaleHeight = headerSplit.laneSplitsHeader
     ? headerSplit.heightAboveLane
     : 0;
+  /**
+   * SVAR-M17: the extra blank band the slot's declared minimum asked for, in
+   * the same place the chart puts it — under the top scale row, above the
+   * marker lane. `0` whenever the natural band already suffices, which is what
+   * keeps every already-accepted state pixel-identical.
+   */
+  const slotReserveHeight = headerSplit.slotReserveExtraHeight;
   /** How far down the whole grid (header included) starts. */
   const headerOffset =
-    blankScaleHeight + (headerSplit.laneSplitsHeader ? laneHeight : 0);
+    blankScaleHeight +
+    slotReserveHeight +
+    (headerSplit.laneSplitsHeader ? laneHeight : 0);
   /** The lane height still reserved BELOW the header (the pre-SVAR-M8 case). */
   const laneBelowHeader = headerSplit.laneSplitsHeader ? 0 : laneHeight;
 
@@ -848,7 +871,10 @@ export default function Grid(props) {
             data-annotation-lane-spacer="true"
             aria-hidden="true"
             style={{
-              top: `${headerSplit.laneSplitsHeader ? blankScaleHeight : headerHeight}px`,
+              // SVAR-M17: below the slot's reserve band when there is one, so
+              // the lane keeps sitting directly on top of the column headers
+              // and the new room appears ABOVE it, never inside it.
+              top: `${headerSplit.laneSplitsHeader ? blankScaleHeight + slotReserveHeight : headerHeight}px`,
               height: `${laneHeight}px`,
             }}
           />
@@ -859,7 +885,10 @@ export default function Grid(props) {
             It is the SAME band the two spacers above occupy — `headerOffset`
             is the one number this file already computes for them, from the one
             split owner — so this slot can never disagree with the reservation
-            it sits in, and it adds no height of its own. `align-items: flex-end`
+            it sits in, and it adds no height of its own. Since SVAR-M17 that
+            band may carry a third part, the reserve the slot's own declared
+            minimum asked for; it enters `headerOffset` through the same split
+            owner, so this element still reads one number. `align-items: flex-end`
             in the stylesheet keeps the content directly on top of the column
             titles: when the marker lane grows, the new room appears ABOVE the
             content, not between it and the headers.

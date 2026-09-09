@@ -480,6 +480,25 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
  * in the header's own line layer, which has to know which vertical band the
  * lower rows occupy. All three ask THIS function; none of them re-derives the
  * rule, and none of them measures anything.
+ *
+ * A BLANK RESERVE BAND UNDER THE TOP ROW (SVAR-M17)
+ *
+ * Since SVAR-M17 the same split answers one more question, and it belongs here
+ * for the same reason: the answer has to be identical on both sides or the two
+ * panes stop sharing a y.
+ *
+ *   top scale row          (month / year — the coarse band)
+ *   slot reserve band      (SVAR-M17; height 0 unless a minimum is short)
+ *   marker lane            (dynamic height)
+ *   lower scale row(s)     (weekday, day number — whatever the scale has)
+ *   chart body
+ *
+ * The reserve is not a marker row, not a lane and not extra height on any
+ * scale row: `laneHeightForRows`, the row assignment and the header's own row
+ * heights are untouched, and `heightAboveLane + heightBelowLane` still equals
+ * the scale's own height exactly. It is additional blank room, reported
+ * separately as `slotReserveExtraHeight`, and it is zero in every state where
+ * the band is already as tall as the consumer said it needs.
  */
 
 /**
@@ -496,14 +515,42 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
  *   Both callers are handed the SAME value by `Layout.jsx`, so the two halves
  *   of the surface still answer this question identically. Default `false`:
  *   without it this function is what it was.
+ * @param slotMinHeight  SVAR-M17: the minimum total height, in px, the
+ *   consumer's own persistent slot content needs the band to have. The band a
+ *   split produces is naturally `heightAboveLane + laneHeight`, and that is a
+ *   number the DATA decides: with no annotation in the visible range it is the
+ *   top scale row alone. A consumer whose content is nearly that tall is then
+ *   left with a couple of pixels, which is the failure this parameter exists
+ *   to close. When the minimum is larger than the natural band, the difference
+ *   is reported as `slotReserveExtraHeight` — a separate blank reserve band
+ *   both halves place between the top scale row and the lane — and when it is
+ *   not, the answer is byte-identical to the one without it. `0`/absent is the
+ *   old behaviour exactly.
+ *
+ *   PER CONSUMER, never global, and never a rule of this module: `Layout.jsx`
+ *   resolves it to `0` unless that consumer actually passed a `gridActionSlot`,
+ *   and hands the SAME resolved number to both halves, so a surface that asks
+ *   for nothing keeps the geometry it had. This function knows a number of
+ *   pixels and no more — not what the slot holds, not why it needs the room.
  * @returns `{ laneSplitsHeader, rowsAboveLane, heightAboveLane,
- *   heightBelowLane, laneHeight }`. When there is no lane and no reservation
- *   asked for, or the scale has a single row and therefore nothing to put
- *   below one, `laneSplitsHeader` is `false` and the caller keeps its previous
- *   arrangement exactly: every row above, nothing below, the lane (if any)
- *   under all of them.
+ *   heightBelowLane, laneHeight, slotReserveExtraHeight }`. When there is no
+ *   lane and no reservation asked for, or the scale has a single row and
+ *   therefore nothing to put below one, `laneSplitsHeader` is `false` and the
+ *   caller keeps its previous arrangement exactly: every row above, nothing
+ *   below, the lane (if any) under all of them — and no reserve, because there
+ *   is no band on the grid side that could hold one.
+ *
+ *   `slotReserveExtraHeight` is ADDITIONAL to the header's own rows. It is not
+ *   taken from `heightAboveLane`/`heightBelowLane`, which still add up to the
+ *   scale's own height exactly, and it is not lane: `laneHeight` is reported
+ *   unchanged, so no caller can mistake the reserve for a row of markers.
  */
-export function splitScaleHeaderForLane(scales, laneHeight, reserveTopRow) {
+export function splitScaleHeaderForLane(
+  scales,
+  laneHeight,
+  reserveTopRow,
+  slotMinHeight,
+) {
   const rows = scales && Array.isArray(scales.rows) ? scales.rows : [];
   const totalHeight =
     scales && Number.isFinite(scales.height) ? scales.height : 0;
@@ -517,14 +564,25 @@ export function splitScaleHeaderForLane(scales, laneHeight, reserveTopRow) {
       heightAboveLane: totalHeight,
       heightBelowLane: 0,
       laneHeight: lane,
+      // SVAR-M17: there is no band here at all — the grid's header starts at
+      // zero — so room reserved above it would be room nothing could use.
+      slotReserveExtraHeight: 0,
     };
   }
   const heightAboveLane = Number.isFinite(rows[0].height) ? rows[0].height : 0;
+  // SVAR-M17: the shortfall, and only ever the shortfall. `max(natural, min)`
+  // stated as the difference, so a band that is already tall enough — the
+  // ordinary one-marker and multi-marker product states — pays exactly zero
+  // and stays pixel-identical to what it was.
+  const naturalBandHeight = heightAboveLane + lane;
+  const requestedMinimum =
+    Number.isFinite(slotMinHeight) && slotMinHeight > 0 ? slotMinHeight : 0;
   return {
     laneSplitsHeader: true,
     rowsAboveLane: 1,
     heightAboveLane,
     heightBelowLane: Math.max(0, totalHeight - heightAboveLane),
     laneHeight: lane,
+    slotReserveExtraHeight: Math.max(0, requestedMinimum - naturalBandHeight),
   };
 }

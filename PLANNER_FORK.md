@@ -521,6 +521,40 @@ Two kinds of change, deliberately kept in separate commits:
      `handleCancel` where `pointercancel`/`blur` used to name `handleMouseup`.
      A cancelled gesture is therefore still exactly one idempotent cleanup —
      it simply can no longer also be a drop.
+   - **`SVAR-M17` — persistent slot content may declare a minimum for the band
+     it lives in.** `SVAR-M12` gave the consumer's `gridActionSlot` a band and
+     guaranteed the band EXISTS whatever the data does. It did not guarantee
+     the band is big enough to be used. The band's natural height is the top
+     scale row plus the marker lane, and the lane's height is decided by the
+     consumer's own annotations: a project whose visible range carries none —
+     an ordinary state, not only an empty project — leaves the band at the top
+     scale row alone. Controls that sit comfortably under a marker row are then
+     squeezed into whatever is left of it.
+
+     `gridActionSlotMinHeight` is a new optional prop, threaded down the same
+     path as `gridActionSlot`: the number of pixels the consumer's own content
+     needs. `Layout.jsx` resolves it ONCE — to `0` unless that same consumer
+     also passed a slot, so it is a request from one consumer about its own
+     content and never a floor every surface pays — and hands the same resolved
+     number to both halves. `splitScaleHeaderForLane`, the one split owner both
+     halves already ask, answers with `slotReserveExtraHeight`: the shortfall
+     between the minimum and the natural band, or `0`. `TimeScale.jsx` renders
+     exactly that much blank band between the top scale row and the lane;
+     `Grid.jsx` adds exactly that much to the header offset the same split
+     already gives it; `Layout.jsx` adds it to the scroll travel and to the
+     chart height it publishes to the store. One number, one owner, three
+     consumers — which is what keeps `Grid header top + header height ==
+     Gantt body top` true by construction rather than by agreement.
+
+     What it deliberately is not: not a marker row, not a lane, not extra
+     height on any scale row, not a toolbar row and not an overlay. The lane
+     layout is untouched — `laneHeightForRows`, the row assignment, the
+     bottom-anchored rule and the header's own row heights are the same code
+     and the same numbers — and when the natural band already meets the
+     minimum, which is every state with a marker row in it, the reserve is zero
+     and the surface is pixel-identical to what it was. The renderer still
+     knows nothing about the content: this seam carries a count of pixels, not
+     a hint about what is in the slot, and nothing here measures consumer DOM.
 
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass

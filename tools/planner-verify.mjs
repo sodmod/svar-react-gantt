@@ -118,30 +118,35 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M4 — new `timelineAnnotations` prop, threaded through to Layout.jsx; ' +
     'SVAR-M5 — new `onTimelineDragPreview` prop, threaded through to Layout.jsx; ' +
-    'SVAR-M12 — new `gridActionSlot` prop, threaded through to Layout.jsx',
+    'SVAR-M12 — new `gridActionSlot` prop, threaded through to Layout.jsx; ' +
+    'SVAR-M17 — new `gridActionSlotMinHeight` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math; ' +
     'SVAR-M5 — owns the transient bar-drag preview state; SVAR-M6 — hands the RESOLVED lane height to Grid.jsx; ' +
     'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all; ' +
-    'SVAR-M12 — carries the consumer\'s grid action slot to Grid.jsx and decides, for BOTH halves, whether the top scale row stays blank without a lane',
+    'SVAR-M12 — carries the consumer\'s grid action slot to Grid.jsx and decides, for BOTH halves, whether the top scale row stays blank without a lane; ' +
+    'SVAR-M17 — resolves the slot\'s declared minimum ONCE (dropped unless a slot was passed), hands the same number to both halves, and adds the resulting reserve to the scroll travel and to the chart height published to the store',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx; ' +
     'SVAR-M5 — carries onBarDragPreview down to Bars.jsx; ' +
-    'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx',
+    'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx; ' +
+    'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
     'SVAR-M4 — renders <AnnotationLane> inside the sticky .wx-scale; ' +
     'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines; ' +
     'SVAR-M9 — keeps a body-only line out of that lower-row band; ' +
-    'SVAR-M12 — asks the split owner with the same reserveTopScaleRow the grid is given',
+    'SVAR-M12 — asks the split owner with the same reserveTopScaleRow the grid is given; ' +
+    'SVAR-M17 — renders the blank reserve band between the top scale row and the lane, and starts the lower-row line band below it',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
     'SVAR-M4 — `ITimelineAnnotation` and the `timelineAnnotations` prop; ' +
     'SVAR-M5 — `ITimelineDragPreview`, the `onTimelineDragPreview` prop and the `followsTaskId`/`previewDate` annotation fields; ' +
     'SVAR-M9 — the `lineExtent` and `stripeWidth` annotation fields; ' +
-    'SVAR-M12 — the `gridActionSlot` prop',
+    'SVAR-M12 — the `gridActionSlot` prop; ' +
+    'SVAR-M17 — the `gridActionSlotMinHeight` prop',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':
@@ -158,7 +163,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M13 — maps the reorder helper\'s new `child` zone onto move-task mode "child"; ' +
     'SVAR-M14 (R3) — the two adjacency corrections become `resolveDrop`, a pure resolution the reorder helper asks for BEFORE it marks anything, so the marker and the dispatched move-task are one descriptor; ' +
     'SVAR-M14 (R4) — `resolveDrop` becomes the cursor model\'s meaning layer: the open-container rewrite is unconditional, a hit ON a separator is re-expressed as "before the row below" so one boundary has one descriptor, and the direction-inverting adjacency correction is gone' +
-    'SVAR-M15 (R5) — a dragged container keeps its expanded state: the unconditional collapse `startReorder` used to dispatch is removed and nothing replaces it, so a drag writes no presentation state of its own',
+    'SVAR-M15 (R5) — a dragged container keeps its expanded state: the unconditional collapse `startReorder` used to dispatch is removed and nothing replaces it, so a drag writes no presentation state of its own; ' +
+    'SVAR-M17 — the slot\'s reserve band enters the same header offset, and the lane spacer sits below it',
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +

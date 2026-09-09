@@ -38,6 +38,10 @@ function Chart(props) {
     // SVAR-M12 (SVAR Production Planner): forwarded untouched to the scale
     // header, which asks the one split owner with it. See `Layout.jsx`.
     reserveTopScaleRow,
+    // SVAR-M17 (SVAR Production Planner): forwarded untouched for the same
+    // reason and to the same place — the resolved slot minimum the grid half
+    // is given, so both halves ask the split owner the same question.
+    gridActionSlotMinHeight,
     onBarDragPreview,
   } = props;
 
@@ -299,6 +303,7 @@ function Chart(props) {
         scaleCellAriaLabel={scaleCellAriaLabel}
         annotationLayout={annotationLayout}
         reserveTopScaleRow={reserveTopScaleRow}
+        gridActionSlotMinHeight={gridActionSlotMinHeight}
       />
       {markers && markers.length ? (
         <div
