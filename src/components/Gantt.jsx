@@ -148,9 +148,9 @@ const Gantt = forwardRef(function Gantt(
     // row plus the marker lane, and the lane's height is decided by the
     // consumer's own annotations: a project whose visible range happens to
     // carry none leaves the band at the top scale row alone. Persistent
-    // controls that fit comfortably with markers on screen are then squeezed
-    // into whatever is left, which is a trap of exactly the kind SVAR-M12
-    // existed to close and closed only halfway.
+    // controls that fit comfortably with one marker row on screen are then
+    // squeezed into whatever is left, which is a trap of exactly the kind
+    // SVAR-M12 existed to close and closed only halfway.
     //
     // So a consumer may say how much room its own content needs. When the
     // natural band is already at least that tall — the ordinary case, with one

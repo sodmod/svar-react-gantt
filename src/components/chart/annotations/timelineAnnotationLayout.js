@@ -498,7 +498,9 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
  * heights are untouched, and `heightAboveLane + heightBelowLane` still equals
  * the scale's own height exactly. It is additional blank room, reported
  * separately as `slotReserveExtraHeight`, and it is zero in every state where
- * the band is already as tall as the consumer said it needs.
+ * the band is already as tall as the consumer said it needs. No caller can
+ * mistake it for one more marker row: it is reported as its own field, and
+ * `laneHeight` beside it is untouched.
  */
 
 /**
@@ -543,7 +545,7 @@ export function layoutTimelineAnnotations(placed, labelWidths, rangeWidth) {
  *   `slotReserveExtraHeight` is ADDITIONAL to the header's own rows. It is not
  *   taken from `heightAboveLane`/`heightBelowLane`, which still add up to the
  *   scale's own height exactly, and it is not lane: `laneHeight` is reported
- *   unchanged, so no caller can mistake the reserve for a row of markers.
+ *   unchanged, so no caller can mistake the reserve for one more marker row.
  */
 export function splitScaleHeaderForLane(
   scales,
