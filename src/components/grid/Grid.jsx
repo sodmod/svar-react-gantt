@@ -344,8 +344,30 @@ export default function Grid(props) {
     }
 
     if (cols.length > 0) cols[cols.length - 1].resize = false;
+
+    /*
+     * SVAR-M18: with the consumer owning the widths, NOTHING stretches.
+     *
+     * `@svar-ui/gantt-store` normalizes every column set so that exactly one
+     * visible column always carries a `flexgrow` — if the consumer supplied
+     * none, it puts one on `text`. That is right when the pane's width is
+     * fixed and something has to fill it. When the consumer makes the pane
+     * follow its columns there is nothing to fill, and the forced `flexgrow`
+     * has one visible consequence left: a resize of THAT column measures its
+     * start from the element's `clientWidth` rather than from the column's own
+     * width, so the gesture lands one pixel short of the delta the user made.
+     *
+     * Removed HERE rather than upstream because `@svar-ui/gantt-store` is not
+     * ours to change, and it does not need to be: `cols` is this component's
+     * own per-render copy, so dropping the flag affects the layout it renders
+     * and nothing that is stored.
+     */
+    if (consumerOwnsColumnWidths) {
+      for (const col of cols) delete col.flexgrow;
+    }
+
     return cols;
-  }, [columnsVal, _, readonly, compactModeVal]);
+  }, [columnsVal, _, readonly, compactModeVal, consumerOwnsColumnWidths]);
 
   useLayoutEffect(() => {
     setColumnWidth(getColumnsWidth(cols));
