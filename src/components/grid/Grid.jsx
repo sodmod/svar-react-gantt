@@ -377,6 +377,33 @@ export default function Grid(props) {
   const getColumnStyle = useCallback((col) => {
     let style = `wx-rHj6070p wx-text-${col.align} `;
 
+    /*
+     * SVAR-M23 (SVAR Production Planner): a column may align its HEADER label
+     * independently of the cells under it.
+     *
+     * `align` is ONE value for both halves of a column, so a consumer whose
+     * header labels are centred over left-reading cells — a name column with
+     * its hierarchy indentation, an assignee column of names — has nowhere to
+     * say so. It cannot say so on the column either: `@svar-ui/gantt-store`
+     * normalizes a column set down to a fixed list of properties and drops
+     * everything else, and that store is not ours to change.
+     *
+     * What it does copy through untouched is the HEADER DESCRIPTOR, so that is
+     * where the consumer says it: `header: [{ text, align }]`. Nothing in
+     * either package reads a descriptor's `align` today, and the word already
+     * means this at column level.
+     *
+     * The class this adds lands on the column's header cells AND on its body
+     * cells, because `columnStyle` is one callback for both. Only the header
+     * rules in `./Grid.css` mention it, so a body cell provably keeps the
+     * alignment `align` gave it. The header rules are also written one level
+     * more specific than the vendor's own `wx-text-*` and `:first-child`
+     * header rules, so which of them wins is decided by specificity rather
+     * than by the order the stylesheets happen to load in.
+     */
+    const headerAlign = col.header?.[0]?.align;
+    if (headerAlign) style += `wx-header-text-${headerAlign} `;
+
     if (col.id === 'add-task') style += 'wx-action ';
     else if (col.id === 'wbs') style += 'wx-wbs ';
 

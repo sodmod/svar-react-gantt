@@ -116,6 +116,33 @@
 .wx-table.wx-rHj6070p .wx-grid .wx-header .wx-cell.wx-text-center.wx-action {
   justify-content: center;
 }
+/*
+ * SVAR-M23 (SVAR Production Planner): the header label's own alignment.
+ *
+ * One level more specific than the four rules above, so it decides the
+ * question wherever a consumer asked it to, whatever order the stylesheets
+ * load in — including over `:first-child`'s wider left padding, which is what
+ * would otherwise push the first column's label off its own centre. The
+ * padding is restated symmetrically for the same reason.
+ *
+ * `.wx-header` scopes every one of these: the same class is on the body cells
+ * of the same column and no rule here reaches them.
+ */
+.wx-table.wx-rHj6070p .wx-grid .wx-header .wx-cell.wx-header-text-left {
+  text-align: left;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+.wx-table.wx-rHj6070p .wx-grid .wx-header .wx-cell.wx-header-text-center {
+  text-align: center;
+  padding-left: 5px;
+  padding-right: 5px;
+}
+.wx-table.wx-rHj6070p .wx-grid .wx-header .wx-cell.wx-header-text-right {
+  text-align: right;
+  padding-left: 5px;
+  padding-right: 5px;
+}
 .wx-table.wx-rHj6070p .wx-grid .wx-header .wx-cell.wx-text-right.wx-action {
   justify-content: right;
 }
