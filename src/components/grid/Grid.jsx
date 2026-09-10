@@ -374,6 +374,34 @@ export default function Grid(props) {
     setColumnWidth(getColumnsWidth(cols));
   }, [cols]);
 
+  /*
+   * SVAR-M24 (SVAR Production Planner): a grid row says which KIND of entity
+   * it is showing.
+   *
+   * The chart already does — a bar carries `wx-task`, `wx-summary` or
+   * `wx-milestone` — and the left grid did not, so a consumer that wants a
+   * container row to read differently from a leaf row has nowhere to hang the
+   * rule. The alternatives all mean guessing at something the row already
+   * knows: `aria-expanded` is the CHEVRON's state and says "has children"
+   * rather than "is a container", and indentation says nothing at all.
+   *
+   * `type` is the value the CONSUMER put on the task. Nothing here derives it,
+   * infers it or corrects it; the class is the same fact, spelled where a
+   * stylesheet can reach it. Only the three kinds this package itself defines
+   * become a class, so an unexpected value cannot reach a class attribute.
+   */
+  const rowStyle = useCallback((row) => {
+    let style = row.$reorder ? 'wx-rHj6070p wx-reorder-task' : 'wx-rHj6070p';
+    if (
+      row.type === 'task' ||
+      row.type === 'summary' ||
+      row.type === 'milestone'
+    ) {
+      style += ` wx-row-${row.type}`;
+    }
+    return style;
+  }, []);
+
   const getColumnStyle = useCallback((col) => {
     let style = `wx-rHj6070p wx-text-${col.align} `;
 
@@ -1030,9 +1058,7 @@ export default function Grid(props) {
             rowHeight: cellHeightVal,
             headerHeight: (headerHeight ?? 0) / (headerLengthVal ?? 1),
           }}
-          rowStyle={(row) =>
-            row.$reorder ? 'wx-rHj6070p wx-reorder-task' : 'wx-rHj6070p'
-          }
+          rowStyle={rowStyle}
           columnStyle={getColumnStyle}
           data={allTasks}
           columns={fitColumns}
