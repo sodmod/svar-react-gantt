@@ -103,6 +103,7 @@ export default function Grid(props) {
     reserveTopScaleRow,
     gridActionSlotMinHeight,
     consumerOwnsColumnWidths,
+    columnMinWidth,
   } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
     ? Math.max(0, annotationLaneHeight)
@@ -765,6 +766,9 @@ export default function Grid(props) {
       // handlers below, which are installed once and therefore have to reach
       // the current value the same way every other input here does.
       consumerOwnsColumnWidths,
+      // SVAR-M20 (SVAR Production Planner): read by the same interception, and
+      // reaches it the same way, for the same reason.
+      columnMinWidth,
     };
   };
   setHandlersState();
@@ -782,6 +786,7 @@ export default function Grid(props) {
     splitTasksVal,
     onTableAPIChange,
     consumerOwnsColumnWidths,
+    columnMinWidth,
   ]);
 
   const init = useCallback((tapi) => {
@@ -815,6 +820,26 @@ export default function Grid(props) {
     });
 
     tapi.intercept('resize-column', (ev) => {
+      /*
+       * SVAR-M20: the gesture never proposes a width below the consumer's own
+       * minimum.
+       *
+       * This is the earliest point at which the number exists: the header cell
+       * has turned the pointer's travel into a width, and the store has not yet
+       * written it. Clamping HERE means the width the screen shows during the
+       * gesture and the width that ends up stored are the same number, which is
+       * what stops a column from being dragged into a sliver and then jumping
+       * back the next time anything rebuilt it.
+       *
+       * The store's own floor still applies afterwards and is unchanged; this
+       * one is simply higher when a consumer declares one, and absent when it
+       * does not.
+       */
+      const minWidth = handlersStateRef.current.columnMinWidth;
+      if (Number.isFinite(minWidth) && minWidth > 0 && ev.width < minWidth) {
+        ev.width = minWidth;
+      }
+
       /*
        * SVAR-M18: with the consumer owning the widths, no column is handed
        * another column's `flexgrow`.

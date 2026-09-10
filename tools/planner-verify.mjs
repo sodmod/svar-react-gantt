@@ -122,7 +122,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M5 — new `onTimelineDragPreview` prop, threaded through to Layout.jsx; ' +
     'SVAR-M12 — new `gridActionSlot` prop, threaded through to Layout.jsx; ' +
     'SVAR-M17 — new `gridActionSlotMinHeight` prop, threaded through to Layout.jsx; ' +
-    'SVAR-M18 — new `consumerOwnsColumnWidths` prop, threaded through to Layout.jsx',
+    'SVAR-M18 — new `consumerOwnsColumnWidths` prop, threaded through to Layout.jsx; ' +
+    'SVAR-M20 — new `columnMinWidth` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math; ' +
@@ -130,7 +131,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all; ' +
     'SVAR-M12 — carries the consumer\'s grid action slot to Grid.jsx and decides, for BOTH halves, whether the top scale row stays blank without a lane; ' +
     'SVAR-M17 — resolves the slot\'s declared minimum ONCE (dropped unless a slot was passed), hands the same number to both halves, and adds the resulting reserve to the scroll travel and to the chart height published to the store; ' +
-    'SVAR-M18 — passes `consumerOwnsColumnWidths` through to the grid, unread',
+    'SVAR-M18 — passes `consumerOwnsColumnWidths` through to the grid, unread; ' +
+    'SVAR-M20 — passes `columnMinWidth` through to the grid, unread',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx; ' +
@@ -152,7 +154,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M12 — the `gridActionSlot` prop; ' +
     'SVAR-M17 — the `gridActionSlotMinHeight` prop; ' +
     'SVAR-M18 — the `consumerOwnsColumnWidths` prop; ' +
-    'SVAR-M19 — the `ThemeScope` component',
+    'SVAR-M19 — the `ThemeScope` component; ' +
+    'SVAR-M20 — the `columnMinWidth` prop',
   'src/themes/ThemeScope.jsx':
     'SVAR-M19 — one theme element whose identity does not depend on which theme it shows: the theme is a prop, not a choice of component, so changing it remounts nothing',
   'src/themes/Willow.jsx':
@@ -173,7 +176,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M14 (R4) — `resolveDrop` becomes the cursor model\'s meaning layer: the open-container rewrite is unconditional, a hit ON a separator is re-expressed as "before the row below" so one boundary has one descriptor, and the direction-inverting adjacency correction is gone' +
     'SVAR-M15 (R5) — a dragged container keeps its expanded state: the unconditional collapse `startReorder` used to dispatch is removed and nothing replaces it, so a drag writes no presentation state of its own; ' +
     'SVAR-M17 — the slot\'s reserve band enters the same header offset, and the lane spacer sits below it; ' +
-    'SVAR-M18 — with the consumer owning the widths, a column resize is reported at every accepted step and no column is handed another column\'s flexgrow',
+    'SVAR-M18 — with the consumer owning the widths, a column resize is reported at every accepted step and no column is handed another column\'s flexgrow; ' +
+    'SVAR-M20 — the resize gesture never proposes a width below the consumer\'s declared minimum, clamped before the store writes it',
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +

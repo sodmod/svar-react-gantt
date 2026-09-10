@@ -188,6 +188,23 @@ const Gantt = forwardRef(function Gantt(
     // is what it is. Omitted (the default), every surface behaves exactly as
     // it did before, byte for byte.
     consumerOwnsColumnWidths = false,
+    // SVAR-M20 (SVAR Production Planner): `columnMinWidth` — the narrowest a
+    // column may be made BY THE GESTURE, declared by the consumer.
+    //
+    // This grid has always had a floor of its own, 17 px, applied by the store
+    // when it writes the new width. That is a floor against a column vanishing,
+    // not a product decision, and a consumer that owns the widths necessarily
+    // has its own: 17 px is a sliver no user can grab again. Without a way to
+    // say so, the consumer could only clamp AFTERWARDS — and then the width the
+    // renderer showed during the gesture and the width that was stored were
+    // two different numbers, so the column jumped the next time anything
+    // rebuilt it.
+    //
+    // The renderer is told the number and nothing else: not what a column is,
+    // not why the number is what it is, not what it should do with a width it
+    // has already accepted. Omitted (the default), the store's own 17 px floor
+    // is the only one, exactly as before.
+    columnMinWidth = 0,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -257,7 +274,16 @@ const Gantt = forwardRef(function Gantt(
       };
     }
     return config;
-  }, [zoom, scales, columns, defaultGridColumns, links, cellWidth, lCalendar, locale]);
+  }, [
+    zoom,
+    scales,
+    columns,
+    defaultGridColumns,
+    links,
+    cellWidth,
+    lCalendar,
+    locale,
+  ]);
 
   const firstInRoute = useMemo(() => dataStore.in, [dataStore]);
 
@@ -454,6 +480,7 @@ const Gantt = forwardRef(function Gantt(
           gridActionSlot={gridActionSlot}
           gridActionSlotMinHeight={gridActionSlotMinHeight}
           consumerOwnsColumnWidths={consumerOwnsColumnWidths}
+          columnMinWidth={columnMinWidth}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

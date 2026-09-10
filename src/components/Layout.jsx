@@ -52,6 +52,8 @@ function Layout(props) {
     gridActionSlot,
     gridActionSlotMinHeight,
     consumerOwnsColumnWidths,
+    // SVAR-M20 (SVAR Production Planner): pass-through, unread here.
+    columnMinWidth,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -391,6 +393,7 @@ function Layout(props) {
                   reserveTopScaleRow={reserveTopScaleRow}
                   gridActionSlotMinHeight={slotMinHeight}
                   consumerOwnsColumnWidths={consumerOwnsColumnWidths}
+                  columnMinWidth={columnMinWidth}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer containerWidth={ganttWidth} api={api} />

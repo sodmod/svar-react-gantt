@@ -188,6 +188,13 @@ export declare const Gantt: ForwardRefExoticComponent<
     // The renderer stores no preference and is told nothing about why a width
     // is what it is. Omitted, every surface behaves exactly as before.
     consumerOwnsColumnWidths?: boolean;
+    // SVAR-M20 (SVAR Production Planner): the narrowest a column may be made by
+    // the resize gesture, in pixels. Clamped where the gesture's width is first
+    // known and before the store writes it, so the width shown while dragging
+    // and the width finally stored are the same number. The store's own 17 px
+    // floor is unchanged and still applies; this one is simply higher when a
+    // consumer declares one. Omitted or 0, nothing changes.
+    columnMinWidth?: number;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &
