@@ -386,18 +386,17 @@ export default function Grid(props) {
    * rather than "is a container", and indentation says nothing at all.
    *
    * `type` is the value the CONSUMER put on the task. Nothing here derives it,
-   * infers it or corrects it; the class is the same fact, spelled where a
-   * stylesheet can reach it. Only the three kinds this package itself defines
-   * become a class, so an unexpected value cannot reach a class attribute.
+   * infers it or corrects it, and nothing here has an opinion about WHICH
+   * kinds exist: the shape below is a class-name check, so a value that could
+   * not be a class name does not become one, and every kind a consumer has —
+   * this package's own three among them — gets the same treatment without
+   * this file naming any of them.
    */
   const rowStyle = useCallback((row) => {
     let style = row.$reorder ? 'wx-rHj6070p wx-reorder-task' : 'wx-rHj6070p';
-    if (
-      row.type === 'task' ||
-      row.type === 'summary' ||
-      row.type === 'milestone'
-    ) {
-      style += ` wx-row-${row.type}`;
+    const kind = row.type;
+    if (typeof kind === 'string' && /^[a-z][a-z0-9-]{0,23}$/.test(kind)) {
+      style += ` wx-row-${kind}`;
     }
     return style;
   }, []);
