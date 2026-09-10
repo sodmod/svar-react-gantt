@@ -41,6 +41,9 @@ function Layout(props) {
   // `Gantt.jsx`. Resolved here, once, for the same reason: the reserve it can
   // produce is part of that one arrangement, and both halves are handed the
   // SAME resolved number so they cannot answer differently.
+  // SVAR-M18 (SVAR Production Planner): `consumerOwnsColumnWidths` — see
+  // `Gantt.jsx`. Plain pass-through: it concerns only the grid's own column
+  // widths, so this component neither reads it nor has an opinion about it.
   const {
     taskTemplate,
     scaleCellAriaLabel,
@@ -48,6 +51,7 @@ function Layout(props) {
     onTimelineDragPreview,
     gridActionSlot,
     gridActionSlotMinHeight,
+    consumerOwnsColumnWidths,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -386,6 +390,7 @@ function Layout(props) {
                   gridActionSlot={gridActionSlot}
                   reserveTopScaleRow={reserveTopScaleRow}
                   gridActionSlotMinHeight={slotMinHeight}
+                  consumerOwnsColumnWidths={consumerOwnsColumnWidths}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer containerWidth={ganttWidth} api={api} />

@@ -88,6 +88,13 @@ export default function Grid(props) {
    * into the number, which is `0` when none did), what the content is, or why
    * it needs the room.
    */
+  /*
+   * SVAR-M18 (SVAR Production Planner): `consumerOwnsColumnWidths` — the
+   * consumer, not this grid, owns what each column's width IS. See `Gantt.jsx`
+   * for the two behaviours it turns off together and why they are one
+   * decision; the two places it is read are the `resize-column` interception
+   * and handler below.
+   */
   const {
     readonly,
     onTableAPIChange,
@@ -95,6 +102,7 @@ export default function Grid(props) {
     gridActionSlot,
     reserveTopScaleRow,
     gridActionSlotMinHeight,
+    consumerOwnsColumnWidths,
   } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
     ? Math.max(0, annotationLaneHeight)
@@ -731,6 +739,10 @@ export default function Grid(props) {
       durationUnitVal,
       splitTasksVal,
       onTableAPIChange,
+      // SVAR-M18 (SVAR Production Planner): read by the two `resize-column`
+      // handlers below, which are installed once and therefore have to reach
+      // the current value the same way every other input here does.
+      consumerOwnsColumnWidths,
     };
   };
   setHandlersState();
@@ -747,6 +759,7 @@ export default function Grid(props) {
     durationUnitVal,
     splitTasksVal,
     onTableAPIChange,
+    consumerOwnsColumnWidths,
   ]);
 
   const init = useCallback((tapi) => {
@@ -780,13 +793,45 @@ export default function Grid(props) {
     });
 
     tapi.intercept('resize-column', (ev) => {
+      /*
+       * SVAR-M18: with the consumer owning the widths, no column is handed
+       * another column's `flexgrow`.
+       *
+       * `flexgrowFallback` is what the grid store uses to keep SOMETHING
+       * stretching inside a pane whose width does not move: the resized column
+       * loses its `flexgrow` and the widest other column is given one, so the
+       * change is absorbed by a column the user did not touch. That is correct
+       * when the pane is fixed. It is wrong when the consumer is going to make
+       * the pane follow the columns, because then there is nothing to absorb —
+       * every width is exactly what somebody asked for.
+       */
+      if (handlersStateRef.current.consumerOwnsColumnWidths) return;
       ev.flexgrowFallback = getFillColumn(handlersStateRef.current.cols, ev.id);
     });
 
     tapi.on('resize-column', (ev) => {
       const columns = tapi.getState().columns;
       handlersStateRef.current.setColumnWidth(getColumnsWidth(columns));
-      if (ev.inProgress !== true) api.exec('set-columns', { columns });
+      /*
+       * SVAR-M18: every accepted step, not only the last one.
+       *
+       * `inProgress` is the grid's own "the mouse is still down" flag, and
+       * reporting only the final width is right for a consumer that merely
+       * wants to persist the outcome. A consumer that OWNS the widths is
+       * rendering from them, so between mouse-down and mouse-up its value and
+       * the screen would disagree — and any width it derives from them, the
+       * pane's own among them, would lag a whole gesture behind.
+       *
+       * The payload is unchanged and so is the action: this is the same
+       * `set-columns` the consumer already receives, sent at every step
+       * instead of once.
+       */
+      if (
+        ev.inProgress !== true ||
+        handlersStateRef.current.consumerOwnsColumnWidths
+      ) {
+        api.exec('set-columns', { columns });
+      }
     });
 
     tapi.on('hide-column', () => {

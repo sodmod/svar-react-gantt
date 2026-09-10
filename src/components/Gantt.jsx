@@ -165,6 +165,29 @@ const Gantt = forwardRef(function Gantt(
     // nothing about the content — this is a number of pixels, not a hint about
     // what is in the slot, and nothing here measures the consumer's DOM.
     gridActionSlotMinHeight = null,
+    // SVAR-M18 (SVAR Production Planner): the consumer, not this renderer,
+    // owns what each column's width IS.
+    //
+    // Two renderer behaviours make that impossible by default, and this prop
+    // turns off both together because they are one decision:
+    //
+    //   1. a finished column resize is reported once, at mouse-up. A consumer
+    //      that owns the widths cannot follow the gesture, so the width it
+    //      holds and the width on screen disagree for the whole drag;
+    //   2. the grid keeps the pane's width fixed and hands the `flexgrow` of a
+    //      resized column to the widest OTHER column, so that something inside
+    //      the pane absorbs the change. Widening one column therefore narrows
+    //      a different one, which is a width the user never asked to change.
+    //
+    // With it on: every accepted step of a column resize is reported through
+    // `set-columns`, and no column is ever given another column's `flexgrow`.
+    // The consumer decides what the widths become and what the pane's own
+    // width becomes, and hands both back through `columns` and `gridWidth`.
+    //
+    // The renderer stores no preference and learns nothing about why a width
+    // is what it is. Omitted (the default), every surface behaves exactly as
+    // it did before, byte for byte.
+    consumerOwnsColumnWidths = false,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -430,6 +453,7 @@ const Gantt = forwardRef(function Gantt(
           onTimelineDragPreview={onTimelineDragPreview}
           gridActionSlot={gridActionSlot}
           gridActionSlotMinHeight={gridActionSlotMinHeight}
+          consumerOwnsColumnWidths={consumerOwnsColumnWidths}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

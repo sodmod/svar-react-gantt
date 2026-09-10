@@ -178,6 +178,16 @@ export declare const Gantt: ForwardRefExoticComponent<
     // nothing changes at all. Applies only together with `gridActionSlot`, and
     // only to the surface that asks for it: it is never a global floor.
     gridActionSlotMinHeight?: number;
+    // SVAR-M18 (SVAR Production Planner): the consumer owns what each column's
+    // width IS. Turns off two renderer behaviours together, because they are
+    // one decision: a column resize is then reported through `set-columns` at
+    // every accepted step of the gesture rather than once at mouse-up, and no
+    // column is ever handed another column's `flexgrow` to absorb a change the
+    // user made elsewhere. The consumer decides the resulting widths and the
+    // pane's own width and hands both back through `columns` and `gridWidth`.
+    // The renderer stores no preference and is told nothing about why a width
+    // is what it is. Omitted, every surface behaves exactly as before.
+    consumerOwnsColumnWidths?: boolean;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &
