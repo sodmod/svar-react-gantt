@@ -11,6 +11,7 @@ import { Editor as BaseEditor } from '@svar-ui/react-editor';
 import {
   HeaderMenu as BaseHeaderMenu,
   IColumnConfig as ITableColumn,
+  IHeaderCellConfig as ITableHeaderCell,
 } from '@svar-ui/react-grid';
 
 import type {
@@ -125,9 +126,19 @@ export interface ITimelineDragPreview {
   inProgress: boolean;
 }
 
+// SVAR-M23 (SVAR Production Planner): a header descriptor may align ITS OWN
+// text, independently of the column's `align`, which is one value for the
+// header and the cells under it. A column whose cells read left — a name
+// column with its hierarchy indentation, an assignee column of names — can
+// therefore carry a centred header without a second column-definition owner.
+// Omitted, the column's own `align` decides the header exactly as before.
+export interface IHeaderCellConfig extends ITableHeaderCell {
+  align?: 'left' | 'center' | 'right';
+}
+
 export interface IColumnConfig extends Omit<IGanttColumn, 'header'> {
   cell?: ITableColumn['cell'];
-  header?: ITableColumn['header'];
+  header?: string | IHeaderCellConfig | (string | IHeaderCellConfig)[];
   editor?: ITableColumn['editor'];
 }
 
