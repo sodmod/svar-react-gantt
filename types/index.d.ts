@@ -260,6 +260,24 @@ export declare const WillowDark: FC<{
   children?: ReactNode;
 }>;
 
+// SVAR-M19 (SVAR Production Planner): the same three themes, chosen by VALUE.
+//
+// `Willow`, `WillowDark` and `Material` are three components, so a consumer
+// that lets the user change theme renders a different component TYPE at the
+// same position and React rebuilds everything inside — this package's store
+// included, which is why the chart came back scrolled to the beginning of the
+// plan. `ThemeScope` renders exactly what those wrappers render (the same
+// theme context value, the same two nested theme elements) with the theme as a
+// prop, so changing theme changes a value and remounts nothing.
+//
+// The three wrappers are unchanged and still exported. `fonts` is deliberately
+// absent: this package ships its own fonts and icons, and a component that
+// never renders core's wrapper cannot add the CDN links at all.
+export declare const ThemeScope: FC<{
+  theme?: 'willow' | 'willow-dark' | 'material';
+  children?: ReactNode;
+}>;
+
 /* get component events from store actions*/
 type RemoveHyphen<S extends string> = S extends `${infer Head}-${infer Tail}`
   ? `${Head}${RemoveHyphen<Tail>}`

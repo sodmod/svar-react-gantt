@@ -110,6 +110,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M10 (ancestor bar geometry) and SVAR-M11 (bar-drag preview gate)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
+  'src/index.js':
+    'SVAR-M19 — exports the ThemeScope component; the package\'s export list is where a new public component becomes public',
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold; ' +
     'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
@@ -149,7 +151,10 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M9 — the `lineExtent` and `stripeWidth` annotation fields; ' +
     'SVAR-M12 — the `gridActionSlot` prop; ' +
     'SVAR-M17 — the `gridActionSlotMinHeight` prop; ' +
-    'SVAR-M18 — the `consumerOwnsColumnWidths` prop',
+    'SVAR-M18 — the `consumerOwnsColumnWidths` prop; ' +
+    'SVAR-M19 — the `ThemeScope` component',
+  'src/themes/ThemeScope.jsx':
+    'SVAR-M19 — one theme element whose identity does not depend on which theme it shows: the theme is a prop, not a choice of component, so changing it remounts nothing',
   'src/themes/Willow.jsx':
     'fonts={false} to core: this package ships its own fonts and icons, so core must not add the CDN <link>s',
   'src/themes/WillowDark.jsx':

@@ -10,6 +10,7 @@ import Tooltip from './widgets/Tooltip.jsx';
 import Material from './themes/Material.jsx';
 import Willow from './themes/Willow.jsx';
 import WillowDark from './themes/WillowDark.jsx';
+import ThemeScope from './themes/ThemeScope.jsx';
 
 import pkg from '../package.json' with { type: 'json' };
 
@@ -43,4 +44,5 @@ export {
   Material,
   Willow,
   WillowDark,
+  ThemeScope,
 };
