@@ -222,13 +222,15 @@ const Gantt = forwardRef(function Gantt(
     columnMaxWidth = 0,
     /*
      * SVAR-M25 (SVAR Production Planner): `gridMaxWidth` — the widest the grid
-     * pane may be made BY A GESTURE, and `onGridWidthLimit` — what this
-     * component's own geometry allows, reported back so the consumer can
+     * pane may be made BY THE SPLITTER GESTURE, and `onGridWidthLimit` — what
+     * this component's own geometry allows, reported back so the consumer can
      * compose the two into the one ceiling it then declares here.
      *
      * The pair exists because neither side can answer alone: only the consumer
      * knows how wide its columns may be, and only this component knows how
-     * wide it is. Omitted, both gestures behave exactly as they did.
+     * wide it is. A COLUMN gesture is not bounded by it (R6): a consumer whose
+     * columns need more room than the pane has gets a grid that scrolls.
+     * Omitted, both gestures behave exactly as they did.
      */
     gridMaxWidth = 0,
     /*

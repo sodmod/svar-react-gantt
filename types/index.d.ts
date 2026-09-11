@@ -211,9 +211,9 @@ export declare const Gantt: ForwardRefExoticComponent<
     // the same place and for the same reason. Omitted or 0, nothing changes.
     columnMaxWidth?: number;
     // SVAR-M25 (SVAR Production Planner): the widest the grid pane may be made
-    // by the splitter gesture. A column gesture is bounded by this component's
-    // own geometry instead, because the consumer's pane ceiling follows from
-    // the column a direct pane change lands on. Omitted, neither is clamped.
+    // by the splitter gesture. A column gesture is NOT bounded by it (R6): a
+    // consumer whose columns need more room than the pane has gets a grid that
+    // scrolls horizontally, and its widths are left alone. Omitted, unclamped.
     gridMaxWidth?: number;
     // SVAR-M25 (R5): the narrowest the splitter gesture may make the pane.
     // Past the grid's own collapse threshold the splitter stops responding at

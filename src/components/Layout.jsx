@@ -484,19 +484,6 @@ function Layout(props) {
                   consumerOwnsColumnWidths={consumerOwnsColumnWidths}
                   columnMinWidth={columnMinWidth}
                   columnMaxWidth={columnMaxWidth}
-                  /*
-                   * SVAR-M25 (R5): the GEOMETRY limit, not the consumer's pane
-                   * ceiling. A column gesture and the splitter gesture are
-                   * bounded by the same boundary but not by the same ceiling:
-                   * the consumer's pane ceiling follows from the one column a
-                   * direct pane change lands on, and applying it to a gesture
-                   * on a DIFFERENT column both caps the wrong thing and moves
-                   * with the drag, because that column's own width is inside
-                   * the sum the ceiling is built from. The consumer clamps the
-                   * dragged column to its own maximum; what this layout can
-                   * say is where the pane must stop.
-                   */
-                  gridMaxWidth={gridWidthLimit}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer

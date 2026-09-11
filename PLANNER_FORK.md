@@ -556,6 +556,55 @@ Two kinds of change, deliberately kept in separate commits:
      knows nothing about the content: this seam carries a count of pixels, not
      a hint about what is in the slot, and nothing here measures consumer DOM.
 
+   - **`SVAR-M18`..`SVAR-M26` — the consumer owns its own grid.** These came
+     out of five rounds of manual acceptance on the Planner and are listed
+     together because they are one story: a consumer that owns its column
+     widths and its pane geometry needs the gesture to answer to ITS numbers,
+     not to be corrected afterwards. Correcting afterwards is always the same
+     bug — the width on screen during the gesture and the width the consumer
+     stores are two different numbers, and a consumer that refuses a value
+     returns the model it already had, so nothing tells the gesture to stop.
+
+     - **`SVAR-M18`** (`Grid.jsx`, `Gantt.jsx`, `Layout.jsx`): with
+       `consumerOwnsColumnWidths`, a column resize is reported at every
+       accepted step and no column is handed another column's `flexgrow`.
+     - **`SVAR-M19`** (`src/themes/ThemeScope.jsx`, `src/index.js`): one theme
+       element whose identity does not depend on which theme it shows, so a
+       theme change remounts nothing below it.
+     - **`SVAR-M20`** / **`SVAR-M26`** (`Grid.jsx`): the resize gesture never
+       proposes a width below the consumer's declared minimum, nor above its
+       declared maximum. Two clamps, one seam, same reason.
+     - **`SVAR-M21`** lives in the sibling `react-grid` fork, not here.
+     - **`SVAR-M22`** (`chart/CellGrid.jsx`): the working-area lattice is a
+       canvas image, so its colour is baked in when it is drawn; it now follows
+       the theme it is being shown in rather than the one it was mounted in.
+     - **`SVAR-M23`** (`Grid.jsx`): a column may align its header label
+       independently of its cells.
+     - **`SVAR-M24`** (`Grid.jsx`): a row carries `wx-row-<type>` from the kind
+       the consumer put on it. It names no kind of its own.
+     - **`SVAR-M25`** (`Resizer.jsx`, `Layout.jsx`): the splitter gesture
+       answers to the consumer's own range. `RESIZER_RIGHT_THRESHOLD` and
+       `RESIZER_SIZE` become named exports so the layout reads the two numbers
+       instead of spelling them again; `Layout.jsx` reports what its own
+       geometry allows through `onGridWidthLimit` (a different number once the
+       chart has been hidden on purpose) and resolves the consumer's ceiling
+       and floor against it; and a consumer that declares a range also takes
+       over which side is shown, because clamping the position cannot keep a
+       drag out of the collapsed state when the consumer's own floor lies past
+       this layout's threshold.
+
+     What the set deliberately is NOT: a column gesture is not bounded by the
+     pane's own ceiling. A consumer whose columns need more room than the pane
+     has gets a grid that SCROLLS — `.wx-grid` has been `overflow-x: auto` all
+     along and this component already switches the body to the columns' own
+     width once they exceed the pane. An earlier revision clamped there
+     instead, and the room is negative whenever the pane is already full, so
+     every column the gesture reported — including untouched ones — was pushed
+     towards its floor.
+
+     Every one of these is off by default. Omitted, the component behaves
+     exactly as upstream does.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

@@ -110,11 +110,6 @@ export default function Grid(props) {
      * else; omitted, the gesture is exactly what it was.
      */
     columnMaxWidth,
-    // SVAR-M25 (SVAR Production Planner): the widest the whole pane may be
-    // made by a column gesture, already resolved against this layout's own
-    // geometry by `../Layout.jsx`. Read by the `resize-column` interception
-    // below and nowhere else.
-    gridMaxWidth,
   } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
     ? Math.max(0, annotationLaneHeight)
@@ -834,8 +829,6 @@ export default function Grid(props) {
       // SVAR-M20 (SVAR Production Planner): read by the same interception, and
       // reaches it the same way, for the same reason.
       columnMinWidth,
-      // SVAR-M25 (SVAR Production Planner): likewise.
-      gridMaxWidth,
       // SVAR-M26 (SVAR Production Planner): likewise.
       columnMaxWidth,
     };
@@ -856,7 +849,11 @@ export default function Grid(props) {
     onTableAPIChange,
     consumerOwnsColumnWidths,
     columnMinWidth,
-    gridMaxWidth,
+    // SVAR-M26 (R6): the review found this one missing from the list while
+    // `gridMaxWidth` — since removed — was in it. Both are read through the
+    // same ref by handlers installed once, so a stale value is a clamp that
+    // silently stops matching what the consumer declared.
+    columnMaxWidth,
   ]);
 
   const init = useCallback((tapi) => {
@@ -931,30 +928,16 @@ export default function Grid(props) {
       }
 
       /*
-       * SVAR-M25: and never past the width the whole pane is allowed to have.
-       *
-       * A column gesture and the splitter gesture change the same thing — how
-       * much room the grid takes from the chart — so one ceiling has to answer
-       * for both, or a column can be dragged through a boundary the splitter
-       * refuses to cross. The room left for THIS column is the ceiling less
-       * every other column standing in the pane, and the floor above still
-       * wins: a pane already at its ceiling stops the gesture rather than
-       * shrinking the column that is being dragged.
+       * SVAR-M25's pane ceiling used to clamp this gesture too, and R6 removed
+       * it. A consumer whose columns need more room than the pane has is a
+       * consumer whose grid SCROLLS — `.wx-grid` has been `overflow-x: auto`
+       * all along and this component already switches the body to the columns'
+       * own width once they exceed the pane. Clamping here instead meant the
+       * room was negative whenever the pane was already full, so every column
+       * the gesture reported — including the ones the user never touched — was
+       * pushed down towards its floor. The pane's own bounds still clamp the
+       * SPLITTER gesture, in `../Resizer.jsx`, where they were always right.
        */
-      const maxGrid = handlersStateRef.current.gridMaxWidth;
-      if (Number.isFinite(maxGrid) && maxGrid > 0) {
-        const others = (handlersStateRef.current.cols || []).reduce(
-          (total, col) => (col.id === ev.id ? total : total + (col.width || 0)),
-          0,
-        );
-        const room = maxGrid - others;
-        if (ev.width > room) {
-          ev.width = Math.max(
-            room,
-            Number.isFinite(minWidth) && minWidth > 0 ? minWidth : 1,
-          );
-        }
-      }
 
       /*
        * SVAR-M18: with the consumer owning the widths, no column is handed
