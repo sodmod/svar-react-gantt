@@ -57,6 +57,9 @@ function Layout(props) {
     consumerOwnsColumnWidths,
     // SVAR-M20 (SVAR Production Planner): pass-through, unread here.
     columnMinWidth,
+    // SVAR-M26 (SVAR Production Planner): likewise — it concerns one column's
+    // own width, which this component has no opinion about.
+    columnMaxWidth,
     // SVAR-M25 (SVAR Production Planner): the consumer's ceiling for the grid
     // pane, and the report that tells the consumer what this layout's own
     // geometry allows. Both are resolved here, once, because this is the only
@@ -473,6 +476,7 @@ function Layout(props) {
                   gridActionSlotMinHeight={slotMinHeight}
                   consumerOwnsColumnWidths={consumerOwnsColumnWidths}
                   columnMinWidth={columnMinWidth}
+                  columnMaxWidth={columnMaxWidth}
                   /*
                    * SVAR-M25 (R5): the GEOMETRY limit, not the consumer's pane
                    * ceiling. A column gesture and the splitter gesture are
