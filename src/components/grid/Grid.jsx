@@ -919,8 +919,12 @@ export default function Grid(props) {
        * accepting. Clamping here is what keeps the width on screen during the
        * gesture and the width that ends up stored one number.
        *
-       * The pane ceiling below is a DIFFERENT limit and both apply: this one
-       * is about one column, that one about how much room the grid may take.
+       * The pane's own ceiling is a DIFFERENT limit and does NOT apply here:
+       * R6 removed it from this gesture (see the note below) and R7 left it
+       * where it belongs, on the splitter in `../Resizer.jsx`. This one is
+       * about how wide ONE column may be; that one is about how much of the
+       * layout the grid pane takes, and a consumer whose columns need more
+       * than the pane has is a consumer whose grid scrolls.
        */
       const maxWidth = handlersStateRef.current.columnMaxWidth;
       if (Number.isFinite(maxWidth) && maxWidth > 0 && ev.width > maxWidth) {
