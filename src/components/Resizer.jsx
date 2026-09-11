@@ -139,20 +139,53 @@ function Resizer(props) {
       api.exec('resize-grid', {
         width: newPos,
       });
-      let nextDisplay;
 
-      if (newPos <= gridCollapseThresholdRef.current) {
-        nextDisplay = 'chart';
-      } else if (containerWidth - newPos <= rightThreshold) {
-        nextDisplay = 'grid';
-      } else {
-        nextDisplay = 'all';
-      }
+      /*
+       * SVAR-M25 (R5): for a consumer that declares its own range, a drag
+       * moves the boundary and does not decide WHICH SIDE IS SHOWN.
+       *
+       * The branch below switches the layout to chart-only or grid-only
+       * whenever the position crosses a threshold, and that single mechanism
+       * is behind both defects this modification exists for: a long drag right
+       * took the chart away, and a long drag left left the strip visible, full
+       * height and inert, because this component refuses the resize cursor and
+       * `pointerdown` in either collapsed mode.
+       *
+       * The two clamps above were how that was avoided — keep the position
+       * inside both thresholds and neither branch is reached — and they are
+       * still right as BOUNDS. They cannot be the whole answer: a consumer
+       * whose own floor lies beyond the point this layout calls "the chart is
+       * gone" has no position that is both legal for it and outside the
+       * threshold, and the branch fires anyway. Measured in the consuming
+       * product: the pane could not be made narrower than 1396 px while the
+       * threshold began at 1389.
+       *
+       * So a consumer that has declared a bound has also taken over the
+       * question the branch answers, and which side is shown goes back to
+       * where collapsing on purpose already lived — the two arrows below.
+       * A consumer that declares neither bound (the resource grid, and every
+       * surface that passes no range) reaches the branch exactly as before.
+       */
+      const consumerOwnsBounds =
+        (Number.isFinite(maxWidth) && maxWidth > 0) ||
+        (Number.isFinite(minWidth) && minWidth > 0);
 
-      if (displayModeRef.current !== nextDisplay) {
-        api.exec('set-display-mode', {
-          mode: nextDisplay,
-        });
+      if (!consumerOwnsBounds) {
+        let nextDisplay;
+
+        if (newPos <= gridCollapseThresholdRef.current) {
+          nextDisplay = 'chart';
+        } else if (containerWidth - newPos <= rightThreshold) {
+          nextDisplay = 'grid';
+        } else {
+          nextDisplay = 'all';
+        }
+
+        if (displayModeRef.current !== nextDisplay) {
+          api.exec('set-display-mode', {
+            mode: nextDisplay,
+          });
+        }
       }
 
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
