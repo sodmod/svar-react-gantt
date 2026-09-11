@@ -104,6 +104,11 @@ export default function Grid(props) {
     gridActionSlotMinHeight,
     consumerOwnsColumnWidths,
     columnMinWidth,
+    // SVAR-M25 (SVAR Production Planner): the widest the whole pane may be
+    // made by a column gesture, already resolved against this layout's own
+    // geometry by `../Layout.jsx`. Read by the `resize-column` interception
+    // below and nowhere else.
+    gridMaxWidth,
   } = props;
   const laneHeight = Number.isFinite(annotationLaneHeight)
     ? Math.max(0, annotationLaneHeight)
