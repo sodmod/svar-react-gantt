@@ -2,6 +2,17 @@ import { useMemo, useRef, useCallback } from 'react';
 import { useStore } from '@svar-ui/lib-react';
 import './Resizer.css';
 
+/*
+ * SVAR-M25 (SVAR Production Planner): how little chart is no chart.
+ *
+ * This number was already here, as the default of `rightThreshold`: the drag
+ * below reads it to decide that the chart has become too small to be worth
+ * showing and switches the layout to grid-only. Naming it is what lets the one
+ * other place that needs the same answer — the limit reported to the consumer
+ * in `Layout.jsx` — read it instead of spelling `50` again.
+ */
+export const RESIZER_RIGHT_THRESHOLD = 50;
+
 function Resizer(props) {
   const {
     api,
@@ -10,7 +21,12 @@ function Resizer(props) {
     dir = 'x',
     onMove,
     containerWidth = 0,
-    rightThreshold = 50,
+    rightThreshold = RESIZER_RIGHT_THRESHOLD,
+    /*
+     * SVAR-M25: the widest the consumer will allow this gesture to make the
+     * grid pane. Omitted, the gesture is exactly what it was.
+     */
+    maxWidth = 0,
   } = props;
 
   const gridWidth = useStore(api, 'gridWidth');
@@ -60,7 +76,28 @@ function Resizer(props) {
 
   const move = useCallback(
     (ev) => {
-      const newPos = posRef.current + getEventPos(ev) - startRef.current;
+      let newPos = posRef.current + getEventPos(ev) - startRef.current;
+
+      /*
+       * SVAR-M25: the gesture stops where the consumer says it stops.
+       *
+       * Clamped HERE rather than after the fact, because this ONE number is
+       * read three times below and all three have to be the same number: the
+       * width the store is given, the display mode the position implies, and
+       * the position the splitter is drawn at. Clamping only the store write
+       * would leave the other two reading a pointer that has gone further than
+       * anything on screen can follow — which is the detached splitter, and
+       * the grid-only layout a long drag used to fall into.
+       *
+       * The consumer's own maximum is therefore also what keeps a DRAG from
+       * collapsing the chart: with the position capped below
+       * `containerWidth - rightThreshold`, the branch that switches to
+       * grid-only cannot be reached by dragging. The two arrows below are
+       * untouched and remain the way to collapse either side on purpose.
+       */
+      if (Number.isFinite(maxWidth) && maxWidth > 0 && newPos > maxWidth) {
+        newPos = maxWidth;
+      }
 
       api.exec('resize-grid', {
         width: newPos,
@@ -82,12 +119,9 @@ function Resizer(props) {
       }
 
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(
-        () => onMove && onMove(newPos),
-        100,
-      );
+      timeoutRef.current = setTimeout(() => onMove && onMove(newPos), 100);
     },
-    [api, containerWidth, rightThreshold, onMove, dir],
+    [api, containerWidth, rightThreshold, maxWidth, onMove, dir],
   );
 
   const up = useCallback(() => {
@@ -141,10 +175,7 @@ function Resizer(props) {
     handleExpand('right');
   }
 
-  const b = useMemo(
-    () => getBox(gridWidth),
-    [gridWidth, position, size, dir],
-  );
+  const b = useMemo(() => getBox(gridWidth), [gridWidth, position, size, dir]);
 
   const rootClassName = [
     'wx-resizer',

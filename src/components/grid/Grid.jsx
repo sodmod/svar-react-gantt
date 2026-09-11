@@ -823,6 +823,8 @@ export default function Grid(props) {
       // SVAR-M20 (SVAR Production Planner): read by the same interception, and
       // reaches it the same way, for the same reason.
       columnMinWidth,
+      // SVAR-M25 (SVAR Production Planner): likewise.
+      gridMaxWidth,
     };
   };
   setHandlersState();
@@ -841,6 +843,7 @@ export default function Grid(props) {
     onTableAPIChange,
     consumerOwnsColumnWidths,
     columnMinWidth,
+    gridMaxWidth,
   ]);
 
   const init = useCallback((tapi) => {
@@ -892,6 +895,32 @@ export default function Grid(props) {
       const minWidth = handlersStateRef.current.columnMinWidth;
       if (Number.isFinite(minWidth) && minWidth > 0 && ev.width < minWidth) {
         ev.width = minWidth;
+      }
+
+      /*
+       * SVAR-M25: and never past the width the whole pane is allowed to have.
+       *
+       * A column gesture and the splitter gesture change the same thing — how
+       * much room the grid takes from the chart — so one ceiling has to answer
+       * for both, or a column can be dragged through a boundary the splitter
+       * refuses to cross. The room left for THIS column is the ceiling less
+       * every other column standing in the pane, and the floor above still
+       * wins: a pane already at its ceiling stops the gesture rather than
+       * shrinking the column that is being dragged.
+       */
+      const maxGrid = handlersStateRef.current.gridMaxWidth;
+      if (Number.isFinite(maxGrid) && maxGrid > 0) {
+        const others = (handlersStateRef.current.cols || []).reduce(
+          (total, col) => (col.id === ev.id ? total : total + (col.width || 0)),
+          0,
+        );
+        const room = maxGrid - others;
+        if (ev.width > room) {
+          ev.width = Math.max(
+            room,
+            Number.isFinite(minWidth) && minWidth > 0 ? minWidth : 1,
+          );
+        }
       }
 
       /*

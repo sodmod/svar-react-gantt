@@ -205,6 +205,18 @@ const Gantt = forwardRef(function Gantt(
     // has already accepted. Omitted (the default), the store's own 17 px floor
     // is the only one, exactly as before.
     columnMinWidth = 0,
+    /*
+     * SVAR-M25 (SVAR Production Planner): `gridMaxWidth` — the widest the grid
+     * pane may be made BY A GESTURE, and `onGridWidthLimit` — what this
+     * component's own geometry allows, reported back so the consumer can
+     * compose the two into the one ceiling it then declares here.
+     *
+     * The pair exists because neither side can answer alone: only the consumer
+     * knows how wide its columns may be, and only this component knows how
+     * wide it is. Omitted, both gestures behave exactly as they did.
+     */
+    gridMaxWidth = 0,
+    onGridWidthLimit = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -481,6 +493,8 @@ const Gantt = forwardRef(function Gantt(
           gridActionSlotMinHeight={gridActionSlotMinHeight}
           consumerOwnsColumnWidths={consumerOwnsColumnWidths}
           columnMinWidth={columnMinWidth}
+          gridMaxWidth={gridMaxWidth}
+          onGridWidthLimit={onGridWidthLimit}
           readonly={readonly}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}

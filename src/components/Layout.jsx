@@ -10,7 +10,7 @@ import { hotkeys } from '@svar-ui/grid-store';
 import { useStore, useWritableProp } from '@svar-ui/lib-react';
 import Grid from './grid/Grid.jsx';
 import Chart from './chart/Chart.jsx';
-import Resizer from './Resizer.jsx';
+import Resizer, { RESIZER_RIGHT_THRESHOLD } from './Resizer.jsx';
 import storeContext from '../context';
 import './Layout.css';
 import { flushSync } from 'react-dom';
@@ -54,6 +54,12 @@ function Layout(props) {
     consumerOwnsColumnWidths,
     // SVAR-M20 (SVAR Production Planner): pass-through, unread here.
     columnMinWidth,
+    // SVAR-M25 (SVAR Production Planner): the consumer's ceiling for the grid
+    // pane, and the report that tells the consumer what this layout's own
+    // geometry allows. Both are resolved here, once, because this is the only
+    // component that knows how wide the whole gantt is.
+    gridMaxWidth,
+    onGridWidthLimit,
     readonly,
     onTableAPIChange,
     onGanttWidthChange,
@@ -326,6 +332,41 @@ function Layout(props) {
     if (onGanttWidthChange) onGanttWidthChange(ganttWidth);
   }, [ganttWidth, onGanttWidthChange]);
 
+  /*
+   * SVAR-M25: the widest the grid pane may be made before the chart is gone.
+   *
+   * The consumer owns its own ceiling — how wide its columns are allowed to
+   * be — and cannot know this one, because this one is geometry: the width
+   * this layout actually has, less the sliver at which the drag below already
+   * treats the chart as no longer worth showing. Reporting the SUBTRACTED
+   * number rather than the raw width is what keeps that sliver a fact of this
+   * component instead of a constant two packages have to agree about.
+   *
+   * Reported whenever it changes, so a consumer that resizes the window has
+   * the current answer without asking.
+   */
+  const gridWidthLimit = useMemo(
+    () => Math.max(0, ganttWidth - RESIZER_RIGHT_THRESHOLD),
+    [ganttWidth],
+  );
+  useEffect(() => {
+    if (onGridWidthLimit) onGridWidthLimit(gridWidthLimit);
+  }, [gridWidthLimit, onGridWidthLimit]);
+
+  /*
+   * SVAR-M25: and the one number both gestures are clamped to.
+   *
+   * The consumer's ceiling and this layout's own limit are two different
+   * statements about the same width, so the smaller of them is the answer.
+   * Zero means the consumer declared none and nothing is clamped.
+   */
+  const resolvedGridMaxWidth = useMemo(() => {
+    if (!Number.isFinite(gridMaxWidth) || gridMaxWidth <= 0) return 0;
+    return gridWidthLimit > 0
+      ? Math.min(gridMaxWidth, gridWidthLimit)
+      : gridMaxWidth;
+  }, [gridMaxWidth, gridWidthLimit]);
+
   useEffect(() => {
     const ganttDiv = ganttDivRef.current;
     if (!ganttDiv) return;
@@ -394,9 +435,14 @@ function Layout(props) {
                   gridActionSlotMinHeight={slotMinHeight}
                   consumerOwnsColumnWidths={consumerOwnsColumnWidths}
                   columnMinWidth={columnMinWidth}
+                  gridMaxWidth={resolvedGridMaxWidth}
                   onTableAPIChange={onTableAPIChange}
                 />
-                <Resizer containerWidth={ganttWidth} api={api} />
+                <Resizer
+                  containerWidth={ganttWidth}
+                  maxWidth={resolvedGridMaxWidth}
+                  api={api}
+                />
               </>
             ) : null}
 
