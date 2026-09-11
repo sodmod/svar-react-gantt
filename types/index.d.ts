@@ -206,14 +206,24 @@ export declare const Gantt: ForwardRefExoticComponent<
     // floor is unchanged and still applies; this one is simply higher when a
     // consumer declares one. Omitted or 0, nothing changes.
     columnMinWidth?: number;
+    // SVAR-M26 (SVAR Production Planner): the widest ONE column may be made by
+    // the resize gesture, in pixels. The mirror of `columnMinWidth`, clamped at
+    // the same place and for the same reason. Omitted or 0, nothing changes.
+    columnMaxWidth?: number;
     // SVAR-M25 (SVAR Production Planner): the widest the grid pane may be made
-    // by the splitter gesture or by a column gesture. The two are one ceiling
-    // because they change the same thing. Omitted, neither is clamped.
+    // by the splitter gesture. A column gesture is bounded by this component's
+    // own geometry instead, because the consumer's pane ceiling follows from
+    // the column a direct pane change lands on. Omitted, neither is clamped.
     gridMaxWidth?: number;
+    // SVAR-M25 (R5): the narrowest the splitter gesture may make the pane.
+    // Past the grid's own collapse threshold the splitter stops responding at
+    // all, so this is what keeps a drag out of that state. Omitted, unclamped.
+    gridMinWidth?: number;
     // SVAR-M25: the widest this component's own geometry allows the pane to
-    // be without the chart disappearing. Reported whenever it changes, so a
-    // consumer can compose it with its own ceiling and declare the result
-    // above.
+    // be — without the chart disappearing while it is on screen, and the whole
+    // area less the splitter strip once the chart has been hidden on purpose.
+    // Reported whenever it changes, so a consumer can compose it with its own
+    // ceiling and declare the result above.
     onGridWidthLimit?: (widthPx: number) => void;
     init?: (api: IApi) => void;
   } & IConfig &

@@ -10,7 +10,10 @@ import { hotkeys } from '@svar-ui/grid-store';
 import { useStore, useWritableProp } from '@svar-ui/lib-react';
 import Grid from './grid/Grid.jsx';
 import Chart from './chart/Chart.jsx';
-import Resizer, { RESIZER_RIGHT_THRESHOLD } from './Resizer.jsx';
+import Resizer, {
+  RESIZER_RIGHT_THRESHOLD,
+  RESIZER_SIZE,
+} from './Resizer.jsx';
 import storeContext from '../context';
 import './Layout.css';
 import { flushSync } from 'react-dom';
@@ -59,6 +62,7 @@ function Layout(props) {
     // geometry allows. Both are resolved here, once, because this is the only
     // component that knows how wide the whole gantt is.
     gridMaxWidth,
+    gridMinWidth,
     onGridWidthLimit,
     readonly,
     onTableAPIChange,
@@ -74,6 +78,9 @@ function Layout(props) {
   const rScrollTop = useStore(api, 'scrollTop');
   const undo = useStore(api, 'undo');
   const columnsWidth = useStore(api, '_columnsWidth');
+  // SVAR-M25 (SVAR Production Planner): read for the width limit below, which
+  // is a different number when the chart is not on screen at all.
+  const rDisplayMode = useStore(api, 'displayMode');
   // SVAR-M4 (SVAR Production Planner): the store's `cellWidth` is one of the
   // two geometry inputs the annotation placement reads (with `_scales`).
   const rCellWidth = useStore(api, 'cellWidth');
@@ -345,14 +352,27 @@ function Layout(props) {
    * Reported whenever it changes, so a consumer that resizes the window has
    * the current answer without asking.
    */
-  const gridWidthLimit = useMemo(
+  const gridWidthLimit = useMemo(() => {
+    /*
+     * Grid-only is a DIFFERENT limit, and R5 is why.
+     *
+     * The sliver subtracted below exists to keep a chart that is on screen
+     * worth looking at. Once the arrow has taken the chart off screen there is
+     * no chart to keep, and reserving room for it leaves a band of empty grid
+     * the columns are not allowed to use. What bounds the pane then is the
+     * only thing left: the width the grid actually has, which in this mode is
+     * its own flex-basis of `calc(100% - 4px)` — the whole layout less this
+     * strip.
+     */
+    if (rDisplayMode === 'grid') {
+      return Math.max(0, ganttWidth - RESIZER_SIZE);
+    }
     // One pixel INSIDE the threshold, not on it: the drag's own test is
     // `containerWidth - position <= rightThreshold`, so a position exactly at
     // `containerWidth - rightThreshold` is already the grid-only case. The
     // limit has to be the widest position that is still NOT it.
-    () => Math.max(0, ganttWidth - RESIZER_RIGHT_THRESHOLD - 1),
-    [ganttWidth],
-  );
+    return Math.max(0, ganttWidth - RESIZER_RIGHT_THRESHOLD - 1);
+  }, [ganttWidth, rDisplayMode]);
   useEffect(() => {
     if (onGridWidthLimit) onGridWidthLimit(gridWidthLimit);
   }, [gridWidthLimit, onGridWidthLimit]);
@@ -370,6 +390,20 @@ function Layout(props) {
       ? Math.min(gridMaxWidth, gridWidthLimit)
       : gridMaxWidth;
   }, [gridMaxWidth, gridWidthLimit]);
+
+  /*
+   * SVAR-M25 (R5): the consumer's floor, resolved the same way.
+   *
+   * Never above the ceiling: a consumer whose minimum does not fit inside this
+   * layout is a layout too narrow for it, not a reason to hand the gesture a
+   * floor above its own ceiling.
+   */
+  const resolvedGridMinWidth = useMemo(() => {
+    if (!Number.isFinite(gridMinWidth) || gridMinWidth <= 0) return 0;
+    return resolvedGridMaxWidth > 0
+      ? Math.min(gridMinWidth, resolvedGridMaxWidth)
+      : gridMinWidth;
+  }, [gridMinWidth, resolvedGridMaxWidth]);
 
   useEffect(() => {
     const ganttDiv = ganttDivRef.current;
@@ -439,12 +473,25 @@ function Layout(props) {
                   gridActionSlotMinHeight={slotMinHeight}
                   consumerOwnsColumnWidths={consumerOwnsColumnWidths}
                   columnMinWidth={columnMinWidth}
-                  gridMaxWidth={resolvedGridMaxWidth}
+                  /*
+                   * SVAR-M25 (R5): the GEOMETRY limit, not the consumer's pane
+                   * ceiling. A column gesture and the splitter gesture are
+                   * bounded by the same boundary but not by the same ceiling:
+                   * the consumer's pane ceiling follows from the one column a
+                   * direct pane change lands on, and applying it to a gesture
+                   * on a DIFFERENT column both caps the wrong thing and moves
+                   * with the drag, because that column's own width is inside
+                   * the sum the ceiling is built from. The consumer clamps the
+                   * dragged column to its own maximum; what this layout can
+                   * say is where the pane must stop.
+                   */
+                  gridMaxWidth={gridWidthLimit}
                   onTableAPIChange={onTableAPIChange}
                 />
                 <Resizer
                   containerWidth={ganttWidth}
                   maxWidth={resolvedGridMaxWidth}
+                  minWidth={resolvedGridMinWidth}
                   api={api}
                 />
               </>

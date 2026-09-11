@@ -104,6 +104,12 @@ export default function Grid(props) {
     gridActionSlotMinHeight,
     consumerOwnsColumnWidths,
     columnMinWidth,
+    /*
+     * SVAR-M26 (SVAR Production Planner): the widest the consumer will let ONE
+     * column be. Read by the `resize-column` interception below and nowhere
+     * else; omitted, the gesture is exactly what it was.
+     */
+    columnMaxWidth,
     // SVAR-M25 (SVAR Production Planner): the widest the whole pane may be
     // made by a column gesture, already resolved against this layout's own
     // geometry by `../Layout.jsx`. Read by the `resize-column` interception
@@ -830,6 +836,8 @@ export default function Grid(props) {
       columnMinWidth,
       // SVAR-M25 (SVAR Production Planner): likewise.
       gridMaxWidth,
+      // SVAR-M26 (SVAR Production Planner): likewise.
+      columnMaxWidth,
     };
   };
   setHandlersState();
@@ -900,6 +908,26 @@ export default function Grid(props) {
       const minWidth = handlersStateRef.current.columnMinWidth;
       if (Number.isFinite(minWidth) && minWidth > 0 && ev.width < minWidth) {
         ev.width = minWidth;
+      }
+
+      /*
+       * SVAR-M26: and never above the consumer's own maximum for a column.
+       *
+       * The mirror of the floor above, and needed for the same reason it was:
+       * a consumer that refuses the width this gesture proposes stores its own
+       * number instead, and from that moment the screen and the consumer's
+       * model are two different widths. Worse, the consumer has no way to say
+       * so — a model that did not change is a prop that did not change — so the
+       * gesture keeps growing a column the consumer has already stopped
+       * accepting. Clamping here is what keeps the width on screen during the
+       * gesture and the width that ends up stored one number.
+       *
+       * The pane ceiling below is a DIFFERENT limit and both apply: this one
+       * is about one column, that one about how much room the grid may take.
+       */
+      const maxWidth = handlersStateRef.current.columnMaxWidth;
+      if (Number.isFinite(maxWidth) && maxWidth > 0 && ev.width > maxWidth) {
+        ev.width = maxWidth;
       }
 
       /*

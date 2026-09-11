@@ -206,6 +206,21 @@ const Gantt = forwardRef(function Gantt(
     // is the only one, exactly as before.
     columnMinWidth = 0,
     /*
+     * SVAR-M26 (SVAR Production Planner): `columnMaxWidth` — the widest ONE
+     * column may be made BY THE GESTURE, declared by the consumer.
+     *
+     * The mirror of `columnMinWidth` above, and it exists for the same reason
+     * that one does: a consumer that owns the widths has a maximum of its own,
+     * and clamping only afterwards means the width shown while dragging and
+     * the width stored are two different numbers. Here that is worse than a
+     * jump — a model that refuses the new width is a model that did not
+     * change, so the consumer cannot even tell the gesture to stop, and the
+     * column keeps growing past a number the consumer has already declined.
+     *
+     * Omitted (the default), nothing is clamped, exactly as before.
+     */
+    columnMaxWidth = 0,
+    /*
      * SVAR-M25 (SVAR Production Planner): `gridMaxWidth` — the widest the grid
      * pane may be made BY A GESTURE, and `onGridWidthLimit` — what this
      * component's own geometry allows, reported back so the consumer can
@@ -216,6 +231,14 @@ const Gantt = forwardRef(function Gantt(
      * wide it is. Omitted, both gestures behave exactly as they did.
      */
     gridMaxWidth = 0,
+    /*
+     * SVAR-M25 (R5): `gridMinWidth` — the narrowest the consumer will let the
+     * splitter gesture make the pane. Same pair, the other side: past the
+     * grid's own collapse threshold this component disables the splitter
+     * entirely, so a drag that goes there leaves a boundary the user can see
+     * and cannot take hold of.
+     */
+    gridMinWidth = 0,
     onGridWidthLimit = null,
     init = null,
     autoScale = true,
@@ -493,7 +516,9 @@ const Gantt = forwardRef(function Gantt(
           gridActionSlotMinHeight={gridActionSlotMinHeight}
           consumerOwnsColumnWidths={consumerOwnsColumnWidths}
           columnMinWidth={columnMinWidth}
+          columnMaxWidth={columnMaxWidth}
           gridMaxWidth={gridMaxWidth}
+          gridMinWidth={gridMinWidth}
           onGridWidthLimit={onGridWidthLimit}
           readonly={readonly}
           onTableAPIChange={setTableAPI}

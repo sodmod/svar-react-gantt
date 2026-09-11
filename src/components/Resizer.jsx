@@ -13,11 +13,22 @@ import './Resizer.css';
  */
 export const RESIZER_RIGHT_THRESHOLD = 50;
 
+/*
+ * SVAR-M25 (SVAR Production Planner): how wide this strip is.
+ *
+ * Also already here, as the default of `size`. It is named for the same
+ * reason: when the layout hides the chart, the grid's own flex-basis becomes
+ * `calc(100% - 4px)` — the whole width less this strip — and the limit
+ * reported to the consumer has to be that same number rather than a second
+ * spelling of 4.
+ */
+export const RESIZER_SIZE = 4;
+
 function Resizer(props) {
   const {
     api,
     position = 'after',
-    size = 4,
+    size = RESIZER_SIZE,
     dir = 'x',
     onMove,
     containerWidth = 0,
@@ -27,6 +38,16 @@ function Resizer(props) {
      * grid pane. Omitted, the gesture is exactly what it was.
      */
     maxWidth = 0,
+    /*
+     * SVAR-M25: and the narrowest. Same reason as the maximum, on the side
+     * where going past it does not detach the splitter but DISABLES it: a
+     * position below the grid's collapse threshold switches the layout to
+     * chart-only, and this component then refuses both the resize cursor and
+     * `pointerdown`, so the boundary the user can still see is no longer a
+     * boundary they can take hold of. Omitted, the gesture is exactly what it
+     * was.
+     */
+    minWidth = 0,
   } = props;
 
   const gridWidth = useStore(api, 'gridWidth');
@@ -98,6 +119,22 @@ function Resizer(props) {
       if (Number.isFinite(maxWidth) && maxWidth > 0 && newPos > maxWidth) {
         newPos = maxWidth;
       }
+      /*
+       * SVAR-M25: and the same on the other side.
+       *
+       * Below the grid's own collapse threshold the branch underneath switches
+       * the layout to chart-only, and from then on `cursor` is `auto` and
+       * `down` returns without arming anything: the strip stays visible and
+       * full height, stops being draggable, and — because `cursor` inherits —
+       * shows whatever the chart beneath it is showing. Keeping the position
+       * at or above the consumer's own minimum is what stops a drag from
+       * reaching that state, exactly as the maximum above stops it collapsing
+       * the chart. Both arrows are untouched and remain the way to collapse
+       * either side on purpose.
+       */
+      if (Number.isFinite(minWidth) && minWidth > 0 && newPos < minWidth) {
+        newPos = minWidth;
+      }
 
       api.exec('resize-grid', {
         width: newPos,
@@ -121,7 +158,7 @@ function Resizer(props) {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = setTimeout(() => onMove && onMove(newPos), 100);
     },
-    [api, containerWidth, rightThreshold, maxWidth, onMove, dir],
+    [api, containerWidth, rightThreshold, maxWidth, minWidth, onMove, dir],
   );
 
   const up = useCallback(() => {
