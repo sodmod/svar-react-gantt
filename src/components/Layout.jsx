@@ -346,7 +346,11 @@ function Layout(props) {
    * the current answer without asking.
    */
   const gridWidthLimit = useMemo(
-    () => Math.max(0, ganttWidth - RESIZER_RIGHT_THRESHOLD),
+    // One pixel INSIDE the threshold, not on it: the drag's own test is
+    // `containerWidth - position <= rightThreshold`, so a position exactly at
+    // `containerWidth - rightThreshold` is already the grid-only case. The
+    // limit has to be the widest position that is still NOT it.
+    () => Math.max(0, ganttWidth - RESIZER_RIGHT_THRESHOLD - 1),
     [ganttWidth],
   );
   useEffect(() => {
