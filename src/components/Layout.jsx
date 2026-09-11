@@ -387,26 +387,33 @@ function Layout(props) {
    * statements about the same width, so the smaller of them is the answer.
    * Zero means the consumer declared none and nothing is clamped.
    */
+  /*
+   * SVAR-M25 (R5): the consumer's floor is taken as given.
+   *
+   * It is the one bound this layout must NOT narrow. The ceiling is geometry —
+   * how much room there is — and geometry can always ask for less. The floor
+   * is arithmetic on the consumer's own contents, and a layout too narrow for
+   * it is a layout the consumer overflows, not a consumer that can be made
+   * smaller. Clamping it to fit would hand the gesture a position the consumer
+   * then refuses, and a consumer that refuses a value returns the model it
+   * already had — so nothing would correct the screen, and the splitter would
+   * sit beside a list that is wider than it. Measured before this: 6 px apart.
+   */
+  const resolvedGridMinWidth = useMemo(
+    () =>
+      Number.isFinite(gridMinWidth) && gridMinWidth > 0 ? gridMinWidth : 0,
+    [gridMinWidth],
+  );
+
   const resolvedGridMaxWidth = useMemo(() => {
     if (!Number.isFinite(gridMaxWidth) || gridMaxWidth <= 0) return 0;
-    return gridWidthLimit > 0
-      ? Math.min(gridMaxWidth, gridWidthLimit)
-      : gridMaxWidth;
-  }, [gridMaxWidth, gridWidthLimit]);
-
-  /*
-   * SVAR-M25 (R5): the consumer's floor, resolved the same way.
-   *
-   * Never above the ceiling: a consumer whose minimum does not fit inside this
-   * layout is a layout too narrow for it, not a reason to hand the gesture a
-   * floor above its own ceiling.
-   */
-  const resolvedGridMinWidth = useMemo(() => {
-    if (!Number.isFinite(gridMinWidth) || gridMinWidth <= 0) return 0;
-    return resolvedGridMaxWidth > 0
-      ? Math.min(gridMinWidth, resolvedGridMaxWidth)
-      : gridMinWidth;
-  }, [gridMinWidth, resolvedGridMaxWidth]);
+    const capped =
+      gridWidthLimit > 0 ? Math.min(gridMaxWidth, gridWidthLimit) : gridMaxWidth;
+    // ...and never below that floor, for the same reason.
+    return resolvedGridMinWidth > 0
+      ? Math.max(capped, resolvedGridMinWidth)
+      : capped;
+  }, [gridMaxWidth, gridWidthLimit, resolvedGridMinWidth]);
 
   useEffect(() => {
     const ganttDiv = ganttDivRef.current;
