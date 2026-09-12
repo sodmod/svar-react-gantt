@@ -191,7 +191,7 @@
    already occupy the room it could move in. Grid.jsx sets `width` inline,
    to the grid's own measured viewport, which is what leaves it room to
    actually stick. */
-.wx-grid-action-slot-anchor.wx-rHj6070p {
+.wx-grid-action-anchor.wx-rHj6070p {
   position: sticky;
   left: 0;
   height: 0;

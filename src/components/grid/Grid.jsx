@@ -1100,7 +1100,7 @@ export default function Grid(props) {
             Grid.css), so a plain `position: absolute` here reads CONTENT
             coordinates: once the pane's columns overflow its own visible
             width, scrolling `.wx-table-container` carries this slot away with
-            them exactly as it carries a column. `wx-grid-action-slot-anchor`
+            them exactly as it carries a column. `wx-grid-action-anchor`
             is `position: sticky` against that same `.wx-table-container`
             instead, so this slot's `left`/`right` resolve against the
             VIEWPORT. `height: 0` keeps the anchor out of document flow the
@@ -1120,8 +1120,8 @@ export default function Grid(props) {
             to the viewport is what leaves it room to actually stick. */}
         {gridActionSlot && headerOffset > 0 ? (
           <div
-            className="wx-rHj6070p wx-grid-action-slot-anchor"
-            data-grid-action-slot-anchor="true"
+            className="wx-rHj6070p wx-grid-action-anchor"
+            data-grid-action-anchor="true"
             style={gridClientWidth ? { width: `${gridClientWidth}px` } : undefined}
           >
             <div
