@@ -605,6 +605,28 @@ Two kinds of change, deliberately kept in separate commits:
      Every one of these is off by default. Omitted, the component behaves
      exactly as upstream does.
 
+   - **`SVAR-M27` — the action slot anchors to the grid's own viewport, not
+     its scrolled column content.** `SVAR-M12`'s `gridActionSlot` band sat
+     directly inside `.wx-table`, the grid's horizontally scrolled CONTENT
+     (`.wx-table-container`, its parent, is the actual scrollport). `position:
+     absolute` there resolves against CONTENT coordinates, so once a
+     consumer's columns overflow the pane — which `SVAR-M18`..`SVAR-M26`
+     above make an ordinary, ungated state — scrolling the pane carries the
+     slot's own controls off screen exactly as it carries a column.
+
+     `wx-grid-action-anchor` wraps the existing slot in a `position: sticky`
+     element against `.wx-table-container`, with an explicit width from this
+     file's own `gridClientWidth` (a sticky box can only move within its own
+     containing block; an unconstrained `width: auto` box already occupies
+     that whole block, leaving no room to move in at all) and its own
+     `z-index: 4` (a sticky box always opens its own stacking context, so the
+     slot's `z-index: 4` inside it no longer competes with `.wx-table`'s
+     other children on the wrapper's behalf). The slot itself is unchanged:
+     same class, same data attribute, same render condition, one level of
+     nesting deeper. `height: 0` on the wrapper keeps the vertical reserve
+     entirely `SVAR-M8`'s doing, exactly as the slot's own `position:
+     absolute` always did.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN
