@@ -190,11 +190,24 @@
    leaving no room for `left: 0` to hold it anywhere, since the box would
    already occupy the room it could move in. Grid.jsx sets `width` inline,
    to the grid's own measured viewport, which is what leaves it room to
-   actually stick. */
+   actually stick.
+
+   `z-index: 4` HAS to be here too, matching `.wx-grid-action-slot`'s own —
+   not left for the slot alone to carry. A stickily positioned element always
+   opens its own stacking context, whatever its z-index; without one declared
+   here the browser treats it as `auto`, and the slot's `z-index: 4` is then
+   compared only INSIDE that context, against nothing, while the ANCHOR
+   itself is what actually competes with `.wx-table`'s other children — at
+   `auto`, i.e. below anything among them that declares a z-index at all.
+   Measured on the product: with this omitted, `.wx-grid .wx-scroll`
+   (z-index 3, from its own sticky header) painted and hit-tested ABOVE
+   Program Menu, which a real click confirmed by landing on the grid instead
+   of the trigger. */
 .wx-grid-action-anchor.wx-rHj6070p {
   position: sticky;
   left: 0;
   height: 0;
+  z-index: 4;
 }
 
 /* SVAR-M12 (SVAR Production Planner): the consumer's action slot, inside the
