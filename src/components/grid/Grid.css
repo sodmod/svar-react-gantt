@@ -192,22 +192,48 @@
    to the grid's own measured viewport, which is what leaves it room to
    actually stick.
 
-   `z-index: 4` HAS to be here too, matching `.wx-grid-action-slot`'s own —
-   not left for the slot alone to carry. A stickily positioned element always
-   opens its own stacking context, whatever its z-index; without one declared
-   here the browser treats it as `auto`, and the slot's `z-index: 4` is then
-   compared only INSIDE that context, against nothing, while the ANCHOR
-   itself is what actually competes with `.wx-table`'s other children — at
-   `auto`, i.e. below anything among them that declares a z-index at all.
+   A `z-index` HAS to be here too, not left for the slot alone to carry. A
+   stickily positioned element always opens its own stacking context, whatever
+   its z-index; without one declared here the browser treats it as `auto`, and
+   the slot's `z-index: 4` is then compared only INSIDE that context, against
+   nothing, while the ANCHOR itself is what actually competes with everything
+   else — at `auto`, i.e. below anything that declares a z-index at all.
    Measured on the product: with this omitted, `.wx-grid .wx-scroll`
    (z-index 3, from its own sticky header) painted and hit-tested ABOVE
    Program Menu, which a real click confirmed by landing on the grid instead
-   of the trigger. */
+   of the trigger.
+
+   R7.2: and the number is 11, not the slot's own 4, because THIS element is
+   the whole action band's outermost stacking context and therefore decides
+   what the consumer's content may paint over. Everything inside it — the
+   band, its controls, and any popup they open — is painted as one atomic unit
+   at this level, so a value chosen only against the grid's own header layer
+   leaves the band beneath every OTHER layer of the Gantt. Both of those sit
+   in the same `.wx-layout` box as the grid: `.wx-chart`'s `.wx-scale`
+   (z-index 5) and `.wx-resizer` (z-index 10).
+
+   Measured on the product in real Chromium, with the task list narrowed until
+   the consumer's action strip collapsed its trailing controls into a `…`
+   menu: the menu is wider than the room left beside its own trigger, so it
+   reaches past the pane, and `document.elementFromPoint` at the centre of
+   every one of its three items returned a chart timescale cell. The menu
+   painted, in full, one layer underneath the chart. Raising this element
+   alone to 11 — the slot inside it stays at 4, and no other declaration
+   changes — put every item back under the pointer.
+
+   Why above the resizer too, and not merely above the scale: a popup that
+   reaches past the pane crosses the splitter on its way, and a splitter
+   painting a stripe through a menu is the same defect one column narrower.
+   Nothing is covered by the raise itself — this element is `height: 0` and
+   the slot inside it is clipped to the grid's own scrollport, so the band has
+   no pixels outside the pane to paint over anything with. What the number
+   changes is only what its content may paint over when the content itself
+   leaves the box. */
 .wx-grid-action-anchor.wx-rHj6070p {
   position: sticky;
   left: 0;
   height: 0;
-  z-index: 4;
+  z-index: 11;
 }
 
 /* SVAR-M12 (SVAR Production Planner): the consumer's action slot, inside the

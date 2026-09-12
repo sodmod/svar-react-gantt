@@ -592,6 +592,19 @@ Two kinds of change, deliberately kept in separate commits:
        over which side is shown, because clamping the position cannot keep a
        drag out of the collapsed state when the consumer's own floor lies past
        this layout's threshold.
+     - **`SVAR-M27`** (`Grid.jsx`, `Grid.css`): the consumer's action slot
+       renders one level deeper, inside a new sticky `wx-grid-action-anchor`
+       wrapper, so `SVAR-M12`'s slot resolves its position against
+       `.wx-table-container` — the grid's own horizontal scrollport — instead
+       of `.wx-table`, the scrolled column content that used to carry it off
+       screen with the columns. The wrapper is also the whole band's outermost
+       stacking context, and R7.2 corrects the layer it was given: 11, above
+       the chart timescale (`.wx-scale`, 5) and the splitter (`.wx-resizer`,
+       10), rather than only above the grid's own sticky header (3). Measured
+       on the consuming product, a menu opened from the band and reaching past
+       the pane painted and hit-tested UNDER the chart's timescale at the old
+       layer. `SVAR-M12`'s contract — what renders, when, and what the
+       consumer owns — is untouched by both halves.
 
      What the set deliberately is NOT: a column gesture is not bounded by the
      pane's own ceiling. A consumer whose columns need more room than the pane

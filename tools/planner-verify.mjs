@@ -205,7 +205,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +
     'SVAR-M12 — the action slot inside that band, bottom-aligned and pointer-taking; ' +
-    'SVAR-M27 — the sticky anchor wrapper the action slot now resolves its position against, so it reads the grid\'s own viewport instead of its scrolled column content',
+    'SVAR-M27 — the sticky anchor wrapper the action slot now resolves its position against, so it reads the grid\'s own viewport instead of its scrolled column content; ' +
+    'SVAR-M27 (R7.2) — that wrapper is the whole action band\'s outermost stacking context, so its layer is 11: above the chart timescale (5) and the splitter (10), not merely above the grid\'s own sticky header (3)',
   'src/components/chart/TimeScale.css':
     'SVAR-M8 — the lower-scale-row band of the annotation lines, and the stacking rule that keeps every scale label above them',
   '.gitignore':
