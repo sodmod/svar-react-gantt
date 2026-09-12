@@ -192,7 +192,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M20 — the resize gesture never proposes a width below the consumer\'s declared minimum, clamped before the store writes it; ' +
     'SVAR-M23 — a column may align its header label independently of its cells, through a header descriptor the store copies as it is; ' +
     'SVAR-M24 — a grid row carries `wx-row-<type>` from the kind the consumer put on it, so a stylesheet can reach what the diagram already says; ' +
-    'SVAR-M26 — and never above the consumer\'s declared maximum for one column, clamped at the same seam and for the same reason',
+    'SVAR-M26 — and never above the consumer\'s declared maximum for one column, clamped at the same seam and for the same reason; ' +
+    'SVAR-M27 — the action slot renders one level deeper, inside a new sticky anchor wrapper, so its position resolves against the grid\'s own horizontal scrollport rather than the scrolled column content',
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +
@@ -203,7 +204,8 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/grid/Grid.css':
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +
-    'SVAR-M12 — the action slot inside that band, bottom-aligned and pointer-taking',
+    'SVAR-M12 — the action slot inside that band, bottom-aligned and pointer-taking; ' +
+    'SVAR-M27 — the sticky anchor wrapper the action slot now resolves its position against, so it reads the grid\'s own viewport instead of its scrolled column content',
   'src/components/chart/TimeScale.css':
     'SVAR-M8 — the lower-scale-row band of the annotation lines, and the stacking rule that keeps every scale label above them',
   '.gitignore':

@@ -161,6 +161,42 @@
   border-bottom: transparent;
 }
 
+/* SVAR-M27 (SVAR Production Planner): the containing block `.wx-grid-action-
+   slot` below resolves its `left`/`right` against.
+
+   `.wx-table-container` (Grid.css above) is the grid's own horizontal
+   scrollport; `.wx-table`, its child, is the scrolled CONTENT — as wide as
+   every column laid end to end, which is wider than the pane the moment its
+   columns overflow. `.wx-grid-action-slot` used to be a plain child of
+   `.wx-table`, so its `position: absolute` read CONTENT coordinates: a
+   horizontal scroll of `.wx-table-container` carried it away exactly as it
+   carries a column, taking a Program Menu/toolbar rendered inside it off
+   screen. `position: sticky` against that same `.wx-table-container` reads
+   VIEWPORT coordinates instead, and does not move as `.wx-table` scrolls
+   under it.
+
+   `height: 0` keeps this element out of document flow, the same way
+   `.wx-grid-action-slot`'s own `position: absolute` always did — the
+   reserved vertical band above the column headers is entirely
+   `--wx-annotation-header-offset`'s doing (SVAR-M8) and this element adds
+   none of its own. A stickily positioned box is "positioned" for containing-
+   block purposes exactly as a relatively positioned one is, so the abso-
+   lutely positioned slot below still resolves against it, unaffected by the
+   zero height.
+
+   No `right: 0` here, on purpose. A sticky box can only move within its own
+   containing block (`.wx-table`, every column laid end to end), and `right:
+   0` with `left: 0` on an `auto`-width block fills that containing block —
+   leaving no room for `left: 0` to hold it anywhere, since the box would
+   already occupy the room it could move in. Grid.jsx sets `width` inline,
+   to the grid's own measured viewport, which is what leaves it room to
+   actually stick. */
+.wx-grid-action-slot-anchor.wx-rHj6070p {
+  position: sticky;
+  left: 0;
+  height: 0;
+}
+
 /* SVAR-M12 (SVAR Production Planner): the consumer's action slot, inside the
    blank band this grid reserves above its column headers.
 

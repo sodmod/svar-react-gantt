@@ -1090,14 +1090,47 @@ export default function Grid(props) {
 
             What arrives here is an opaque React node. This component does not
             know what the controls do, when they are enabled, what they are
-            called or in which language — it renders them, and it stops there. */}
+            called or in which language — it renders them, and it stops there.
+
+            SVAR-M27 (SVAR Production Planner): `.wx-grid-action-slot` itself
+            still positions this content exactly as it always did, but it no
+            longer sits directly inside `.wx-table` — the element `left`/
+            `right` used to resolve against. `.wx-table` IS the horizontally
+            scrolled content (`.wx-table-container` is the actual viewport, see
+            Grid.css), so a plain `position: absolute` here reads CONTENT
+            coordinates: once the pane's columns overflow its own visible
+            width, scrolling `.wx-table-container` carries this slot away with
+            them exactly as it carries a column. `wx-grid-action-slot-anchor`
+            is `position: sticky` against that same `.wx-table-container`
+            instead, so this slot's `left`/`right` resolve against the
+            VIEWPORT. `height: 0` keeps the anchor out of document flow the
+            same way this slot's own `position: absolute` always was — the
+            reserved vertical band is still entirely `--wx-annotation-header-
+            offset`'s doing (SVAR-M8) and does not change.
+
+            The anchor's own WIDTH has to be `gridClientWidth` (the viewport
+            this file already measures, for `getScrollX` above), not left as
+            `auto`. A sticky box is free to move only within its own
+            containing block, and an `auto`-width block fills that containing
+            block — here, `.wx-table`, i.e. every column laid end to end. A
+            box already exactly as wide as the room it could move in has no
+            room left to move in, so `left: 0` would hold and do nothing:
+            measured with `width` omitted, the slot travelled off screen with
+            `scrollLeft` exactly as before this change. Constraining the width
+            to the viewport is what leaves it room to actually stick. */}
         {gridActionSlot && headerOffset > 0 ? (
           <div
-            className="wx-rHj6070p wx-grid-action-slot"
-            data-grid-action-slot="true"
-            style={{ top: '0px', height: `${headerOffset}px` }}
+            className="wx-rHj6070p wx-grid-action-slot-anchor"
+            data-grid-action-slot-anchor="true"
+            style={gridClientWidth ? { width: `${gridClientWidth}px` } : undefined}
           >
-            {gridActionSlot}
+            <div
+              className="wx-rHj6070p wx-grid-action-slot"
+              data-grid-action-slot="true"
+              style={{ top: '0px', height: `${headerOffset}px` }}
+            >
+              {gridActionSlot}
+            </div>
           </div>
         ) : null}
         <WxGrid
