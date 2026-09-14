@@ -34,6 +34,9 @@ function Chart(props) {
     fullHeight,
     taskTemplate,
     scaleCellAriaLabel,
+    // SVAR-M28 (SVAR Production Planner): handed straight to the scale header,
+    // like `scaleCellAriaLabel` above; this component only carries it.
+    onScaleCellContextMenu,
     annotationLayout,
     // SVAR-M12 (SVAR Production Planner): forwarded untouched to the scale
     // header, which asks the one split owner with it. See `Layout.jsx`.
@@ -301,6 +304,7 @@ function Chart(props) {
       <TimeScales
         api={api}
         scaleCellAriaLabel={scaleCellAriaLabel}
+        onScaleCellContextMenu={onScaleCellContextMenu}
         annotationLayout={annotationLayout}
         reserveTopScaleRow={reserveTopScaleRow}
         gridActionSlotMinHeight={gridActionSlotMinHeight}

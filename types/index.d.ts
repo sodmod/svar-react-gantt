@@ -3,6 +3,7 @@ import type {
   ReactNode,
   ComponentProps,
   ForwardRefExoticComponent,
+  MouseEvent,
   RefAttributes,
 } from 'react';
 import { ContextMenu as BaseContextMenu } from '@svar-ui/react-menu';
@@ -126,6 +127,23 @@ export interface ITimelineDragPreview {
   inProgress: boolean;
 }
 
+/**
+ * SVAR-M28: a right click that reached one rendered scale cell.
+ *
+ * `event` is the `contextmenu` event exactly as the cell received it — the
+ * package has not prevented it, stopped it or acted on it. `date` and `unit`
+ * are that cell's own values, the same pair `highlightTime` and
+ * `scaleCellAriaLabel` receive for it: `date` is the technical `Date` the
+ * cell starts at, never a pixel, and `unit` says which kind of scale row
+ * (`day`, `month`, ...) the cell belongs to. What a click on such a cell means,
+ * if anything, is the consumer's business.
+ */
+export interface IScaleCellContextMenu {
+  event: MouseEvent<HTMLElement>;
+  date: Date;
+  unit: string;
+}
+
 // SVAR-M23 (SVAR Production Planner): a header descriptor may align ITS OWN
 // text, independently of the column's `align`, which is one value for the
 // header and the cells under it. A column whose cells read left — a name
@@ -162,6 +180,12 @@ export declare const Gantt: ForwardRefExoticComponent<
       unit: string,
       value: string,
     ) => string | undefined;
+    // SVAR-M28 (SVAR Production Planner): a generic right-click seam for
+    // scale cells (any `scales` unit), the interaction twin of
+    // `scaleCellAriaLabel` above. Called when a `contextmenu` event reaches a
+    // rendered scale cell, with that event and the cell's own `date`/`unit`
+    // (`IScaleCellContextMenu` above). Prevents nothing and opens nothing.
+    onScaleCellContextMenu?: (cell: IScaleCellContextMenu) => void;
     // SVAR-M4 (SVAR Production Planner): timeline annotations — lines at
     // dates in the chart body and their chips in the annotation lane, see
     // `ITimelineAnnotation` above.

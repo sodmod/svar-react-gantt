@@ -47,9 +47,12 @@ function Layout(props) {
   // SVAR-M18 (SVAR Production Planner): `consumerOwnsColumnWidths` — see
   // `Gantt.jsx`. Plain pass-through: it concerns only the grid's own column
   // widths, so this component neither reads it nor has an opinion about it.
+  // SVAR-M28 (SVAR Production Planner): `onScaleCellContextMenu` — see
+  // `Gantt.jsx`. Plain pass-through beside `scaleCellAriaLabel`, unread here.
   const {
     taskTemplate,
     scaleCellAriaLabel,
+    onScaleCellContextMenu,
     timelineAnnotations,
     onTimelineDragPreview,
     gridActionSlot,
@@ -502,6 +505,7 @@ function Layout(props) {
                 fullHeight={fullHeight}
                 taskTemplate={taskTemplate}
                 scaleCellAriaLabel={scaleCellAriaLabel}
+                onScaleCellContextMenu={onScaleCellContextMenu}
                 annotationLayout={annotationLayout}
                 reserveTopScaleRow={reserveTopScaleRow}
                 gridActionSlotMinHeight={slotMinHeight}
