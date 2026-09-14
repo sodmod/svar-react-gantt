@@ -618,6 +618,30 @@ Two kinds of change, deliberately kept in separate commits:
      Every one of these is off by default. Omitted, the component behaves
      exactly as upstream does.
 
+   - **`SVAR-M28` — a scale cell reports a right click.** `onScaleCellContextMenu`
+     is a new optional prop, threaded `Gantt.jsx -> Layout.jsx -> Chart.jsx ->
+     TimeScale.jsx` beside `SVAR-M3`'s `scaleCellAriaLabel`, whose interaction
+     twin it is. Each rendered scale cell — any row, any unit — gets an
+     `onContextMenu` handler that calls it with `{ event, date, unit }`: the
+     event exactly as it arrived, and the same `date`/`unit` pair
+     `highlightTime` and `scaleCellAriaLabel` already read off that cell. One
+     argument, like every other `on*` prop here, because the public type gives
+     every `on*` name a one-argument signature.
+
+     The split of responsibility is the point, as with `SVAR-M14`. This
+     renderer says WHICH cell was right-clicked, and it can say that truthfully
+     only because the DOM it drew decides it: the handler belongs to the cell's
+     own element, so a horizontally scrolled or re-sized scale reports the cell
+     under the pointer rather than a date worked out from a pixel. Nothing else
+     crosses the seam — no `preventDefault`, no menu, no filter by unit, and no
+     idea what a date means to the consumer. Whether a click on a month cell, a
+     day cell or any other cell does anything is the consumer's question, and
+     so is everything that follows from it. The annotation lane and the blank
+     reserve band render no cells and therefore report nothing.
+
+     Off by default: without the prop no cell has a handler, and a right click
+     on the header does exactly what it did before.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

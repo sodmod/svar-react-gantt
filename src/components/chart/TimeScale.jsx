@@ -46,9 +46,13 @@ function TimeScale(props) {
   // header, between the top scale row and the lane, and it changes nothing
   // else: no row moves inside the header, no row changes height, and the lane
   // is laid out exactly as it was.
+  // SVAR-M28 (SVAR Production Planner): `onScaleCellContextMenu` — see
+  // `Gantt.jsx`. Attached to each rendered cell below, and to nothing else:
+  // not the lane, not the reserve band, not the header element itself.
   const {
     api,
     scaleCellAriaLabel,
+    onScaleCellContextMenu,
     annotationLayout,
     reserveTopScaleRow,
     gridActionSlotMinHeight,
@@ -155,11 +159,26 @@ function TimeScale(props) {
         const ariaLabel = scaleCellAriaLabel
           ? scaleCellAriaLabel(cell.date, cell.unit, cell.value)
           : undefined;
+        // SVAR-M28 (SVAR Production Planner): the cell that received the
+        // right click reports itself, with the same `date`/`unit` the two
+        // callbacks above read. The DOM decides which cell was hit — this
+        // cell's own element — so a horizontally scrolled or resized scale
+        // cannot report a neighbour's date. Nothing is prevented or opened
+        // here; that is the consumer's decision.
+        const onContextMenu = onScaleCellContextMenu
+          ? (event) =>
+              onScaleCellContextMenu({
+                event,
+                date: cell.date,
+                unit: cell.unit,
+              })
+          : undefined;
         return (
           <div
             className={'wx-ZkvhDKir ' + className}
             style={{ width: `${cell.width}px` }}
             aria-label={ariaLabel || undefined}
+            onContextMenu={onContextMenu}
             key={cellIdx}
           >
             <span

@@ -101,6 +101,26 @@ const Gantt = forwardRef(function Gantt(
     // function returns to the DOM as that cell's `aria-label`. See
     // `src/components/chart/TimeScale.jsx` for where it is applied.
     scaleCellAriaLabel = null,
+    // SVAR-M28 (SVAR Production Planner): new optional prop, purely additive.
+    //
+    // A generic right-click seam for scale cells, the interaction twin of
+    // `scaleCellAriaLabel` just above and threaded down the same path. When a
+    // `contextmenu` event reaches a rendered scale cell — any row, any unit —
+    // the renderer calls `onScaleCellContextMenu({ event, date, unit })` with
+    // the event as it arrived and the SAME two values `highlightTime` and
+    // `scaleCellAriaLabel` already read off that cell. One argument, like
+    // every other `on*` prop of this component, because the public type gives
+    // every `on*` name a one-argument signature. That is the whole of it:
+    // WHICH cell the pointer hit is decided by the DOM the renderer drew (each
+    // cell handles its own event), so no pixel-to-date arithmetic exists
+    // anywhere in this seam.
+    //
+    // The renderer decides nothing else. It does not call `preventDefault`,
+    // open a menu, filter by unit, or know what a date means to the consumer:
+    // whether a click on this cell does anything at all is the consumer's
+    // question. It never enters the store. `null` by default: without it no
+    // cell has a handler and the header behaves exactly as before.
+    onScaleCellContextMenu = null,
     // SVAR-M4 (SVAR Production Planner): new optional prop, purely additive.
     // Timeline annotations — a vertical line at a date plus a labelled chip in
     // an annotation lane under the scale rows. See
@@ -512,6 +532,7 @@ const Gantt = forwardRef(function Gantt(
         <Layout
           taskTemplate={taskTemplate}
           scaleCellAriaLabel={scaleCellAriaLabel}
+          onScaleCellContextMenu={onScaleCellContextMenu}
           timelineAnnotations={timelineAnnotations}
           onTimelineDragPreview={onTimelineDragPreview}
           gridActionSlot={gridActionSlot}

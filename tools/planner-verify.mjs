@@ -118,6 +118,7 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
+    'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
     'SVAR-M4 — new `timelineAnnotations` prop, threaded through to Layout.jsx; ' +
     'SVAR-M5 — new `onTimelineDragPreview` prop, threaded through to Layout.jsx; ' +
     'SVAR-M12 — new `gridActionSlot` prop, threaded through to Layout.jsx; ' +
@@ -128,6 +129,7 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M26 — new `columnMaxWidth` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
+    'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
     'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math; ' +
     'SVAR-M5 — owns the transient bar-drag preview state; SVAR-M6 — hands the RESOLVED lane height to Grid.jsx; ' +
     'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all; ' +
@@ -140,12 +142,14 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
+    'SVAR-M28 — `onScaleCellContextMenu` prop pass-through; ' +
     'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx; ' +
     'SVAR-M5 — carries onBarDragPreview down to Bars.jsx; ' +
     'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx; ' +
     'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
+    'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +
     'SVAR-M4 — renders <AnnotationLane> inside the sticky .wx-scale; ' +
     'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines; ' +
     'SVAR-M9 — keeps a body-only line out of that lower-row band; ' +
@@ -153,6 +157,7 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M17 — renders the blank reserve band between the top scale row and the lane, and starts the lower-row line band below it',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
+    'SVAR-M28 — `IScaleCellContextMenu` and the `onScaleCellContextMenu` prop; ' +
     'SVAR-M4 — `ITimelineAnnotation` and the `timelineAnnotations` prop; ' +
     'SVAR-M5 — `ITimelineDragPreview`, the `onTimelineDragPreview` prop and the `followsTaskId`/`previewDate` annotation fields; ' +
     'SVAR-M9 — the `lineExtent` and `stripeWidth` annotation fields; ' +
