@@ -642,6 +642,37 @@ Two kinds of change, deliberately kept in separate commits:
      Off by default: without the prop no cell has a handler, and a right click
      on the header does exactly what it did before.
 
+   - **`SVAR-M29` — the day columns do not restart inside the header.**
+     `SVAR-M8` gave the annotation lane the timeline's ordinary column
+     separators, so a chip reads as belonging to a date column instead of
+     floating in a band of its own. `SVAR-M17` then added a SECOND band to the
+     same header — the blank reserve that answers a consumer slot's declared
+     minimum height — and that one had no separators, so the date grid visibly
+     restarted across it: the columns stopped under the top scale row and began
+     again at the lane.
+
+     The lane's own grid markup is extracted UNCHANGED into
+     `src/components/chart/annotations/ScaleColumnGrid.jsx`, and both bands
+     render it. One owner of what a band's column separators are: no column is
+     derived twice, no width is recomputed, and no date is turned into a pixel.
+     Both bands are handed the SAME `columns` object — the lowest rendered scale
+     row, exactly as `TimeScale.jsx` had already sliced it for its own rows — so
+     whatever the active scale exposes as a column (a day, a week, a month) is
+     what continues through every band. The class names are the ones `SVAR-M8`
+     introduced, deliberately unchanged: it is the same grid, and a second set
+     of names for one treatment is the duplication this extraction removes.
+
+     The reserve band gains `position: relative` inline, beside the height it
+     has always carried inline, because the grid positions itself
+     `absolute; inset: 0` and needs a containing block. No new prop, no change
+     to the public types, and no stylesheet rule is added — which is why a
+     build carrying this change moves the three JS artefacts and nothing else.
+
+     Not off by default, and nothing to switch: there was never a state in which
+     a band deliberately dropped the separators. With no reserve band (no slot,
+     or a lane already taller than the declared minimum) there is nothing to
+     render, and the header is exactly what it was.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

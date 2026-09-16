@@ -154,7 +154,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines; ' +
     'SVAR-M9 — keeps a body-only line out of that lower-row band; ' +
     'SVAR-M12 — asks the split owner with the same reserveTopScaleRow the grid is given; ' +
-    'SVAR-M17 — renders the blank reserve band between the top scale row and the lane, and starts the lower-row line band below it',
+    'SVAR-M17 — renders the blank reserve band between the top scale row and the lane, and starts the lower-row line band below it; ' +
+    'SVAR-M29 — that reserve band renders the day-column separators from the same owner the lane asks (annotations/ScaleColumnGrid.jsx), and is a positioning context so they fill it',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
     'SVAR-M28 — `IScaleCellContextMenu` and the `onScaleCellContextMenu` prop; ' +
