@@ -33,13 +33,13 @@ import {
   ANNOTATION_CHIP_HEIGHT,
   chipTopForRow,
 } from './timelineAnnotationLayout.js';
+import ScaleColumnGrid from './ScaleColumnGrid.jsx';
 import './AnnotationLane.css';
 
 function AnnotationLane(props) {
   const { layout, columns } = props;
   if (!layout || !layout.laneHeight) return null;
   const { lines, chips, rowCount, laneHeight } = layout;
-  const columnCells = columns && columns.slice ? columns.slice : null;
 
   return (
     <div
@@ -50,23 +50,13 @@ function AnnotationLane(props) {
     >
       {/* SVAR-M8: FIRST, so every line and every chip paints over it. The
           same subdued `--wx-timescale-border` the scale rows draw their own
-          cell separators with — one treatment, not a second grid style. */}
-      {columnCells && columnCells.length ? (
-        <div
-          className="wx-annotation-lane-grid"
-          data-annotation-lane-grid="true"
-          aria-hidden="true"
-          style={{ paddingLeft: `${columns.from}px` }}
-        >
-          {columnCells.map((cell, cellIdx) => (
-            <div
-              key={cellIdx}
-              className="wx-annotation-lane-grid-cell"
-              style={{ width: `${cell.width}px` }}
-            />
-          ))}
-        </div>
-      ) : null}
+          cell separators with — one treatment, not a second grid style.
+
+          SVAR-M29: and that treatment now has its own owner, because the
+          blank reserve band of SVAR-M17 needs the same separators for the same
+          reason. The markup is unchanged; it simply lives where both bands can
+          ask for it. */}
+      <ScaleColumnGrid columns={columns} />
       {/* SVAR-M9: a line whose consumer asked for the chart body alone is not
           drawn here at all — no segment in the lane, not even behind its own
           chip. Every other line still spans the lane's full height. */}

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useStore } from '@svar-ui/lib-react';
 import AnnotationLane from './annotations/AnnotationLane.jsx';
+import ScaleColumnGrid from './annotations/ScaleColumnGrid.jsx';
 import TimelineLines from './annotations/TimelineLines.jsx';
 import { splitScaleHeaderForLane } from './annotations/timelineAnnotationLayout.js';
 import './TimeScale.css';
@@ -49,6 +50,9 @@ function TimeScale(props) {
   // SVAR-M28 (SVAR Production Planner): `onScaleCellContextMenu` — see
   // `Gantt.jsx`. Attached to each rendered cell below, and to nothing else:
   // not the lane, not the reserve band, not the header element itself.
+  // SVAR-M29 (SVAR Production Planner): the reserve band of SVAR-M17 carries
+  // the timeline's day-column separators, from the same owner the lane asks.
+  // No new prop, no new number, no geometry of its own.
   const {
     api,
     scaleCellAriaLabel,
@@ -234,8 +238,25 @@ function TimeScale(props) {
           className="wx-ZkvhDKir wx-scale-slot-reserve"
           data-scale-slot-reserve="true"
           aria-hidden="true"
-          style={{ height: `${slotReserveHeight}px` }}
-        />
+          /* SVAR-M29 (SVAR Production Planner): `position: relative`, so the
+             column grid below fills exactly this band. Inline, beside the
+             height this band has always carried inline, which keeps the change
+             to this one file and adds no stylesheet rule. */
+          style={{ height: `${slotReserveHeight}px`, position: 'relative' }}
+        >
+          {/* SVAR-M29: the timeline's own day-column separators continue
+              through this band.
+
+              Before it, the date grid stopped at the top scale row and started
+              again at the lane, so the columns visibly restarted across
+              whatever height a consumer's slot had asked for. The separators
+              are the SAME ones the lane draws, from the same owner
+              (`annotations/ScaleColumnGrid.jsx`) and the same `columns` object
+              this component already sliced for its own rows — no column is
+              derived here, no width is recomputed, and no date is converted to
+              a pixel. */}
+          <ScaleColumnGrid columns={renderedRows[renderedRows.length - 1]} />
+        </div>
       ) : null}
 
       {/* SVAR-M4 (SVAR Production Planner): the annotation lane. SVAR-M8
