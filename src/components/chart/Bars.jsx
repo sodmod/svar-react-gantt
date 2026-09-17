@@ -40,7 +40,41 @@ function Bars(props) {
   // SVAR-M5 (SVAR Production Planner): `onDragPreview` — see `Layout.jsx` and
   // `Gantt.jsx` (`onTimelineDragPreview`). A plain callback prop, null by
   // default; nothing below changes for a consumer that does not pass one.
-  const { readonly, taskTemplate: TaskTemplate, onDragPreview } = props;
+  /*
+   * SVAR-M30 (SVAR Production Planner): `barGesturesDisabled` — see
+   * `Gantt.jsx` for what it is and what it deliberately is NOT.
+   *
+   * Read here and nowhere else, because here is where every direct bar
+   * gesture starts and where every affordance that advertises one is drawn.
+   * It is a plain boolean prop, false by default; a consumer that does not
+   * pass it changes nothing.
+   */
+  const {
+    readonly,
+    barGesturesDisabled,
+    taskTemplate: TaskTemplate,
+    onDragPreview,
+  } = props;
+
+  /*
+   * SVAR-M30: the ONE expression that answers "may a direct bar gesture
+   * happen at all", so the render below and the two gesture handlers cannot
+   * come to disagree about it.
+   *
+   * `readonly` already meant this and more (it also withholds the double
+   * click, the grid's row reorder and its add-task column). This is the
+   * narrow half of it: the bar's own gestures and their affordances, and
+   * nothing else.
+   *
+   * The handlers read it through a ref rather than closing over it, so
+   * `down`/`move` keep the identity they have today and their dependency
+   * lists are untouched. Written during render, exactly as `Gantt.jsx` writes
+   * `restPropsRef`, and only ever READ from a pointer event — which is always
+   * after the render that set it.
+   */
+  const barGesturesAllowed = !readonly && !barGesturesDisabled;
+  const barGesturesAllowedRef = useRef(barGesturesAllowed);
+  barGesturesAllowedRef.current = barGesturesAllowed;
 
   const api = useContext(storeContext);
 
@@ -211,7 +245,10 @@ function Bars(props) {
       const task = api.getTask(id);
       const css = point.target.classList;
       if (point.target.closest('.wx-delete-button')) return;
-      if (!readonly) {
+      // SVAR-M30: the gesture does not START. Nothing is written, nothing is
+      // previewed, and `startDrag()` is never reached — so there is no
+      // in-progress visual position to snap back from on mouse-up.
+      if (barGesturesAllowedRef.current) {
         if (css.contains('wx-progress-marker')) {
           const { progress } = api.getTask(id);
           progressFromRef.current = {
@@ -364,7 +401,8 @@ function Bars(props) {
     (e, point) => {
       const { clientX } = point;
 
-      if (!readonly) {
+      // SVAR-M30: the same one answer, at the other end of the gesture.
+      if (barGesturesAllowedRef.current) {
         if (progressFromRef.current) {
           const { node, x, id } = progressFromRef.current;
           const dx = (progressFromRef.current.dx = clientX - x);
@@ -475,7 +513,10 @@ function Bars(props) {
             const segNode = locate(e, 'data-segment');
             const barNode = segNode || taskNode;
             const mode = getMoveMode(barNode, point, task);
-            barNode.style.cursor = mode && !readonly ? 'col-resize' : 'pointer';
+            // SVAR-M30: no resize cursor where no resize can start, so the
+            // pointer never advertises a gesture that is withheld.
+            barNode.style.cursor =
+              mode && barGesturesAllowedRef.current ? 'col-resize' : 'pointer';
           }
         }
       }
@@ -806,7 +847,9 @@ function Bars(props) {
                 data-task-id={setID(task.id)}
                 tabIndex={focused === task.id ? 0 : -1}
               >
-                {!readonly && !hasDuplicatedIds ? (
+                {/* SVAR-M30: the link-creation handles are an affordance of
+                    a withheld gesture, so they are not drawn either. */}
+                {barGesturesAllowed && !hasDuplicatedIds ? (
                   task.id === selectedLink?.target &&
                     selectedLink?.type[2] === 's' ? (
                     <Button
@@ -832,7 +875,10 @@ function Bars(props) {
                         ></div>
                       </div>
                     ) : null}
-                    {!readonly &&
+                    {/* SVAR-M30: the progress HANDLE is a gesture affordance
+                        and goes; the progress FILL above is presentation and
+                        stays, so a withheld mode still SHOWS progress. */}
+                    {barGesturesAllowed &&
                       !(splitTasks && task.segments) &&
                       !(task.type === 'summary' && summary?.autoProgress) ? (
                       <div
@@ -863,7 +909,8 @@ function Bars(props) {
                   </>
                 )}
 
-                {!readonly && !hasDuplicatedIds ? (
+                {/* SVAR-M30: and the same on the other edge. */}
+                {barGesturesAllowed && !hasDuplicatedIds ? (
                   task.id === selectedLink?.target &&
                     selectedLink?.type[2] === 'e' ? (
                     <Button

@@ -673,6 +673,81 @@ Two kinds of change, deliberately kept in separate commits:
      or a lane already taller than the declared minimum) there is nothing to
      render, and the header is exactly what it was.
 
+   - **`SVAR-M30` — `barGesturesDisabled`: an overview a reader can still use.**
+     A new optional boolean prop on `<Gantt>`, threaded `Gantt.jsx` ->
+     `Layout.jsx` -> `Chart.jsx` -> `Bars.jsx` beside `readonly`, and read in
+     exactly one place: the single expression in `Bars.jsx` that answers "may a
+     direct bar gesture happen at all".
+
+     What it withholds, and nothing else:
+
+     ```text
+     bar move, both resize edges, the summary bar's own schedule drag,
+       milestone drag, the progress-handle drag, starting a link from an edge
+     and their affordances: the col-resize cursor, the progress handle,
+       the link-creation handles
+     ```
+
+     What it keeps, deliberately, because this is the whole reason it is not
+     `readonly`:
+
+     ```text
+     the double click that opens the editor — from the bar and from the row
+     selection, and link selection
+     the grid's row reorder and its add-task service column
+     column resize, the splitter, scrolling, and the progress FILL, which is
+       presentation rather than a gesture
+     ```
+
+     `readonly` is a whole-widget mode: it also takes the double click, the row
+     reorder and the add-task column with it (`Grid.jsx` splices that column out
+     entirely). A consumer that wants an OVERVIEW — look, read, select, open
+     your own editor, but do not drag the schedule — could not say so with it.
+
+     The gesture is not started rather than cancelled afterwards: `down()`
+     returns before anything is written and before `startDrag()`, so there is no
+     in-progress visual position to snap back from on mouse-up, and no event is
+     emitted that a consumer would have to refuse.
+
+     This package is told nothing about WHY, and learns no vocabulary: there is
+     no mode, no month, no calendar and no date question here. `false` by
+     default — a consumer that does not pass it is byte-identical to before.
+
+   - **`SVAR-M31` — a scale change keeps the DATE under the middle of the
+     chart, not the pixel.** Upstream keeps `scrollLeft` across a store
+     re-initialization, so halving or doubling `cellWidth` leaves the same pixel
+     on screen and therefore a different day. Measured on the consuming
+     application: doubling the day width from 34 to 68 left `scrollLeft` at
+     1138 while the scale grew from 7208 px to 14416, moving the visible window
+     from 25% of the plan to 12.5% and taking the task that had been in the
+     middle of the screen off it entirely.
+
+     `Gantt.jsx` now reads the date under the centre of its own viewport
+     immediately BEFORE `dataStore.init(storeConfig)` and scrolls back to it
+     immediately after, in the same effect, so no frame is rendered in between.
+     It fires on a change of `scales`, `cellWidth` or `lengthUnit` and on
+     nothing else: `storeConfig` is rebuilt whenever any input changes, and
+     re-centring on a task edit would move the chart under a user who only
+     renamed something.
+
+     It lives here because nothing outside this package can ask the question.
+     `@svar-ui/gantt-store` publishes `_scaleDate` — the date under the scroll
+     position — but computes it from the CLAMPED scroll value, so a consumer can
+     only ever learn the dates of pixels in `[0, scaleWidth - chartWidth]`. The
+     centre of the viewport is past that ceiling for the last half-screen of any
+     timeline and for the WHOLE of a timeline that fits its window: measured on
+     the consuming application at a month scale, the entire seven-month plan is
+     854 px against an 848 px chart, so the only pixels a consumer could ask
+     about are the first six.
+
+     Both expressions are the store's own, used as the store uses them:
+     `_scales.diff` is the public differ its `scroll-chart` action applies to a
+     requested date, and `getUnitStart`/`getAdder` are public exports of the
+     same package. The final scroll goes through the public `scroll-chart`
+     action, so the store clamps it to its own travel — which is the honest
+     answer at either end, where a date half a screen from the edge cannot be
+     centred. No new prop, no public type change, and no consumer has to opt in.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

@@ -30,6 +30,10 @@ function Chart(props) {
   // handed straight to `<Bars>`; this component only carries it.
   const {
     readonly,
+    // SVAR-M30 (SVAR Production Planner): pass-through, unread here. Only
+    // `Bars.jsx` acts on it, because only the bars have the gestures it
+    // withholds.
+    barGesturesDisabled,
     fullWidth,
     fullHeight,
     taskTemplate,
@@ -388,6 +392,7 @@ function Chart(props) {
 
         <Bars
           readonly={readonly}
+          barGesturesDisabled={barGesturesDisabled}
           taskTemplate={taskTemplate}
           onDragPreview={onBarDragPreview}
         />

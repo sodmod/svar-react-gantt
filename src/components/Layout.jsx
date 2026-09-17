@@ -71,6 +71,10 @@ function Layout(props) {
     gridMinWidth,
     onGridWidthLimit,
     readonly,
+    // SVAR-M30 (SVAR Production Planner): pass-through to the chart half,
+    // unread here. The grid half is deliberately NOT given it: what it
+    // withholds are bar gestures, and the grid has none.
+    barGesturesDisabled,
     onTableAPIChange,
     onGanttWidthChange,
   } = props;
@@ -501,6 +505,7 @@ function Layout(props) {
             <div className="wx-jlbQoHOz wx-content" ref={chartRef}>
               <Chart
                 readonly={readonly}
+                barGesturesDisabled={barGesturesDisabled}
                 fullWidth={fullWidth}
                 fullHeight={fullHeight}
                 taskTemplate={taskTemplate}

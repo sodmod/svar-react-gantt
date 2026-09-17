@@ -21,9 +21,11 @@ import { en as coreEn } from '@svar-ui/core-locales';
 import { EventBusRouter } from '@svar-ui/lib-state';
 import {
   DataStore,
+  getAdder,
   getDefaultColumns,
   getDefaultGridWidth,
   defaultTaskTypes,
+  getUnitStart,
   normalizeZoom,
 } from '@svar-ui/gantt-store';
 
@@ -61,6 +63,62 @@ const ROLLUPS_CLOSEST = { type: 'closest' };
 
 const COMPACT_WIDTH = 650;
 
+/*
+ * SVAR-M31 (SVAR Production Planner): the date under the CENTRE of the chart's
+ * own viewport, and the scroll offset that puts a date back there.
+ *
+ * ## Why this lives in the package
+ *
+ * Because the package owns the date <-> pixel projection, and nothing outside
+ * it can ask this question. `@svar-ui/gantt-store` publishes `_scaleDate` — the
+ * date under the scroll position — but computes it from the CLAMPED scroll
+ * value, so a consumer can only ever learn the dates of pixels in
+ * `[0, scaleWidth - chartWidth]`. The centre of the viewport is at
+ * `scrollLeft + chartWidth / 2`, which is past that ceiling for the last half
+ * a screen of any timeline and for the WHOLE of a timeline that fits its
+ * window — measured on the Planner's own product: at a month scale the entire
+ * seven-month plan is 854 px against an 848 px chart, so every pixel a
+ * consumer could ask about is the first six.
+ *
+ * The two expressions below are the store's own, used the way the store uses
+ * them — `_scales.diff` is the public differ the store's `scroll-chart` action
+ * applies to a requested date, and `getUnitStart`/`getAdder` are public
+ * exports of the same package. Nothing is re-derived and no calendar rule is
+ * invented here: this is arithmetic over the scale the store has already
+ * built.
+ *
+ * BOUNDARY: `dateAtChartCentre` reads the same `lengthUnitWidth / 24` hour
+ * quantum the store's own pixel -> date helper uses, because that helper is
+ * private to the store. If a future store version changes that quantum, this
+ * follows it only by being edited. It is stated here rather than left implicit.
+ */
+function dateAtChartCentre(state) {
+  const { _scales: scales, _start: start, _weekStart: weekStart } = state;
+  const chartWidth = state._chartWidth;
+  const scrollLeft = state.scrollLeft;
+  if (!scales || !chartWidth || !(chartWidth > 0)) return null;
+  if (!Number.isFinite(scrollLeft)) return null;
+  const perHour =
+    scales.lengthUnit === 'day'
+      ? scales.lengthUnitWidth / 24
+      : scales.lengthUnitWidth;
+  if (!(perHour > 0)) return null;
+  const centre = scrollLeft + chartWidth / 2;
+  return getAdder('hour')(
+    getUnitStart(scales.minUnit, start, weekStart),
+    Math.floor(centre / perHour),
+  );
+}
+
+function chartScrollPuttingDateAtCentre(state, date) {
+  const { _scales: scales, _start: start } = state;
+  const chartWidth = state._chartWidth;
+  if (!scales || !chartWidth || !(chartWidth > 0)) return null;
+  const x = Math.round(scales.diff(date, start, 'hour') * state.cellWidth);
+  if (!Number.isFinite(x)) return null;
+  return Math.round(x - chartWidth / 2);
+}
+
 const Gantt = forwardRef(function Gantt(
   {
     taskTemplate = null,
@@ -84,6 +142,37 @@ const Gantt = forwardRef(function Gantt(
     gridWidth = null,
     displayMode = 'all',
     readonly = false,
+    /*
+     * SVAR-M30 (SVAR Production Planner): new optional prop, purely additive.
+     *
+     * Withholds the DIRECT BAR GESTURES and the affordances that advertise
+     * them, and nothing else:
+     *
+     * ```text
+     * withheld   bar move, both resize edges, a container bar's own date
+     *            drag, milestone drag, the progress-handle drag, and starting
+     *            a link from a bar edge
+     * withheld   their affordances: the col-resize cursor, the progress
+     *            handle, the link-creation handles
+     * kept       double click (the editor), selection, link selection, the
+     *            grid's row reorder, its add-task column, its column resize,
+     *            the splitter, scrolling and every read-only presentation
+     *            (the progress FILL included)
+     * ```
+     *
+     * It is the narrow half of what `readonly` already meant. `readonly` is a
+     * whole-widget mode and takes the double click, the row reorder and the
+     * add-task column with it; a consumer that wants an OVERVIEW — look, read,
+     * select, open the editor, but do not drag the bars — could not say so
+     * with it.
+     *
+     * This package is told nothing about WHY. It does not know what a scale
+     * mode is, has no notion of month/week/day beyond the units it draws, and
+     * asks no question about dates: the consumer decides when the flag is on.
+     *
+     * `false` by default: without it every gesture behaves exactly as before.
+     */
+    barGesturesDisabled = false,
     cellBorders = 'full',
     zoom = false,
     baselines = false,
@@ -513,14 +602,79 @@ const Gantt = forwardRef(function Gantt(
   );
 
   const initOnceRef = useRef(0);
+  /*
+   * SVAR-M31 (SVAR Production Planner): the scale configuration this component
+   * last initialized the store with.
+   *
+   * Compared by VALUE against the next one so the re-centring below happens on
+   * a scale change and on nothing else. `storeConfig` is rebuilt whenever ANY
+   * input changes — a task edit, a selection, a column width — and re-centring
+   * on those would move the chart under a user who only renamed something.
+   */
+  const lastScaleRef = useRef(null);
   useEffect(() => {
+    const scale = {
+      scales: normalizedConfig.scales,
+      cellWidth: normalizedConfig.cellWidth,
+      lengthUnit,
+    };
+    const previous = lastScaleRef.current;
+    lastScaleRef.current = scale;
+
     if (!initOnceRef.current) {
       if (init) init(api);
     } else {
+      /*
+       * SVAR-M31: a scale change keeps the date at the centre of the viewport,
+       * instead of keeping the pixel.
+       *
+       * Upstream keeps `scrollLeft` across a store re-initialization, so
+       * halving or doubling the cell width leaves the same PIXEL on screen and
+       * therefore a different DAY: measured on the Planner, doubling the day
+       * width from 34 to 68 moved the visible window from 25% of the plan to
+       * 12.5% and took the task that had been in the middle of the screen off
+       * it entirely. The date under the middle of the chart is what a reader is
+       * actually looking at, so that is what survives.
+       *
+       * Both halves are here, around the one line that changes the scale, so
+       * the "before" value is read while the old scale is still live and the
+       * "after" is written once the new one is in place — no frame is rendered
+       * in between, so nothing flickers. A null answer (no chart width yet, a
+       * scale that cannot say) simply skips: then upstream's own behaviour is
+       * what happens, exactly as before.
+       */
+      const scaleChanged =
+        previous === null ||
+        previous.scales !== scale.scales ||
+        previous.cellWidth !== scale.cellWidth ||
+        previous.lengthUnit !== scale.lengthUnit;
+      const centre = scaleChanged
+        ? dateAtChartCentre(dataStore.getState())
+        : null;
+
       dataStore.init(storeConfig);
+
+      if (centre) {
+        const left = chartScrollPuttingDateAtCentre(
+          dataStore.getState(),
+          centre,
+        );
+        // The store clamps it to its own travel, which is what should happen
+        // at either end of the timeline: a date half a screen from the end
+        // cannot be centred, and pinning to the end is the honest answer.
+        if (left !== null) firstInRoute.exec('scroll-chart', { left });
+      }
     }
     initOnceRef.current++;
-  }, [api, init, storeConfig, dataStore]);
+  }, [
+    api,
+    init,
+    storeConfig,
+    dataStore,
+    firstInRoute,
+    normalizedConfig,
+    lengthUnit,
+  ]);
 
   if (initOnceRef.current === 0) {
     dataStore.init(storeConfig);
@@ -544,6 +698,7 @@ const Gantt = forwardRef(function Gantt(
           gridMinWidth={gridMinWidth}
           onGridWidthLimit={onGridWidthLimit}
           readonly={readonly}
+          barGesturesDisabled={barGesturesDisabled}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}
         />

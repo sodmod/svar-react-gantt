@@ -115,7 +115,8 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold; ' +
     'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
-    'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture',
+    'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture; ' +
+    'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -126,7 +127,9 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M18 — new `consumerOwnsColumnWidths` prop, threaded through to Layout.jsx; ' +
     'SVAR-M20 — new `columnMinWidth` prop, threaded through to Layout.jsx; ' +
     'SVAR-M25 — new `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report, threaded through to Layout.jsx; ' +
-    'SVAR-M26 — new `columnMaxWidth` prop, threaded through to Layout.jsx',
+    'SVAR-M26 — new `columnMaxWidth` prop, threaded through to Layout.jsx; ' +
+    'SVAR-M30 — new `barGesturesDisabled` prop, threaded through to Layout.jsx; ' +
+    'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -139,14 +142,16 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M20 — passes `columnMinWidth` through to the grid, unread; ' +
     'SVAR-M22 — hands the theme value down so the lattice can be redrawn when it changes; ' +
     'SVAR-M25 — owns the width limit this layout\'s own geometry allows (a different number once the chart has been hidden on purpose), reports it through `onGridWidthLimit`, and resolves the consumer\'s ceiling and floor against it for the splitter gesture; the floor is the one bound geometry may not narrow; ' +
-    'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread',
+    'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread; ' +
+    'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through; ' +
     'SVAR-M4 — renders <TimelineLines> inside .wx-area and passes the annotation layout to TimeScale.jsx; ' +
     'SVAR-M5 — carries onBarDragPreview down to Bars.jsx; ' +
     'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx; ' +
-    'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx',
+    'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx; ' +
+    'SVAR-M30 — carries barGesturesDisabled down to Bars.jsx, unread',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
     'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +

@@ -169,6 +169,18 @@ export declare const Gantt: ForwardRefExoticComponent<
       onaction: (ev: { action: string; data: { [key: string]: any } }) => void;
     }>;
     readonly?: boolean;
+    // SVAR-M30 (SVAR Production Planner): withholds the DIRECT BAR GESTURES
+    // and the affordances that advertise them — bar move, both resize edges,
+    // summary schedule drag, milestone drag, the progress-handle drag and
+    // starting a link from a bar edge, together with the col-resize cursor,
+    // the progress handle and the link-creation handles. Everything else is
+    // untouched: the double click that opens the editor, selection, the
+    // grid's row reorder, its add-task column, its column resize, the
+    // splitter, scrolling, and the progress FILL, which is presentation
+    // rather than a gesture. The narrow half of what `readonly` means, for a
+    // consumer that wants an overview it can still read, select and edit
+    // through its own editor. This package is told nothing about why.
+    barGesturesDisabled?: boolean;
     cellBorders?: 'column' | 'full';
     highlightTime?: (date: Date, unit: 'day' | 'hour') => string;
     // SVAR-M3 (SVAR Production Planner): a generic accessible-name seam for
