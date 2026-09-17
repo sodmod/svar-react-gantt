@@ -107,7 +107,8 @@ const OWNED_UPSTREAM_FILES = {
   'package.json':
     '`prepare` builds the package: a git dependency has no publish step; ' +
     '`test:planner` runs the pure unit tests of SVAR-M4 (annotation layout), ' +
-    'SVAR-M10 (ancestor bar geometry) and SVAR-M11 (bar-drag preview gate)',
+    'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate) and ' +
+    'SVAR-M31 (the chart axis\' date <-> pixel projection)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -116,7 +117,7 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M2 — the drag-activation pixel threshold; ' +
     'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
     'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture; ' +
-    'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else',
+    'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else, and the bars wearing the resize cursor give it back on the render that withholds them (R2, B-1)',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -129,7 +130,7 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M25 — new `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report, threaded through to Layout.jsx; ' +
     'SVAR-M26 — new `columnMaxWidth` prop, threaded through to Layout.jsx; ' +
     'SVAR-M30 — new `barGesturesDisabled` prop, threaded through to Layout.jsx; ' +
-    'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel',
+    'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1)',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -234,6 +235,8 @@ const PROJECT_ADDED = [
 	'src/components/chart/annotations/',
 	// SVAR-M10: the pure summary-drag geometry owner.
 	'src/components/chart/summaryDragGeometry.js',
+	// SVAR-M31: the pure owner of the chart axis' date <-> pixel projection.
+	'src/components/chart/chartDateProjection.js',
 ];
 
 /**

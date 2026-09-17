@@ -21,13 +21,22 @@ import { en as coreEn } from '@svar-ui/core-locales';
 import { EventBusRouter } from '@svar-ui/lib-state';
 import {
   DataStore,
-  getAdder,
   getDefaultColumns,
   getDefaultGridWidth,
   defaultTaskTypes,
-  getUnitStart,
   normalizeZoom,
 } from '@svar-ui/gantt-store';
+
+/*
+ * SVAR-M31 (SVAR Production Planner): the chart axis' own date <-> pixel
+ * projection, and the ONE origin both directions measure from. See the
+ * module for why it is a module and what it deliberately is not.
+ */
+import {
+  chartPixelForDate,
+  chartScrollPuttingDateAtCentre,
+  dateAtChartCentre,
+} from './chart/chartDateProjection.js';
 
 // context
 import StoreContext from '../context';
@@ -62,62 +71,6 @@ const DEFAULT_SCHEDULE = { type: 'forward' };
 const ROLLUPS_CLOSEST = { type: 'closest' };
 
 const COMPACT_WIDTH = 650;
-
-/*
- * SVAR-M31 (SVAR Production Planner): the date under the CENTRE of the chart's
- * own viewport, and the scroll offset that puts a date back there.
- *
- * ## Why this lives in the package
- *
- * Because the package owns the date <-> pixel projection, and nothing outside
- * it can ask this question. `@svar-ui/gantt-store` publishes `_scaleDate` — the
- * date under the scroll position — but computes it from the CLAMPED scroll
- * value, so a consumer can only ever learn the dates of pixels in
- * `[0, scaleWidth - chartWidth]`. The centre of the viewport is at
- * `scrollLeft + chartWidth / 2`, which is past that ceiling for the last half
- * a screen of any timeline and for the WHOLE of a timeline that fits its
- * window — measured on the Planner's own product: at a month scale the entire
- * seven-month plan is 854 px against an 848 px chart, so every pixel a
- * consumer could ask about is the first six.
- *
- * The two expressions below are the store's own, used the way the store uses
- * them — `_scales.diff` is the public differ the store's `scroll-chart` action
- * applies to a requested date, and `getUnitStart`/`getAdder` are public
- * exports of the same package. Nothing is re-derived and no calendar rule is
- * invented here: this is arithmetic over the scale the store has already
- * built.
- *
- * BOUNDARY: `dateAtChartCentre` reads the same `lengthUnitWidth / 24` hour
- * quantum the store's own pixel -> date helper uses, because that helper is
- * private to the store. If a future store version changes that quantum, this
- * follows it only by being edited. It is stated here rather than left implicit.
- */
-function dateAtChartCentre(state) {
-  const { _scales: scales, _start: start, _weekStart: weekStart } = state;
-  const chartWidth = state._chartWidth;
-  const scrollLeft = state.scrollLeft;
-  if (!scales || !chartWidth || !(chartWidth > 0)) return null;
-  if (!Number.isFinite(scrollLeft)) return null;
-  const perHour =
-    scales.lengthUnit === 'day'
-      ? scales.lengthUnitWidth / 24
-      : scales.lengthUnitWidth;
-  if (!(perHour > 0)) return null;
-  const centre = scrollLeft + chartWidth / 2;
-  return getAdder('hour')(
-    getUnitStart(scales.minUnit, start, weekStart),
-    Math.floor(centre / perHour),
-  );
-}
-
-function chartScrollPuttingDateAtCentre(state, date) {
-  const { _scales: scales, _start: start } = state;
-  const chartWidth = state._chartWidth;
-  if (!scales || !chartWidth || !(chartWidth > 0)) return null;
-  const x = Math.round(scales.diff(date, start, 'hour') * state.cellWidth);
-  if (!Number.isFinite(x)) return null;
-  return Math.round(x - chartWidth / 2);
-}
 
 const Gantt = forwardRef(function Gantt(
   {
@@ -442,6 +395,35 @@ const Gantt = forwardRef(function Gantt(
       }
     });
     firstInRoute.setNext(lastInRouteRef.current);
+
+    /*
+     * SVAR-M31 (R2, M-1): the public `scroll-chart { date }` becomes a pixel
+     * HERE, through the one origin the chart is actually drawn from.
+     *
+     * The store's own conversion measures the requested date from the raw
+     * `_start` while it draws everything — bars, markers, header cells — from
+     * `_scales.start`, the beginning of the `minUnit` cell that contains it.
+     * On a day-grained scale the two are the same date and nothing shows; on a
+     * month-grained one, with a project that does not begin on the 1st, every
+     * date-based reveal lands days away from the day it named.
+     *
+     * An interceptor rather than a fork of `@svar-ui/gantt-store`: the request
+     * is normalized to a `left` before the store ever sees a `date`, so the
+     * store keeps its own clamping, its own `_scaleDate` and its own contract,
+     * and the projection has one owner on both sides. The consumer's API does
+     * not change — it still asks to reveal a DATE — and no date arithmetic
+     * moves outside this package.
+     *
+     * A scale that cannot answer yet leaves the payload alone, so the
+     * behaviour without an answer is upstream's own, exactly as before.
+     */
+    firstInRoute.intercept('scroll-chart', (ev) => {
+      if (!ev || ev.date === undefined || ev.date === null) return;
+      const left = chartPixelForDate(dataStore.getState(), ev.date);
+      if (left === null) return;
+      ev.left = left;
+      delete ev.date;
+    });
   }
 
   // two-way binding for tableAPI

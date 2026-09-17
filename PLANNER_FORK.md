@@ -713,6 +713,19 @@ Two kinds of change, deliberately kept in separate commits:
      no mode, no month, no calendar and no date question here. `false` by
      default — a consumer that does not pass it is byte-identical to before.
 
+     **R2, finding B-1.** The col-resize cursor is written imperatively onto the
+     node under the pointer and then stays there until the pointer moves over
+     that same node again — which is fine only while the capability cannot
+     change under a still pointer, and it can. A consumer that withdrew the bar
+     gestures left every bar the pointer had rested on an edge of still wearing
+     `col-resize`, for as long as the pointer did not move: the gesture was
+     correctly refused, and the pointer went on promising it. `Bars.jsx` now
+     keeps the short list of bars currently wearing that cursor — added when it
+     is written, removed when it is written away — and a `useLayoutEffect` takes
+     them back on the render that withdraws the capability, before the next
+     paint and without waiting for a pointer event. Nothing about the enabled
+     case changes.
+
    - **`SVAR-M31` — a scale change keeps the DATE under the middle of the
      chart, not the pixel.** Upstream keeps `scrollLeft` across a store
      re-initialization, so halving or doubling `cellWidth` leaves the same pixel
@@ -742,11 +755,39 @@ Two kinds of change, deliberately kept in separate commits:
 
      Both expressions are the store's own, used as the store uses them:
      `_scales.diff` is the public differ its `scroll-chart` action applies to a
-     requested date, and `getUnitStart`/`getAdder` are public exports of the
-     same package. The final scroll goes through the public `scroll-chart`
-     action, so the store clamps it to its own travel — which is the honest
-     answer at either end, where a date half a screen from the edge cannot be
-     centred. No new prop, no public type change, and no consumer has to opt in.
+     requested date, and `getAdder` is a public export of the same package. The
+     final scroll goes through the public `scroll-chart` action, so the store
+     clamps it to its own travel — which is the honest answer at either end,
+     where a date half a screen from the edge cannot be centred. No new prop, no
+     public type change, and no consumer has to opt in.
+
+     **R2, finding M-1: the axis had two origins and two quanta.** Pixel 0 of
+     the chart is not `_start`. The store lays the scale out from the beginning
+     of the `minUnit` CELL that contains it — `_scales.start` — and draws every
+     bar, marker and header cell from there. The first shape of this
+     modification read the centre date from that rendered origin and wrote the
+     new scroll from the raw `_start`, so the two directions were not inverses
+     and every scale change on a month-grained scale moved the chart by the
+     difference, cumulatively: measured on a plan starting 10 January, about
+     8.7 days per change. Separately, the store's own pixel -> date helper
+     divides by a NOMINAL thirty-day month while its drawing uses the calendar's
+     own, which is another day out where the two disagree.
+
+     `src/components/chart/chartDateProjection.js` is the repair, and it is a
+     module rather than two functions so that the axis has ONE projection with
+     one origin: `chartPixelForDate` is the expression the store positions a bar
+     with, and `dateAtChartPixel` is its inverse — a bounded search that ASKS
+     the projection rather than re-deriving the length of a calendar month here,
+     which would be the second calendar owner this package must not become. It
+     is unit-tested by `npm run test:planner` against a scale the store itself
+     builds, including both origins it replaces as negative controls.
+
+     The public `scroll-chart { date }` carries the same raw-`_start`
+     conversion inside the store, so `Gantt.jsx` normalizes a date-based request
+     to a `left` through that one projection before the store sees it — an
+     interceptor on the store's own inbound bus, so the store keeps its
+     clamping, its `_scaleDate` and its contract, and `@svar-ui/gantt-store` is
+     neither forked nor changed. A consumer still asks to reveal a DATE.
 
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass

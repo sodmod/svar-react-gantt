@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -75,6 +76,48 @@ function Bars(props) {
   const barGesturesAllowed = !readonly && !barGesturesDisabled;
   const barGesturesAllowedRef = useRef(barGesturesAllowed);
   barGesturesAllowedRef.current = barGesturesAllowed;
+
+  /*
+   * SVAR-M30: the bars that are CURRENTLY wearing the resize cursor.
+   *
+   * The cursor below is written imperatively onto the node under the pointer
+   * and then simply stays there: nothing rewrites it until the pointer moves
+   * over that same node again. That is fine while the capability cannot
+   * change under the pointer — and it can. When a consumer withdraws the bar
+   * gestures the next pointer move may never come, and the bar goes on
+   * advertising a resize that can no longer start.
+   *
+   * So the same owner that puts the cursor on keeps the short list of nodes
+   * it is on, and takes it back the moment the capability goes away. The set
+   * holds only nodes currently showing `col-resize` — added when it is
+   * written, removed when it is written away — so it is normally empty or a
+   * single bar, and it is emptied whenever it is used.
+   */
+  const resizeCursorNodesRef = useRef(null);
+  if (resizeCursorNodesRef.current === null) {
+    resizeCursorNodesRef.current = new Set();
+  }
+
+  /*
+   * SVAR-M30: no pointer movement is required.
+   *
+   * `useLayoutEffect` rather than `useEffect` so the stale cursor is gone
+   * before the browser paints the frame that made the gesture unavailable,
+   * and not one frame later. It runs on the render that flips the capability
+   * and on no other: when gestures are allowed there is nothing to take back,
+   * because a cursor that advertises a gesture that CAN start is correct.
+   */
+  useLayoutEffect(() => {
+    if (barGesturesAllowed) return;
+    const advertising = resizeCursorNodesRef.current;
+    advertising.forEach((node) => {
+      // The same value the handler below writes when the gesture is withheld,
+      // so there is one answer to "what does a bar's cursor look like then"
+      // and not two.
+      node.style.cursor = 'pointer';
+    });
+    advertising.clear();
+  }, [barGesturesAllowed]);
 
   const api = useContext(storeContext);
 
@@ -517,6 +560,14 @@ function Bars(props) {
             // pointer never advertises a gesture that is withheld.
             barNode.style.cursor =
               mode && barGesturesAllowedRef.current ? 'col-resize' : 'pointer';
+            // SVAR-M30: and the bar that now wears one is remembered, so it
+            // can be taken back when the capability goes away without waiting
+            // for a pointer move that may never come. Read back from the node
+            // rather than recomputed, so this cannot come to disagree with the
+            // one expression above about what was just written.
+            if (barNode.style.cursor === 'col-resize')
+              resizeCursorNodesRef.current.add(barNode);
+            else resizeCursorNodesRef.current.delete(barNode);
           }
         }
       }
