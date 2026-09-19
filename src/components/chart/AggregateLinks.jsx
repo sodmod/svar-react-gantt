@@ -88,7 +88,37 @@ function rectOf(task) {
  */
 function bandOf(rect, band) {
   if (!rect || !band) return rect;
-  return { x: rect.x, w: rect.w, y: rect.y + rect.h - band.bottom - band.height, h: band.height };
+  return {
+    x: rect.x,
+    w: rect.w,
+    y: rect.y + rect.h - band.bottom - band.height,
+    h: band.height,
+  };
+}
+
+/*
+ * SVAR-M46 (R3-7): the whole of what the layout effect below does, as ONE
+ * named call.
+ *
+ * Hoisted out of the effect body deliberately, and for a reason that is
+ * about evidence rather than tidiness. This modification's claim is "the
+ * ribbon read happens in the LAYOUT phase", which the provenance manifest
+ * checks by reading back which React hook wraps the seam — so the seam has
+ * to be the effect's FIRST statement, it has to be unique in the artefact,
+ * and it has to carry no whitespace (the production build and the served
+ * Vite dev pre-bundle indent the same source differently, so a
+ * whitespace-bearing anchor cannot match both — SVAR-M40's own note records
+ * the same hazard). An inline body gave a first statement of `const x = new
+ * Map();`, which is three other things in this same bundle. One named call
+ * is one statement, distinctive, and on one line in both builds.
+ */
+function applyVisualBands(taskRects, setBandInfo) {
+  const next = new Map();
+  for (const id of taskRects.keys()) {
+    const band = readVisualBand(id);
+    if (band) next.set(id, band);
+  }
+  setBandInfo((current) => (sameBands(current, next) ? current : next));
 }
 
 /*
@@ -207,12 +237,7 @@ export default function AggregateLinks({
    * moves the ribbon without necessarily changing `_tasks`.
    */
   useLayoutEffect(() => {
-    const next = new Map();
-    for (const id of taskRects.keys()) {
-      const band = readVisualBand(id);
-      if (band) next.set(id, band);
-    }
-    setBandInfo((current) => (sameBands(current, next) ? current : next));
+    applyVisualBands(taskRects, setBandInfo);
   }, [taskRects, cellHeight]);
 
   const aggregates = useMemo(() => {
@@ -723,7 +748,20 @@ export default function AggregateLinks({
                 type="button"
                 key={String(linkId)}
                 className="wx-4kNpQzTa wx-aggregate-popover-row"
-                onClick={() => onRevealMember(link)}
+                /*
+                 * SVAR-M45 (R3-5): the row handles its own click fully, so
+                 * it stops there. Without this the same click also reaches
+                 * the two document-level listeners this component installs
+                 * — the popover's own click-outside and R2-7's
+                 * solo-selection cancel — and a `count === 1` popover, which
+                 * is now open at the same time as a selected link, would
+                 * have its reveal's selection cleared out from under it by
+                 * the second one.
+                 */
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onRevealMember(link);
+                }}
               >
                 {sourceTask?.text ?? link.source} →{' '}
                 {targetTask?.text ?? link.target}
