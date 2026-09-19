@@ -14,6 +14,7 @@ import { useStore, useStoreWithCounter } from '@svar-ui/lib-react';
 import { isSegmentMoveAllowed, extendDragOptions } from '@svar-ui/gantt-store';
 import { Button } from '@svar-ui/react-core';
 import Links from './Links.jsx';
+import AggregateLinks from './AggregateLinks.jsx';
 import {
   collectAncestorBarGeometry,
   resolveCollapsedSummaryGeometry,
@@ -878,6 +879,16 @@ function Bars(props) {
       <Links
         onSelectLink={onSelectLink}
         selectedLink={selectedLink}
+        readonly={readonly}
+        linkPresentation={linkPresentation}
+      />
+      {/* SVAR-M37 (SVAR Production Planner): after Links, so an aggregate
+          line paints above the real links (never confused for one — a
+          real link never shares its own channel with an aggregate, D-166
+          §K/§G stay independent rules) and its own badge/popover paint
+          above every bar. */}
+      <AggregateLinks
+        onSelectLink={onSelectLink}
         readonly={readonly}
         linkPresentation={linkPresentation}
       />

@@ -521,5 +521,11 @@ export function buildLink({
     arrow: arrowPolygonPoints(tip, arrowDir, tokens),
     arrowDir,
     bbox,
+    // The raw (pre-rounding, pre-arrow-trim) polyline: exact corners, not
+    // an approximation recovered from the rounded `d` path string. Only a
+    // consumer doing its OWN geometry on the route needs this (SVAR-M37's
+    // viewport-aware badge anchor, D-166 §L) — Links.jsx itself never
+    // reads it, only `d`/`arrow`/`bbox`.
+    points,
   };
 }

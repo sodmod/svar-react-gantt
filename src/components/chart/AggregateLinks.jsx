@@ -1,0 +1,369 @@
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import storeContext from '../../context';
+import { useStore, useStoreWithCounter } from '@svar-ui/lib-react';
+import { setID } from '@svar-ui/lib-dom';
+import { assignChannels, buildLink } from '../../planner-router/route.js';
+import {
+  buildAggregates,
+  pickBadgeAnchor,
+  collapsedAncestorsToOpen,
+} from '../../planner-router/aggregate.js';
+import './AggregateLinks.css';
+
+/*
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M37).
+ * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
+ *
+ * Collapsed-group link aggregation, presentation-only (project DECISIONS.md
+ * D-166 §K/§L, TECH_SPEC.md §6.10.1, Phase 4.1C checkpoint C3). The pure
+ * grouping/geometry lives in `src/planner-router/aggregate.js`; this
+ * component only wires it to the real store and draws it — same split
+ * `Links.jsx`/`route.js` already use.
+ *
+ * Deliberately reads `_links`/`_tasks` and `api.getTask` itself, exactly as
+ * `Links.jsx` and SVAR-M10's own ancestor-bar geometry already do: nothing
+ * here needs a new prop from the consumer, because a hidden task's
+ * ancestor chain is already fully readable through the store's own public
+ * `getTask`. It also never stores an aggregate as an `ITask`/`TaskLink` of
+ * its own — clicking a badge only ever calls the store's existing
+ * `open-task`/`scroll-chart` commands and the SAME `onSelectLink` callback
+ * `Links.jsx` already uses, the exact seams Pan and the offscreen chip
+ * (SVAR-M35) already use for their own, unrelated presentation state.
+ */
+
+const DEFAULT_PRESENTATION = { lineStyle: 'solid', arrowhead: true };
+const BADGE_SIZE = 18;
+
+function rectOf(task) {
+  return { x: task.$x, y: task.$y, w: task.$w, h: task.$h };
+}
+
+/*
+ * A collapsed group's representative endpoint is often a CONTAINER
+ * (`task.type === 'summary'`), and a container's own painted body does not
+ * fill the box `$x/$y/$w/$h` describes: the consuming product's own CSS
+ * (`src/web/index.css`'s container-bar styling, Pavel's manual passes
+ * R3-R5) repaints it as a thin ribbon near the bar's BOTTOM edge, not the
+ * vendor's plain full-height bar this router otherwise assumes for a leaf.
+ * Reading `$x/$y/$w/$h` alone for such an endpoint would exit/enter at the
+ * box's own vertical centre — inside the taller, now mostly UNPAINTED box
+ * around the ribbon, not on the ribbon itself.
+ *
+ * This reads the ribbon's geometry from the ACTUAL rendered `::before` —
+ * the same CSS the app already painted, never a number copied from it — so
+ * the connector lands on whatever stripe is really on screen, and a build
+ * with no such override (a bare upstream theme, or a future pass that
+ * changes the ribbon's own numbers) is followed exactly, not assumed.
+ */
+function visualBandRect(rect, taskId) {
+  if (!rect || typeof document === 'undefined') return rect;
+  const el = document.querySelector(`.wx-bar[data-id='${setID(taskId)}']`);
+  if (!el || !el.classList.contains('wx-summary')) return rect;
+  const before = getComputedStyle(el, '::before');
+  if (before.content === 'none') return rect;
+  const bottom = parseFloat(before.bottom);
+  const height = parseFloat(before.height);
+  if (!Number.isFinite(bottom) || !Number.isFinite(height) || height <= 0) {
+    return rect;
+  }
+  return { x: rect.x, w: rect.w, y: rect.y + rect.h - bottom - height, h: height };
+}
+
+export default function AggregateLinks({
+  onSelectLink,
+  readonly,
+  linkPresentation,
+}) {
+  const api = useContext(storeContext);
+  const getTask = useCallback((id) => api.getTask(id), [api]);
+  const [linksValue, linksCounter] = useStoreWithCounter(api, '_links');
+  const [tasksValue, tasksCounter] = useStoreWithCounter(api, '_tasks');
+  const cellHeight = useStore(api, 'cellHeight');
+  const area = useStore(api, 'area');
+  const xArea = useStore(api, 'xArea');
+  const scrollTop = useStore(api, 'scrollTop');
+
+  const [openAggregateId, setOpenAggregateId] = useState(null);
+  const pendingRevealRef = useRef(null);
+  const popoverRef = useRef(null);
+
+  const taskRects = useMemo(() => {
+    const map = new Map();
+    for (const task of tasksValue || []) {
+      if (typeof task.$x === 'number') map.set(task.id, rectOf(task));
+    }
+    return map;
+  }, [tasksCounter]);
+
+  const aggregates = useMemo(() => {
+    if (!linksValue) return [];
+    return buildAggregates(
+      linksValue,
+      getTask,
+      new Set(taskRects.keys()),
+    ).filter(
+      (aggregate) =>
+        taskRects.has(aggregate.source) && taskRects.has(aggregate.target),
+    );
+  }, [linksCounter, getTask, taskRects]);
+
+  const routedAggregates = useMemo(() => {
+    const obstacles = Array.from(taskRects.values());
+    const channelOf = assignChannels(
+      aggregates.map((aggregate) => ({
+        id: aggregate.id,
+        sourceId: aggregate.source,
+        sourceSide: 'end',
+        targetId: aggregate.target,
+        targetSide: 'start',
+      })),
+    );
+    return aggregates.map((aggregate) => {
+      const rawSourceRect = taskRects.get(aggregate.source);
+      const rawTargetRect = taskRects.get(aggregate.target);
+      const sourceRect = visualBandRect(rawSourceRect, aggregate.source);
+      const targetRect = visualBandRect(rawTargetRect, aggregate.target);
+      const route = buildLink({
+        sourceRect,
+        targetRect,
+        type: 'e2s',
+        channelOffset: channelOf.get(aggregate.id) ?? 0,
+        obstacles: obstacles.filter(
+          (rect) => rect !== rawSourceRect && rect !== rawTargetRect,
+        ),
+        rowHeight: cellHeight,
+      });
+      return { aggregate, route, badgeAnchor: null };
+    });
+  }, [aggregates, taskRects, cellHeight]);
+
+  const visibleRoutedAggregates = useMemo(() => {
+    if (!xArea) return [];
+    const vFrom = area?.from ?? 0;
+    const vTo = area?.to ?? (area?.end ?? 0) * (cellHeight || 0);
+    return routedAggregates
+      .filter(({ route }) => {
+        const { bbox } = route;
+        return (
+          bbox.x2 >= xArea.from &&
+          bbox.x1 <= xArea.to &&
+          bbox.y2 >= vFrom &&
+          bbox.y1 <= vTo
+        );
+      })
+      .map((entry) => ({
+        ...entry,
+        badgeAnchor: pickBadgeAnchor(entry.route.points, xArea),
+      }));
+  }, [routedAggregates, xArea, area, cellHeight]);
+
+  const presentationOf = useCallback(
+    (aggregate) => {
+      if (!linkPresentation) return DEFAULT_PRESENTATION;
+      // The app's own callback resolves presentation by a REAL link id
+      // (its closed mode -> {lineStyle, arrowhead} dictionary is keyed off
+      // canonical `TaskLink`s, never a synthetic aggregate id). Every member
+      // of one aggregate shares the same mode by construction (`aggregate.js`
+      // groups by mode), so any one member's real id resolves the same
+      // presentation the whole group is entitled to.
+      const resolved = linkPresentation({
+        id: aggregate.memberLinkIds[0],
+        source: aggregate.source,
+        target: aggregate.target,
+        type: 'e2s',
+      });
+      return resolved || DEFAULT_PRESENTATION;
+    },
+    [linkPresentation],
+  );
+
+  const linkById = useMemo(() => {
+    const map = new Map();
+    for (const link of linksValue || []) map.set(String(link.id), link);
+    return map;
+  }, [linksValue]);
+
+  const openAggregate = openAggregateId
+    ? visibleRoutedAggregates.find(
+        (entry) => entry.aggregate.id === openAggregateId,
+      )
+    : null;
+
+  const revealNow = useCallback(
+    (taskId, linkId) => {
+      const rect = taskRects.get(taskId);
+      if (!rect || !xArea) return false;
+      const viewportWidth = xArea.to - xArea.from;
+      const left = Math.max(0, rect.x + rect.w / 2 - viewportWidth / 2);
+      api.exec('scroll-chart', { left, top: scrollTop });
+      if (!readonly) onSelectLink(linkId);
+      return true;
+    },
+    [taskRects, xArea, api, scrollTop, readonly, onSelectLink],
+  );
+
+  useEffect(() => {
+    const pending = pendingRevealRef.current;
+    if (!pending) return;
+    if (revealNow(pending.taskId, pending.linkId)) {
+      pendingRevealRef.current = null;
+      setOpenAggregateId(null);
+    }
+  }, [taskRects, revealNow]);
+
+  const onRevealMember = useCallback(
+    (link) => {
+      const sourceAncestors = collapsedAncestorsToOpen(link.source, getTask);
+      const targetAncestors = collapsedAncestorsToOpen(link.target, getTask);
+      for (const id of sourceAncestors) {
+        api.exec('open-task', { id, mode: true });
+      }
+      for (const id of targetAncestors) {
+        api.exec('open-task', { id, mode: true });
+      }
+      if (sourceAncestors.length === 0 && targetAncestors.length === 0) {
+        if (revealNow(link.target, link.id)) setOpenAggregateId(null);
+      } else {
+        pendingRevealRef.current = { taskId: link.target, linkId: link.id };
+      }
+    },
+    [api, getTask, revealNow],
+  );
+
+  useEffect(() => {
+    if (!openAggregateId) return;
+    const handler = (event) => {
+      if (popoverRef.current && !popoverRef.current.contains(event.target)) {
+        setOpenAggregateId(null);
+      }
+    };
+    document.addEventListener('click', handler);
+    return () => {
+      document.removeEventListener('click', handler);
+    };
+  }, [openAggregateId]);
+
+  // D-166 §K: the badge itself is shown only when there is more than one
+  // hidden link to count — a single hidden link still gets its own aggregate
+  // line (and, via the line's own onClick below, its own popover), just no
+  // badge to read a count off of.
+  const badged = visibleRoutedAggregates.filter(
+    (entry) => entry.badgeAnchor && entry.aggregate.count > 1,
+  );
+
+  if (!visibleRoutedAggregates.length) return null;
+
+  return (
+    <>
+      <svg className="wx-4kNpQzTa wx-aggregate-links">
+        {visibleRoutedAggregates.map(({ aggregate, route }) => {
+          const presentation = presentationOf(aggregate);
+          const dashClass =
+            presentation.lineStyle && presentation.lineStyle !== 'solid'
+              ? ` wx-line-${presentation.lineStyle}`
+              : '';
+          return (
+            <g
+              className={`wx-4kNpQzTa wx-line wx-aggregate-line${dashClass}`}
+              key={aggregate.id}
+              data-aggregate-id={setID(aggregate.id)}
+              data-route-class={route.routeClass}
+              data-aggregate-count={aggregate.count}
+              onClick={(event) => {
+                event.stopPropagation();
+                setOpenAggregateId((current) =>
+                  current === aggregate.id ? null : aggregate.id,
+                );
+              }}
+            >
+              <path className="wx-4kNpQzTa wx-line-draw" d={route.d} />
+              <path className="wx-4kNpQzTa wx-line-hitbox" d={route.d} />
+              {presentation.arrowhead !== false ? (
+                <polygon
+                  className="wx-4kNpQzTa wx-line-arrow"
+                  points={route.arrow}
+                />
+              ) : null}
+            </g>
+          );
+        })}
+      </svg>
+      {/* SVAR-M37 */}
+      {badged.map(({ aggregate, badgeAnchor }) => {
+        const partnerNames = aggregate.memberLinkIds
+          .map((id) => linkById.get(String(id)))
+          .filter(Boolean)
+          .map((link) => {
+            const sourceHidden = link.source !== aggregate.source;
+            const otherId = sourceHidden ? link.source : link.target;
+            const other = getTask(otherId);
+            return other?.text ?? String(otherId);
+          });
+        return (
+          <button
+            type="button"
+            key={`badge:${aggregate.id}`}
+            className="wx-4kNpQzTa wx-aggregate-badge"
+            data-aggregate-badge={setID(aggregate.id)}
+            style={{
+              left: `${badgeAnchor[0] - BADGE_SIZE / 2}px`,
+              top: `${badgeAnchor[1] - BADGE_SIZE / 2}px`,
+              width: `${BADGE_SIZE}px`,
+              height: `${BADGE_SIZE}px`,
+            }}
+            title={`${aggregate.count} hidden ${aggregate.mode} link${aggregate.count > 1 ? 's' : ''}: ${partnerNames.join(', ')}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              setOpenAggregateId((current) =>
+                current === aggregate.id ? null : aggregate.id,
+              );
+            }}
+          >
+            {aggregate.count}
+          </button>
+        );
+      })}
+      {openAggregate ? (
+        <div
+          ref={popoverRef}
+          className="wx-4kNpQzTa wx-aggregate-popover"
+          data-aggregate-popover={setID(openAggregate.aggregate.id)}
+          style={{
+            left: `${openAggregate.badgeAnchor[0]}px`,
+            top: `${openAggregate.badgeAnchor[1] + BADGE_SIZE}px`,
+          }}
+        >
+          <div className="wx-4kNpQzTa wx-aggregate-popover-title">
+            {openAggregate.aggregate.count} link
+            {openAggregate.aggregate.count > 1 ? 's' : ''} (
+            {openAggregate.aggregate.mode})
+          </div>
+          {openAggregate.aggregate.memberLinkIds.map((linkId) => {
+            const link = linkById.get(String(linkId));
+            if (!link) return null;
+            const sourceTask = getTask(link.source);
+            const targetTask = getTask(link.target);
+            return (
+              <button
+                type="button"
+                key={String(linkId)}
+                className="wx-4kNpQzTa wx-aggregate-popover-row"
+                onClick={() => onRevealMember(link)}
+              >
+                {sourceTask?.text ?? link.source} →{' '}
+                {targetTask?.text ?? link.target}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+    </>
+  );
+}
