@@ -159,7 +159,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx; ' +
     'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx; ' +
     'SVAR-M30 — carries barGesturesDisabled down to Bars.jsx, unread; ' +
-    'SVAR-M32 — carries linkPresentation down to Bars.jsx, unread',
+    'SVAR-M32 — carries linkPresentation down to Bars.jsx, unread; ' +
+    'SVAR-M35 — renders <OffscreenLinkChips> inside .wx-area, after <Bars>',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
     'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +
@@ -186,7 +187,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop',
   'src/components/chart/Links.jsx':
     'SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store\'s OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop\'s `lineStyle` as a stroke-dasharray (never on the arrowhead); ' +
-    'SVAR-M34 — the router\'s reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar\'s own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row',
+    'SVAR-M34 — the router\'s reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar\'s own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; ' +
+    'SVAR-M36 — the same reverseBypassRoute\'s source-exit and target-entry runs (src/planner-router/route.js) are long enough for the corridor\'s corners there to get the router\'s full rounding radius, not half of it',
   'src/components/chart/Links.css':
     'SVAR-M32 — draws the router\'s `<path>` output (was a `<polyline>`), the dash patterns `linkPresentation` selects, and the arrowhead polygon\'s fill, matching the line\'s own colour/hover/critical/selected states',
   'src/themes/Willow.css':
@@ -256,6 +258,9 @@ const PROJECT_ADDED = [
 	'src/components/chart/chartDateProjection.js',
 	// SVAR-M32: the deterministic link router.
 	'src/planner-router/',
+	// SVAR-M35: the offscreen link partner chip.
+	'src/components/chart/OffscreenLinkChips.jsx',
+	'src/components/chart/OffscreenLinkChips.css',
 ];
 
 /**

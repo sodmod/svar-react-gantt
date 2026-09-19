@@ -221,11 +221,23 @@ function reverseBypassRoute({
       ? rowBottom
       : rowBottom - 1;
 
+  // SVAR-M36 (visual-review correction: the corner where this corridor
+  // turns to exit the source bar, and the one where it turns to enter the
+  // target bar, both sit right next to a bar — exactly where a smooth,
+  // full-radius curve reads best. `clearance` (the minimum gap off a bar)
+  // is shorter than `2 * radius`, so a corner built on a `clearance`-long
+  // run could only ever curve at HALF the token's own radius (D-166 §I:
+  // "clamped to half of whichever adjacent segment is shorter" — correct
+  // rounding of a short run, but the run itself was shorter than it needed
+  // to be). `entryRun` is the longer of the two, so both corners get the
+  // FULL `radius` whenever there is room for it, matching the corridor's
+  // own already-smooth corners instead of reading tighter than them.
+  const entryRun = Math.max(tokens.clearance, tokens.radius * 2);
   const hx =
     Math.max(sx, targetRect.x + targetRect.w) +
-    tokens.clearance +
+    entryRun +
     channelOffset * tokens.channelStep;
-  const returnX = tx - tokens.clearance;
+  const returnX = tx - entryRun;
 
   return {
     routeClass: 'reverseBypass',

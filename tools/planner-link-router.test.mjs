@@ -119,6 +119,43 @@ test('reverse-time bypass: a successor that starts before the predecessor ends i
   assert.ok(box.x2 >= source.x + source.w);
 });
 
+test('SVAR-M36: the reverse-bypass corridor gives its source-exit and target-entry corners the FULL rounding radius, not half of it', () => {
+  const source = rect(200, 0, 100); // spans [200,300)
+  const target = rect(50, ROW_HEIGHT * 4, 100); // far enough below for a tall, unconstrained vertical run
+  const route = routeLink({
+    sourceRect: source,
+    targetRect: target,
+    rowHeight: ROW_HEIGHT,
+  });
+  assert.equal(route.routeClass, 'reverseBypass');
+
+  const [p0, p1, , , p4, p5] = route.points;
+  // The source-exit run (p0 -> p1, horizontal) and the target-entry run
+  // (p4 -> p5, horizontal) are the two runs a full-radius corner needs at
+  // least `2 * radius` of. `clearance` (12) alone is shorter than that
+  // (`2 * radius` = 24) — this is exactly what made the target-entry
+  // corner read tighter than the corridor's own already-smooth corners.
+  const sourceExitRun = p1[0] - p0[0];
+  const targetEntryRun = p5[0] - p4[0];
+  assert.ok(
+    sourceExitRun >= 2 * LINK_TOKENS.radius,
+    `source-exit run (${sourceExitRun}) must be at least 2*radius so its corner is not clamped below the full radius`,
+  );
+  assert.ok(
+    targetEntryRun >= 2 * LINK_TOKENS.radius,
+    `target-entry run (${targetEntryRun}) must be at least 2*radius so its corner is not clamped below the full radius`,
+  );
+});
+
+test('negative control: a clearance-only entry run (12px) would clamp the target-entry corner to HALF the radius token', () => {
+  const entryRun = LINK_TOKENS.clearance;
+  const halfRadiusCap = entryRun / 2;
+  assert.ok(
+    halfRadiusCap < LINK_TOKENS.radius,
+    'this control only proves something if a clearance-only run really would have capped the corner below the full radius (SVAR-M36 red-before)',
+  );
+});
+
 test('SVAR-M34: the reverse-bypass corridor runs exactly on the row separator, not merely outside the bar ("плохо реализовано.jpg", R1 correction)', () => {
   // Real product geometry (measured from a running build): a 48px row with
   // a 41px bar leaves ~3.5px of free margin on each side — far less than
