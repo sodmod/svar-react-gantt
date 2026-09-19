@@ -65,7 +65,10 @@ function rectOf(task) {
 function visualBandRect(rect, taskId) {
   if (!rect || typeof document === 'undefined') return rect;
   const el = document.querySelector(`.wx-bar[data-id='${setID(taskId)}']`);
-  if (!el || !el.classList.contains('wx-summary')) return rect;
+  if (!el) return rect;
+  // No class check here: `content: none` already answers "does this bar's
+  // own `::before` paint anything at all", which is the only question this
+  // needs asked — a leaf bar declares no such rule and reads `none` here.
   const before = getComputedStyle(el, '::before');
   if (before.content === 'none') return rect;
   const bottom = parseFloat(before.bottom);

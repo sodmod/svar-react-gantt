@@ -109,8 +109,9 @@ const OWNED_UPSTREAM_FILES = {
     '`test:planner` runs the pure unit tests of SVAR-M4 (annotation layout), ' +
     'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate), ' +
     'SVAR-M31 (the chart axis\' date <-> pixel projection), ' +
-    'SVAR-M32 (the deterministic link router) and ' +
-    'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp)',
+    'SVAR-M32 (the deterministic link router), ' +
+    'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp) and ' +
+    'SVAR-M37 (collapsed-group link aggregation)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -121,7 +122,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture; ' +
     'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else, and the bars wearing the resize cursor give it back on the render that withholds them (R2, B-1); ' +
     'SVAR-M32 — renders <Links> with the linkPresentation pass-through; ' +
-    'SVAR-M33 — Esc cancels a pending link-create draft: a keydown listener attached only while one is pending, calling the existing removeLinkMarker and nothing else',
+    'SVAR-M33 — Esc cancels a pending link-create draft: a keydown listener attached only while one is pending, calling the existing removeLinkMarker and nothing else; ' +
+    'SVAR-M37 — renders <AggregateLinks> right after <Links>, with the same onSelectLink/readonly/linkPresentation pass-through',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -261,6 +263,9 @@ const PROJECT_ADDED = [
 	// SVAR-M35: the offscreen link partner chip.
 	'src/components/chart/OffscreenLinkChips.jsx',
 	'src/components/chart/OffscreenLinkChips.css',
+	// SVAR-M37: collapsed-group link aggregation.
+	'src/components/chart/AggregateLinks.jsx',
+	'src/components/chart/AggregateLinks.css',
 ];
 
 /**
