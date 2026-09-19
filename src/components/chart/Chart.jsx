@@ -10,6 +10,7 @@ import {
 import CellGrid from './CellGrid.jsx';
 import TimelineLines from './annotations/TimelineLines.jsx';
 import Bars from './Bars.jsx';
+import OffscreenLinkChips from './OffscreenLinkChips.jsx';
 import { hotkeys } from '@svar-ui/grid-store';
 import { setID } from '@svar-ui/lib-dom';
 import storeContext from '../../context';
@@ -400,6 +401,10 @@ function Chart(props) {
           onDragPreview={onBarDragPreview}
           linkPresentation={linkPresentation}
         />
+
+        {/* SVAR-M35 (SVAR Production Planner): after Bars, so a chip paints
+            above every bar and link it names. */}
+        <OffscreenLinkChips />
       </div>
     </div>
   );

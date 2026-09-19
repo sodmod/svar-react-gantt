@@ -1,0 +1,37 @@
+.wx-offscreen-link-chip.wx-4kNpQzTa {
+  position: absolute;
+  z-index: 5;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  border-radius: 11px;
+  border: 1px solid var(--wx-gantt-link-color);
+  background-color: var(--wx-background);
+  color: var(--wx-gantt-link-color);
+  font: var(--wx-gantt-bar-font);
+  font-size: calc(var(--wx-font-size-sm) - 1px);
+  line-height: 1;
+  cursor: pointer;
+  pointer-events: all;
+}
+
+.wx-offscreen-link-chip.wx-4kNpQzTa:hover {
+  color: var(--wx-gantt-link-color-hovered);
+  border-color: var(--wx-gantt-link-color-hovered);
+}
+
+.wx-offscreen-link-chip-label.wx-4kNpQzTa {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.wx-offscreen-link-chip-arrow.wx-4kNpQzTa {
+  flex: none;
+  font-size: calc(var(--wx-font-size-sm) + 2px);
+}
