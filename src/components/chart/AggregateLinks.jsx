@@ -61,22 +61,38 @@ function rectOf(task) {
  * the connector lands on whatever stripe is really on screen, and a build
  * with no such override (a bare upstream theme, or a future pass that
  * changes the ribbon's own numbers) is followed exactly, not assumed.
+ *
+ * Reading it is split from applying it. The router runs inside a render-
+ * phase `useMemo`, and on the render that FIRST paints a given bar the
+ * `.wx-bar` element this needs does not exist yet — React renders every
+ * component before it commits any of their DOM, so a read taken here would
+ * see last commit's DOM, which on a first paint is no DOM at all. `bandOf`
+ * (below) stays a pure function of already-read data for exactly that
+ * reason: the actual `document.querySelector`/`getComputedStyle` calls live
+ * in a `useEffect`, which runs AFTER commit, so the bar is always there by
+ * the time it looks; that effect's result is state, so its one necessarily
+ * late correction is a normal extra render, not a permanent fallback.
  */
-function visualBandRect(rect, taskId) {
-  if (!rect || typeof document === 'undefined') return rect;
+function bandOf(rect, band) {
+  if (!rect || !band) return rect;
+  return { x: rect.x, w: rect.w, y: rect.y + rect.h - band.bottom - band.height, h: band.height };
+}
+
+function readVisualBand(taskId) {
+  if (typeof document === 'undefined') return null;
   const el = document.querySelector(`.wx-bar[data-id='${setID(taskId)}']`);
-  if (!el) return rect;
+  if (!el) return null;
   // No class check here: `content: none` already answers "does this bar's
   // own `::before` paint anything at all", which is the only question this
   // needs asked — a leaf bar declares no such rule and reads `none` here.
   const before = getComputedStyle(el, '::before');
-  if (before.content === 'none') return rect;
+  if (before.content === 'none') return null;
   const bottom = parseFloat(before.bottom);
   const height = parseFloat(before.height);
   if (!Number.isFinite(bottom) || !Number.isFinite(height) || height <= 0) {
-    return rect;
+    return null;
   }
-  return { x: rect.x, w: rect.w, y: rect.y + rect.h - bottom - height, h: height };
+  return { bottom, height };
 }
 
 export default function AggregateLinks({
@@ -105,6 +121,17 @@ export default function AggregateLinks({
     return map;
   }, [tasksCounter]);
 
+  const [bandInfo, setBandInfo] = useState(new Map());
+
+  useEffect(() => {
+    const next = new Map();
+    for (const id of taskRects.keys()) {
+      const band = readVisualBand(id);
+      if (band) next.set(id, band);
+    }
+    setBandInfo(next);
+  }, [taskRects]);
+
   const aggregates = useMemo(() => {
     if (!linksValue) return [];
     return buildAggregates(
@@ -131,8 +158,8 @@ export default function AggregateLinks({
     return aggregates.map((aggregate) => {
       const rawSourceRect = taskRects.get(aggregate.source);
       const rawTargetRect = taskRects.get(aggregate.target);
-      const sourceRect = visualBandRect(rawSourceRect, aggregate.source);
-      const targetRect = visualBandRect(rawTargetRect, aggregate.target);
+      const sourceRect = bandOf(rawSourceRect, bandInfo.get(aggregate.source));
+      const targetRect = bandOf(rawTargetRect, bandInfo.get(aggregate.target));
       const route = buildLink({
         sourceRect,
         targetRect,
@@ -145,7 +172,7 @@ export default function AggregateLinks({
       });
       return { aggregate, route, badgeAnchor: null };
     });
-  }, [aggregates, taskRects, cellHeight]);
+  }, [aggregates, taskRects, cellHeight, bandInfo]);
 
   const visibleRoutedAggregates = useMemo(() => {
     if (!xArea) return [];
