@@ -111,6 +111,23 @@ function bandOf(rect, band) {
  * the same hazard). An inline body gave a first statement of `const x = new
  * Map();`, which is three other things in this same bundle. One named call
  * is one statement, distinctive, and on one line in both builds.
+ *
+ * WHEN it runs matters as much as which phase it runs in, and that is the
+ * other half of R3-7's "intermittent". The effect below is keyed on
+ * `taskRects` and `area` TOGETHER: `taskRects` is the set of tasks that have
+ * geometry, but `area` is what decides which of them `Bars.jsx` has actually
+ * DRAWN, and this function can only measure a bar that exists. MEASURED: on
+ * mount the store's `area` is `{from: 0, start: 0, end: 0}` — zero rows — so
+ * the first commit renders no `.wx-bar` at all and this read finds nothing.
+ * `area` then gains its real height from the chart's own resize, the bars
+ * appear, and `_tasks` may or may not change again depending on what the
+ * project contains. Where it did, the band was re-read and the connector
+ * landed on the ribbon; where it did not, the band map stayed empty for the
+ * rest of the session and every aggregate route left from the container's
+ * full-height BOX centre — about 10px above the stripe, permanently, on that
+ * load. Two fixtures differing only in their row content disagreed about it,
+ * which is exactly what "sometimes it does not line up" looks like from
+ * outside ("нестыкуется.jpg").
  */
 function applyVisualBands(taskRects, setBandInfo) {
   const next = new Map();
@@ -238,7 +255,10 @@ export default function AggregateLinks({
    */
   useLayoutEffect(() => {
     applyVisualBands(taskRects, setBandInfo);
-  }, [taskRects, cellHeight]);
+    // `area` is what decides WHICH bars are currently rendered — `Bars.jsx`
+    // draws the vertically virtualized slice it describes — so it is a real
+    // dependency of a measurement taken off those bars, not a proxy for one.
+  }, [taskRects, cellHeight, area]);
 
   const aggregates = useMemo(() => {
     if (!linksValue) return [];
