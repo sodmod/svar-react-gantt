@@ -190,16 +190,31 @@ function reverseBypassRoute({
   const below = targetRect.y >= sourceRect.y;
 
   // The free strip near the TARGET row's own edge (top edge if the source is
-  // below it, bottom edge if the source is above), a few px inside the row
-  // band so it never touches the grid line or the bar itself. `rowHeight`
-  // (not the bar's own possibly-inset height) is what stays constant across
+  // below it, bottom edge if the source is above). `rowHeight` (not the
+  // bar's own possibly-inset height) is what stays constant across
   // Day/Week/Month scale modes, so this corridor does not jump when the
   // consumer changes timeline density.
   const rowCenter = targetRect.y + targetRect.h / 2;
   const rowTop = rowCenter - rowHeight / 2;
   const rowBottom = rowCenter + rowHeight / 2;
-  const gutterInset = Math.min(tokens.clearance / 2, rowHeight / 4);
-  const cy = below ? rowTop + gutterInset : rowBottom - gutterInset;
+
+  // SVAR-M34 (visual-review correction to D-166 §D, "плохо реализовано.jpg"):
+  // the gutter is measured from the TARGET BAR'S OWN edge, not assumed from
+  // `rowHeight` alone. A bar that nearly fills its row leaves less real
+  // free space than a fixed `rowHeight`-fraction inset would assume, and
+  // the old fraction could land the corridor INSIDE the bar's own vertical
+  // span, so the horizontal run visually passed behind the bar it was
+  // meant to go around. Measuring the actual margin keeps the corridor
+  // clear of the bar by at least 1px and, whenever the bar leaves room,
+  // pulls it in only as far as `clearance` prefers — as close to the real
+  // row-separator line as that room allows, which is what makes the run
+  // read as passing BETWEEN rows rather than through one.
+  const preferredGutter = tokens.clearance / 2;
+  const topMargin = Math.max(0, targetRect.y - rowTop);
+  const bottomMargin = Math.max(0, rowBottom - (targetRect.y + targetRect.h));
+  const cy = below
+    ? rowTop + Math.max(0, Math.min(preferredGutter, topMargin - 1))
+    : rowBottom - Math.max(0, Math.min(preferredGutter, bottomMargin - 1));
 
   const hx =
     Math.max(sx, targetRect.x + targetRect.w) +
