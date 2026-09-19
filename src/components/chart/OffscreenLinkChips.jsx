@@ -112,7 +112,7 @@ function Chip({ chip, basePosition, onReveal }) {
   );
 }
 
-export default function OffscreenLinkChips() {
+export default function OffscreenLinkChips({ onRevealPartner } = {}) {
   const api = useContext(storeContext);
   const [linksValue, linksCounter] = useStoreWithCounter(api, '_links');
   const [tasksValue, tasksCounter] = useStoreWithCounter(api, '_tasks');
@@ -194,8 +194,26 @@ export default function OffscreenLinkChips() {
     return Array.from(byKey.values());
   }, [linksCounter, taskById, xArea, area, cellHeight, vFrom, vTo]);
 
+  /*
+   * R2-5 (Pavel manual acceptance remediation): when the consumer supplies
+   * `onRevealPartner`, this hands the reveal to it ENTIRELY — no
+   * `scroll-chart` dispatched here at all, because the two must not both
+   * try to answer "where should the chart end up" for the same click. The
+   * `xArea`-based math below is kept only as the fallback for a consumer
+   * that supplies none (this component's own contract, unchanged), and it
+   * is the reveal reported clicking still left the partner offscreen: it
+   * treats `xArea.to - xArea.from` (the store's own canvas-space
+   * virtualization window, measurably WIDER than the chart's real DOM
+   * viewport — R1-5/R1-6's own finding, for the chip's POSITION rather than
+   * this) as if it were the real viewport width, so its computed `left`
+   * systematically under-scrolls by exactly that gap.
+   */
   const onReveal = useCallback(
     (chip) => {
+      if (onRevealPartner) {
+        onRevealPartner(chip.partnerTaskId);
+        return;
+      }
       const partner = taskById.get(chip.partnerTaskId);
       if (!partner || typeof partner.$x !== 'number' || !xArea) return;
       const viewportWidth = xArea.to - xArea.from;
@@ -205,7 +223,7 @@ export default function OffscreenLinkChips() {
           : partner.$x + partner.$w - viewportWidth + EDGE_INSET * 4;
       api.exec('scroll-chart', { left: Math.max(0, left), top: scrollTop });
     },
-    [taskById, xArea, api, scrollTop],
+    [onRevealPartner, taskById, xArea, api, scrollTop],
   );
 
   if (!chips.length || !xArea) return null;

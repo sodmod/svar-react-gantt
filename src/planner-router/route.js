@@ -236,10 +236,35 @@ function reverseBypassRoute({
   // FULL `radius` whenever there is room for it, matching the corridor's
   // own already-smooth corners instead of reading tighter than them.
   const entryRun = Math.max(tokens.clearance, tokens.radius * 2);
-  const hx =
-    Math.max(sx, targetRect.x + targetRect.w) +
-    entryRun +
-    channelOffset * tokens.channelStep;
+  /*
+   * R2-2/R2-8 (Pavel manual acceptance remediation, live findings): the
+   * swing-out point used to be `Math.max(sx, targetRect.x + targetRect.w)`
+   * — clearing the target's own FAR right edge before turning back, on the
+   * theory that the corridor needed to go "around" the target bar's whole
+   * width. Every geometry this router had actual test coverage for keeps
+   * `sx` the larger of the two (an ordinary bar is never wider than the
+   * gap that put it in reverse-bypass to begin with), so that theory was
+   * never actually exercised — until a collapsed GROUP's own summary bar
+   * became a real target: `AggregateLinks.jsx` routes to a representative
+   * whose rect can be hundreds of pixels wide (the group's own full date
+   * span), and clearing ITS far edge sent the corridor most of the way
+   * across the visible chart before it turned back, a detour with no
+   * relationship to where either bar actually is ("Неправильно проложенный
+   * маршрут.jpg", and a second, live-reported case literally captioned
+   * "какой должен быть путь" with an arrow at a fraction of that length).
+   *
+   * The corridor's own two horizontal runs (`[sx,hx]` at the source row,
+   * `[hx,returnX]` at the row BOUNDARY `cy`) never enter the target bar's
+   * own vertical span regardless of how far `hx` reaches — `cy` sits at
+   * the row's outer edge specifically so it clears the bar without having
+   * to out-run its width (SVAR-M34's own finding, reused here, not
+   * re-derived). Nothing here needed the target's far edge at all: `hx`
+   * only ever has to clear the SOURCE's own bar, which is what it does
+   * now. A wide target's row-boundary run simply travels alongside its own
+   * top or bottom edge for however much of its width the corridor's path
+   * crosses — visually hugging the bar it used to swing wide around.
+   */
+  const hx = sx + entryRun + channelOffset * tokens.channelStep;
   const returnX = tx - entryRun;
 
   return {

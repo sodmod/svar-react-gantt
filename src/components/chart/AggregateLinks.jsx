@@ -342,6 +342,37 @@ export default function AggregateLinks({
     };
   }, [openAggregateId]);
 
+  /*
+   * R2-7 (Pavel manual acceptance remediation, mid-round finding): the same
+   * click-outside-cancels contract `Links.jsx` already gives a normal
+   * selected link's delete affordance, for the one aggregate shape that IS
+   * a normal link underneath (`count === 1`, R1-10's own solo-select).
+   * Reported live: clicking empty canvas did nothing to a collapsed-group
+   * aggregate's delete button, because nothing here ever called
+   * `onSelectLink(null)` for it — `Links.jsx`'s own listener only knows
+   * about ITS OWN selected-line ref, never this component's.
+   *
+   * No exclusion check is needed here (unlike `Links.jsx`'s classList
+   * check): both the line's own `onClick` and the delete button's `onClick`
+   * below call `event.stopPropagation()` before this component does
+   * anything else, so a click on either never reaches `document` at all —
+   * every click this handler ever sees already IS "outside" by
+   * construction.
+   */
+  useEffect(() => {
+    if (readonly || !selectedLink) return;
+    const soloSelected = aggregates.some(
+      (aggregate) =>
+        aggregate.count === 1 && aggregate.memberLinkIds[0] === selectedLink.id,
+    );
+    if (!soloSelected) return;
+    const handler = () => onSelectLink(null);
+    document.addEventListener('click', handler);
+    return () => {
+      document.removeEventListener('click', handler);
+    };
+  }, [readonly, selectedLink, aggregates, onSelectLink]);
+
   // D-166 §K: the badge itself is shown only when there is more than one
   // hidden link to count — a single hidden link still gets its own aggregate
   // line (and, via the line's own onClick below, its own popover), just no
@@ -388,9 +419,23 @@ export default function AggregateLinks({
                  * straight away, D-166 §K's canonical identity is never
                  * synthetic here), not the popover a real aggregate (more
                  * than one hidden link) still needs.
+                 *
+                 * R2-7 (Pavel manual acceptance remediation, mid-round
+                 * finding): clicking the SAME already-selected line a
+                 * second time now deselects it, matching the toggle the
+                 * `count > 1` branch right below already gives its own
+                 * popover — one more way out of the delete-affordance
+                 * state, reported live as missing alongside Escape and
+                 * click-outside (both fixed above).
                  */
                 if (aggregate.count === 1) {
-                  if (!readonly) onSelectLink(aggregate.memberLinkIds[0]);
+                  if (!readonly) {
+                    onSelectLink(
+                      selectedLink?.id === aggregate.memberLinkIds[0]
+                        ? null
+                        : aggregate.memberLinkIds[0],
+                    );
+                  }
                   return;
                 }
                 setOpenAggregateId((current) =>

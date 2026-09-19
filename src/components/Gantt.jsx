@@ -318,6 +318,24 @@ const Gantt = forwardRef(function Gantt(
     // default: without it every link draws solid with its arrowhead, byte
     // for byte as before.
     linkPresentation = null,
+    /*
+     * SVAR-M35 R2-5 (SVAR Production Planner, Pavel manual acceptance
+     * remediation): `(taskId: string) => void`, called instead of the
+     * offscreen chip's own internal scroll math when the consumer supplies
+     * one. The chip's own math used `xArea` — the store's canvas-space
+     * virtualization window, measurably WIDER than the chart's real DOM
+     * viewport (the exact gap R1-5/R1-6 already found and fixed for the
+     * chip's own POSITION) — as if it were the real viewport's width, so a
+     * click could scroll and still leave the partner short of actually
+     * visible. The consuming product already owns a reveal policy for
+     * exactly this question (a real `getBoundingClientRect`, a settle loop,
+     * D-165's own accepted contract) for row selection; this is that same
+     * question asked from inside the renderer, so it is handed to the same
+     * owner rather than growing a second, narrower answer to it here.
+     * `null` by default: without one, the chip keeps its own internal
+     * `scroll-chart` math, byte for byte as before — this seam is additive.
+     */
+    onRevealPartner = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -694,6 +712,7 @@ const Gantt = forwardRef(function Gantt(
           gridMinWidth={gridMinWidth}
           onGridWidthLimit={onGridWidthLimit}
           linkPresentation={linkPresentation}
+          onRevealPartner={onRevealPartner}
           readonly={readonly}
           barGesturesDisabled={barGesturesDisabled}
           onTableAPIChange={setTableAPI}

@@ -12,19 +12,42 @@
  */
 
 /**
+ * R2-4 (Pavel manual acceptance remediation): the width this module always
+ * holds clear along `viewport`'s own RIGHT edge, on top of the ordinary
+ * `margin` — a real vertical scrollbar for whatever ancestor scrolls the
+ * chart ("Все еще обрезает чипсину.jpg"). A CLASSIC scrollbar reserves its
+ * own layout space no element's `getBoundingClientRect()` includes (the
+ * element simply measures narrower, invisibly to a naive read of its own
+ * rect); an OVERLAY one reserves none at all but still PAINTS on top of
+ * whatever is underneath it, which no DOM geometry API exposes either — a
+ * scrollbar that renders without ever appearing in any element's box model
+ * cannot be measured away by reading rects more carefully, only planned
+ * around. `useScreenViewportCorrection.js` still does the real-screen
+ * correction pass this module always needed (R1-6); this is the one
+ * additional fact neither that pass nor a wider `margin` on every edge can
+ * recover, because it is not a measurement gap, it is a measurement blind
+ * spot — so it is a constant, not a reading.
+ */
+export const SCROLLBAR_GUTTER_PX = 16;
+
+/**
  * How far `rect` would need to move, in screen pixels, to sit fully inside
  * `viewport` with at least `margin` clearance on every side it would
- * otherwise cross. `0` on any axis `rect` already clears.
+ * otherwise cross, and at least `margin + rightGutter` clear of the
+ * viewport's own right edge specifically (R2-4: `rightGutter` is where a
+ * vertical scrollbar the viewport's own geometry cannot see may still
+ * paint). `0` on any axis `rect` already clears.
  *
  * @param {{left:number, top:number, right:number, bottom:number}} rect
  * @param {{left:number, top:number, right:number, bottom:number}} viewport
  * @param {number} margin
+ * @param {number} rightGutter
  * @returns {{dx:number, dy:number}}
  */
-export function clampDelta(rect, viewport, margin = 8) {
+export function clampDelta(rect, viewport, margin = 8, rightGutter = 0) {
   let dx = 0;
-  if (rect.right > viewport.right - margin) {
-    dx = viewport.right - margin - rect.right;
+  if (rect.right > viewport.right - margin - rightGutter) {
+    dx = viewport.right - margin - rightGutter - rect.right;
   }
   if (rect.left + dx < viewport.left + margin) {
     dx = viewport.left + margin - rect.left;
@@ -56,6 +79,7 @@ export function clampDelta(rect, viewport, margin = 8) {
 export function clampChipRect(anchor, size, viewport, opts = {}) {
   const gap = opts.gap ?? 7;
   const margin = opts.margin ?? 8;
+  const rightGutter = opts.rightGutter ?? SCROLLBAR_GUTTER_PX;
 
   const above = anchor.y - gap - size.height;
   const fitsAbove = above >= viewport.top + margin;
@@ -65,7 +89,7 @@ export function clampChipRect(anchor, size, viewport, opts = {}) {
   // horizontal clamp below may still move it off that centring.
   const left = anchor.x - size.width / 2;
   const rect = { left, top, right: left + size.width, bottom: top + size.height };
-  const { dx } = clampDelta(rect, viewport, margin);
+  const { dx } = clampDelta(rect, viewport, margin, rightGutter);
   return { left: left + dx, top };
 }
 
@@ -84,11 +108,12 @@ export function clampChipRect(anchor, size, viewport, opts = {}) {
 export function clampPopoverRect(anchor, size, viewport, opts = {}) {
   const gap = opts.gap ?? 6;
   const margin = opts.margin ?? 8;
+  const rightGutter = opts.rightGutter ?? SCROLLBAR_GUTTER_PX;
 
   const fitsBelow = anchor.y + gap + size.height <= viewport.bottom - margin;
   const top = fitsBelow ? anchor.y + gap : anchor.y - gap - size.height;
 
-  const fitsRight = anchor.x + size.width <= viewport.right - margin;
+  const fitsRight = anchor.x + size.width <= viewport.right - margin - rightGutter;
   const left = fitsRight ? anchor.x : anchor.x - size.width;
 
   const rect = {
@@ -97,6 +122,6 @@ export function clampPopoverRect(anchor, size, viewport, opts = {}) {
     right: left + size.width,
     bottom: top + size.height,
   };
-  const { dx, dy } = clampDelta(rect, viewport, margin);
+  const { dx, dy } = clampDelta(rect, viewport, margin, rightGutter);
   return { left: left + dx, top: top + dy };
 }

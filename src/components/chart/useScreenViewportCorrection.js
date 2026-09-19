@@ -1,5 +1,8 @@
 import { useLayoutEffect, useState } from 'react';
-import { clampDelta } from '../../planner-router/overlayViewport.js';
+import {
+  clampDelta,
+  SCROLLBAR_GUTTER_PX,
+} from '../../planner-router/overlayViewport.js';
 
 /*
  * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M38).
@@ -33,9 +36,22 @@ export function useScreenViewportCorrection(ref, basePosition, deps) {
     if (!viewportEl) return;
     const rect = el.getBoundingClientRect();
     const v = viewportEl.getBoundingClientRect();
+    /*
+     * R2-4 (Pavel manual acceptance remediation): this second pass measures
+     * `.wx-chart`'s own real screen rect, which is correct for every axis
+     * it can see — but a vertical scrollbar belonging to an ANCESTOR that
+     * scrolls the chart (the grid+chart pane the chart itself is inside)
+     * never appears in `.wx-chart`'s own box model, classic or overlay
+     * alike (`overlayViewport.js`'s own note on `SCROLLBAR_GUTTER_PX`).
+     * Without this, a real re-measurement here would pull a chip the
+     * canvas-space pass already kept clear of that scrollbar back toward
+     * the true edge, undoing the one gutter neither pass can measure away.
+     */
     const next = clampDelta(
       { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
       { left: v.left, top: v.top, right: v.right, bottom: v.bottom },
+      8,
+      SCROLLBAR_GUTTER_PX,
     );
     setDelta((current) =>
       current.dx === next.dx && current.dy === next.dy ? current : next,

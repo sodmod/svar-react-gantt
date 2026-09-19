@@ -119,6 +119,41 @@ test('reverse-time bypass: a successor that starts before the predecessor ends i
   assert.ok(box.x2 >= source.x + source.w);
 });
 
+test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source does not send the corridor past the target\'s own far edge (a collapsed group\'s summary bar, "Неправильно проложенный маршрут.jpg")', () => {
+  // A collapsed group's own representative rect: hundreds of pixels wide,
+  // starting at the chart's own left edge — the source sits well inside
+  // its horizontal span, exactly AggregateLinks.jsx's own real geometry.
+  const source = rect(1350, 500, 30);
+  const target = rect(0, 0, 1900, 30);
+  const route = routeLink({ sourceRect: source, targetRect: target, rowHeight: 30 });
+  assert.equal(route.routeClass, 'reverseBypass');
+
+  const entryRun = Math.max(LINK_TOKENS.clearance, LINK_TOKENS.radius * 2);
+  const sx = source.x + source.w;
+  const hx = route.points[1][0];
+  assert.ok(
+    hx <= sx + entryRun + 0.5,
+    `the swing-out point (hx=${hx}) must clear only the SOURCE's own bar (sx=${sx} + entryRun=${entryRun}), not the target's far edge (${target.x + target.w})`,
+  );
+  const box = boundingBox(route.points);
+  assert.ok(
+    box.x2 < target.x + target.w,
+    `the route's own bounding box (x2=${box.x2}) must not reach the target's far edge (${target.x + target.w}) merely because the target bar is wide`,
+  );
+});
+
+test('negative control: clearing the target\'s far edge (the retired formula) really did send the corridor hundreds of px past where it needed to turn', () => {
+  const source = rect(1350, 500, 30);
+  const target = rect(0, 0, 1900, 30);
+  const entryRun = Math.max(LINK_TOKENS.clearance, LINK_TOKENS.radius * 2);
+  const sx = source.x + source.w;
+  const oldHx = Math.max(sx, target.x + target.w) + entryRun;
+  assert.ok(
+    oldHx > sx + entryRun + 400,
+    'this control only proves something if the retired formula really did swing hundreds of px further out than the source alone needs',
+  );
+});
+
 test('SVAR-M36: the reverse-bypass corridor gives its source-exit and target-entry corners the FULL rounding radius, not half of it', () => {
   const source = rect(200, 0, 100); // spans [200,300)
   const target = rect(50, ROW_HEIGHT * 4, 100); // far enough below for a tall, unconstrained vertical run

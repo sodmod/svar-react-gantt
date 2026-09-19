@@ -54,6 +54,9 @@ function Chart(props) {
     // SVAR-M32 (SVAR Production Planner): pass-through to Bars.jsx, which
     // renders <Links> — see Gantt.jsx.
     linkPresentation,
+    // SVAR-M35 R2-5 (SVAR Production Planner): pass-through to
+    // OffscreenLinkChips, which is the only consumer — see Gantt.jsx.
+    onRevealPartner,
   } = props;
 
   const api = useContext(storeContext);
@@ -404,7 +407,7 @@ function Chart(props) {
 
         {/* SVAR-M35 (SVAR Production Planner): after Bars, so a chip paints
             above every bar and link it names. */}
-        <OffscreenLinkChips />
+        <OffscreenLinkChips onRevealPartner={onRevealPartner} />
       </div>
     </div>
   );

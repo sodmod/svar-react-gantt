@@ -13,6 +13,7 @@ import {
   clampDelta,
   clampChipRect,
   clampPopoverRect,
+  SCROLLBAR_GUTTER_PX,
 } from '../src/planner-router/overlayViewport.js';
 
 const VIEWPORT = { left: 0, top: 0, right: 1000, bottom: 600 };
@@ -69,6 +70,48 @@ test('NEGATIVE CONTROL / R1-5 NC-CHIP-CLAMP: a chip centred near the right edge 
   // produce DOES cross the edge, so the assertion above is not vacuous.
   const naiveLeft = anchor.x - size.width / 2;
   assert.ok(naiveLeft + size.width > VIEWPORT.right - 8);
+});
+
+/*
+ * R2-4 (Pavel manual acceptance remediation, "Все еще обрезает
+ * чипсину.jpg"): a chip near the right edge used to clamp flush against
+ * `margin` alone, which a real vertical scrollbar for whatever ancestor
+ * scrolls the chart can still paint over — classic or overlay, neither
+ * ever shows up in `.wx-chart`'s own measured rect (see
+ * `SCROLLBAR_GUTTER_PX`'s own comment). `clampChipRect`/`clampPopoverRect`
+ * now hold `SCROLLBAR_GUTTER_PX` clear of the right edge by DEFAULT, on
+ * top of the ordinary margin, without any caller having to ask for it.
+ */
+test('R2-4: clampChipRect defaults to holding SCROLLBAR_GUTTER_PX clear of the right edge, beyond the ordinary margin', () => {
+  const anchor = { x: 990, y: 300 };
+  const size = { width: 168, height: 22 };
+  const { left } = clampChipRect(anchor, size, VIEWPORT, { gap: 7, margin: 8 });
+  assert.ok(
+    left + size.width <= VIEWPORT.right - 8 - SCROLLBAR_GUTTER_PX,
+    `the chip's right edge (${left + size.width}) must clear the margin AND the scrollbar gutter (viewport.right=${VIEWPORT.right}, margin=8, gutter=${SCROLLBAR_GUTTER_PX})`,
+  );
+});
+
+test('negative control / R2-4: explicit rightGutter: 0 reproduces the OLD too-close-to-edge clamp', () => {
+  const anchor = { x: 990, y: 300 };
+  const size = { width: 168, height: 22 };
+  const { left } = clampChipRect(anchor, size, VIEWPORT, {
+    gap: 7,
+    margin: 8,
+    rightGutter: 0,
+  });
+  assert.ok(
+    left + size.width > VIEWPORT.right - 8 - SCROLLBAR_GUTTER_PX,
+    'this control only proves something if rightGutter: 0 really does land inside the reserved gutter, i.e. where R2-4 found the chip clipped',
+  );
+  assert.ok(left + size.width <= VIEWPORT.right - 8, 'margin alone is still respected');
+});
+
+test('R2-4: clampPopoverRect also defaults to holding the scrollbar gutter clear of the right edge', () => {
+  const anchor = { x: 995, y: 100 };
+  const size = { width: 220, height: 70 };
+  const { left } = clampPopoverRect(anchor, size, VIEWPORT, { gap: 6, margin: 8 });
+  assert.ok(left + size.width <= VIEWPORT.right - 8 - SCROLLBAR_GUTTER_PX);
 });
 
 test('clampPopoverRect: default placement is BELOW and to the RIGHT of the anchor (R1-6)', () => {

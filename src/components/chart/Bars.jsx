@@ -677,22 +677,41 @@ function Bars(props) {
   /*
    * SVAR-M33 (SVAR Production Planner, D-166 §O): `Esc` cancels a pending
    * link-create draft — the ONE new keyboard affordance this modification
-   * adds, and the only thing it adds. The listener is attached ONLY while a
-   * draft exists (`linkFrom` non-null): with none pending it does not
-   * listen at all, so a page that never starts a link gesture is byte-for-
-   * byte as before. It reads no canonical state, dispatches no command and
-   * mutates nothing but this component's own transient selection.
+   * adds. The listener is attached ONLY while a draft exists (`linkFrom`
+   * non-null) OR a link is selected for deletion (`selectedLinkId`
+   * non-null): with neither pending it does not listen at all, so a page
+   * that never starts a link gesture is byte-for-byte as before. It reads
+   * no canonical state, dispatches no command and mutates nothing but this
+   * component's own transient selection.
+   *
+   * R2-7 (Pavel manual acceptance remediation, mid-round finding): a
+   * SELECTED link (`selectedLinkId`, the state that shows a delete
+   * affordance — on the bar edge for a normal link, or SVAR-M37's own
+   * button for a count===1 collapsed-group aggregate) had NO keyboard
+   * cancel at all before this. Escape only ever knew about `linkFrom`, a
+   * completely different piece of transient state (an in-progress link
+   * CREATE gesture), so a selected link could be dismissed by clicking
+   * empty canvas (Links.jsx's own click-outside listener) but never by
+   * Escape — reported live, reproduced directly: a collapsed-group
+   * aggregate's solo-selected delete button stayed on screen through Escape
+   * and had no working click-outside path of its own either (see
+   * AggregateLinks.jsx). One Escape press now clears whichever of the two
+   * is actually pending; each clear is itself a no-op when its own state is
+   * already null, so a page with only one of the two active is unaffected
+   * by the other's clear.
    */
   useEffect(() => {
-    if (!linkFrom) return;
+    if (!linkFrom && !selectedLinkId) return;
     const onKeyDown = (event) => {
-      if (event.key === 'Escape') removeLinkMarker();
+      if (event.key !== 'Escape') return;
+      removeLinkMarker();
+      setSelectedLinkId(null);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [linkFrom, removeLinkMarker]);
+  }, [linkFrom, selectedLinkId, removeLinkMarker]);
 
   const onClick = useCallback(
     (e) => {
