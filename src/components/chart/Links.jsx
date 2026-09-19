@@ -187,6 +187,8 @@ export default function Links({
           dashClass +
           (criticalPath && link.critical ? ' wx-critical' : '') +
           (!readonly ? ' wx-line-selectable' : '');
+        // SVAR-M32: the router's own classification, exposed for tests/tools
+        // (never read by this renderer for anything behavioural).
         return (
           <g
             className={className}
