@@ -673,6 +673,26 @@ function Bars(props) {
     }
   }, [linkFrom]);
 
+  /*
+   * SVAR-M33 (SVAR Production Planner, D-166 §O): `Esc` cancels a pending
+   * link-create draft — the ONE new keyboard affordance this modification
+   * adds, and the only thing it adds. The listener is attached ONLY while a
+   * draft exists (`linkFrom` non-null): with none pending it does not
+   * listen at all, so a page that never starts a link gesture is byte-for-
+   * byte as before. It reads no canonical state, dispatches no command and
+   * mutates nothing but this component's own transient selection.
+   */
+  useEffect(() => {
+    if (!linkFrom) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') removeLinkMarker();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [linkFrom, removeLinkMarker]);
+
   const onClick = useCallback(
     (e) => {
       if (ignoreNextClickRef.current) {
