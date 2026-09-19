@@ -13,7 +13,7 @@
 .wx-line.wx-dkx3NwEn > .wx-line-draw {
   pointer-events: none;
   stroke: var(--wx-gantt-link-color);
-  stroke-width: var(--wx-gantt-link-stroke-width, 1.4px);
+  stroke-width: var(--wx-gantt-link-stroke-width, 2.1px);
   fill: none;
 }
 

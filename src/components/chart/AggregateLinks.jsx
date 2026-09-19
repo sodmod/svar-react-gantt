@@ -2,6 +2,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -9,7 +10,13 @@ import {
 import storeContext from '../../context';
 import { useStore, useStoreWithCounter } from '@svar-ui/lib-react';
 import { setID } from '@svar-ui/lib-dom';
-import { assignChannels, buildLink } from '../../planner-router/route.js';
+import {
+  assignChannels,
+  buildLink,
+  LINK_TOKENS,
+} from '../../planner-router/route.js';
+import { clampPopoverRect } from '../../planner-router/overlayViewport.js';
+import { useScreenViewportCorrection } from './useScreenViewportCorrection.js';
 import {
   buildAggregates,
   pickBadgeAnchor,
@@ -40,6 +47,10 @@ import './AggregateLinks.css';
 
 const DEFAULT_PRESENTATION = { lineStyle: 'solid', arrowhead: true };
 const BADGE_SIZE = 18;
+// R1-6: a generous guess for the ONE render before the popover's own real
+// size is measured (a title row plus a couple of link rows) — never the
+// value the clamp below actually trusts once `popoverSize` is set.
+const POPOVER_FALLBACK_SIZE = { width: 220, height: 70 };
 
 function rectOf(task) {
   return { x: task.$x, y: task.$y, w: task.$w, h: task.$h };
@@ -97,6 +108,7 @@ function readVisualBand(taskId) {
 
 export default function AggregateLinks({
   onSelectLink,
+  selectedLink,
   readonly,
   linkPresentation,
 }) {
@@ -112,6 +124,13 @@ export default function AggregateLinks({
   const [openAggregateId, setOpenAggregateId] = useState(null);
   const pendingRevealRef = useRef(null);
   const popoverRef = useRef(null);
+  // R1-6: the popover's real rendered size, measured after it (re)paints —
+  // its row count and task-name lengths make it genuinely variable, unlike
+  // the offscreen chip's own fixed size, so an arithmetic estimate would be
+  // guessing rather than measuring. `null` on the very render that first
+  // opens it; the clamp below falls back to a generous guess for that one
+  // frame, then snaps to the exact measured size.
+  const [popoverSize, setPopoverSize] = useState(null);
 
   const taskRects = useMemo(() => {
     const map = new Map();
@@ -174,10 +193,14 @@ export default function AggregateLinks({
     });
   }, [aggregates, taskRects, cellHeight, bandInfo]);
 
+  // R1-6 (Pavel manual acceptance remediation): pulled to component scope,
+  // not only the memo below, so the popover's own viewport clamp reads the
+  // SAME vertical bounds this aggregate's own visibility check already used.
+  const vFrom = area?.from ?? 0;
+  const vTo = area?.to ?? (area?.end ?? 0) * (cellHeight || 0);
+
   const visibleRoutedAggregates = useMemo(() => {
     if (!xArea) return [];
-    const vFrom = area?.from ?? 0;
-    const vTo = area?.to ?? (area?.end ?? 0) * (cellHeight || 0);
     return routedAggregates
       .filter(({ route }) => {
         const { bbox } = route;
@@ -226,6 +249,33 @@ export default function AggregateLinks({
       )
     : null;
 
+  // R1-6 (Pavel manual acceptance remediation): `basePosition` is the
+  // canvas-space placement `clampPopoverRect` computes from `xArea`/`area`
+  // — correct on the axis those virtualization bounds can see. Hooks must
+  // run unconditionally, so this is computed (and the correction hook
+  // called) whether or not a popover is actually open; when it is not,
+  // `popoverRef.current` is null and the hook is a no-op.
+  const popoverBasePosition = openAggregate
+    ? clampPopoverRect(
+        {
+          x: openAggregate.badgeAnchor[0],
+          y: openAggregate.badgeAnchor[1] + BADGE_SIZE / 2,
+        },
+        popoverSize ?? POPOVER_FALLBACK_SIZE,
+        {
+          left: xArea?.from ?? 0,
+          top: vFrom,
+          right: xArea?.to ?? 0,
+          bottom: vTo,
+        },
+      )
+    : { left: 0, top: 0 };
+  const popoverPosition = useScreenViewportCorrection(
+    popoverRef,
+    popoverBasePosition,
+    [popoverBasePosition.left, popoverBasePosition.top, popoverSize],
+  );
+
   const revealNow = useCallback(
     (taskId, linkId) => {
       const rect = taskRects.get(taskId);
@@ -267,6 +317,18 @@ export default function AggregateLinks({
     [api, getTask, revealNow],
   );
 
+  useLayoutEffect(() => {
+    if (!openAggregateId) {
+      setPopoverSize(null);
+      return;
+    }
+    const el = popoverRef.current;
+    if (!el) return;
+    setPopoverSize({ width: el.offsetWidth, height: el.offsetHeight });
+    // Re-measures whenever the open aggregate or its own member count
+    // changes the popover's content, not on every unrelated re-render.
+  }, [openAggregateId, openAggregate?.aggregate.count]);
+
   useEffect(() => {
     if (!openAggregateId) return;
     const handler = (event) => {
@@ -292,22 +354,45 @@ export default function AggregateLinks({
 
   return (
     <>
-      <svg className="wx-4kNpQzTa wx-aggregate-links">
+      <svg
+        className="wx-4kNpQzTa wx-aggregate-links"
+        style={{ '--wx-gantt-link-stroke-width': `${LINK_TOKENS.stroke}px` }}
+      >
         {visibleRoutedAggregates.map(({ aggregate, route }) => {
           const presentation = presentationOf(aggregate);
           const dashClass =
             presentation.lineStyle && presentation.lineStyle !== 'solid'
               ? ` wx-line-${presentation.lineStyle}`
               : '';
+          // R1-10: the same visual "this is the selected link" cue
+          // `Links.jsx` gives a normal line, for the one aggregate shape
+          // that IS a normal link underneath (`count === 1`).
+          const soloSelected =
+            aggregate.count === 1 &&
+            selectedLink?.id === aggregate.memberLinkIds[0];
           return (
             <g
-              className={`wx-4kNpQzTa wx-line wx-aggregate-line${dashClass}`}
+              className={`wx-4kNpQzTa wx-line wx-aggregate-line${dashClass}${soloSelected ? ' wx-aggregate-line-selected' : ''}`}
               key={aggregate.id}
               data-aggregate-id={setID(aggregate.id)}
               data-route-class={route.routeClass}
               data-aggregate-count={aggregate.count}
               onClick={(event) => {
                 event.stopPropagation();
+                /*
+                 * R1-10 (Pavel manual acceptance remediation): a `count === 1`
+                 * aggregate presents exactly one real `TaskLink` — the SAME
+                 * relationship a plain `Links.jsx` line represents when
+                 * neither endpoint is hidden. It gets the SAME click
+                 * behaviour a normal line already has (`onSelectLink`
+                 * straight away, D-166 §K's canonical identity is never
+                 * synthetic here), not the popover a real aggregate (more
+                 * than one hidden link) still needs.
+                 */
+                if (aggregate.count === 1) {
+                  if (!readonly) onSelectLink(aggregate.memberLinkIds[0]);
+                  return;
+                }
                 setOpenAggregateId((current) =>
                   current === aggregate.id ? null : aggregate.id,
                 );
@@ -360,14 +445,62 @@ export default function AggregateLinks({
           </button>
         );
       })}
+      {/*
+       * R1-10 (Pavel manual acceptance remediation): the normal delete
+       * affordance for a selected link lives on the TARGET task's own bar
+       * edge (`Bars.jsx`), which does not exist while that endpoint is
+       * hidden inside a collapsed group — exactly the gap Pavel found.
+       * `count === 1` is the one aggregate shape with a real canonical link
+       * to delete (never "delete the aggregate", D-166 §K — `count > 1`
+       * gets none of this, only the existing popover's own per-row reveal).
+       *
+       * This calls `delete-link` itself rather than piggybacking on
+       * `Bars.jsx`'s delegated click handler: reaching that handler needs a
+       * `data-id` `locateID` can resolve, and giving this button one carrying
+       * a LINK id broke a DIFFERENT consumer of that same default attribute
+       * — `Bars.jsx`'s own hover/edge-detection reads it back through
+       * `getTask`, which a link id does not resolve to, and crashed
+       * (measured directly: hovering this button before the click). No
+       * `data-id` here at all avoids both, and the `api` this component
+       * already holds for `scroll-chart`/`open-task` is the same store the
+       * bar-edge button's `delete-link` goes through.
+       */}
+      {visibleRoutedAggregates
+        .filter(
+          ({ aggregate }) =>
+            aggregate.count === 1 &&
+            selectedLink?.id === aggregate.memberLinkIds[0] &&
+            !readonly,
+        )
+        .map(({ aggregate, badgeAnchor }) => (
+          <button
+            type="button"
+            key={`delete:${aggregate.id}`}
+            className="wx-4kNpQzTa wx-aggregate-delete-button"
+            style={{
+              left: `${badgeAnchor[0] - BADGE_SIZE / 2}px`,
+              top: `${badgeAnchor[1] - BADGE_SIZE / 2}px`,
+              width: `${BADGE_SIZE}px`,
+              height: `${BADGE_SIZE}px`,
+            }}
+            title="Delete link"
+            onClick={(event) => {
+              event.stopPropagation();
+              api.exec('delete-link', { id: aggregate.memberLinkIds[0] });
+              onSelectLink(null);
+            }}
+          >
+            <i className="wxi-close wx-delete-button-icon"></i>
+          </button>
+        ))}
       {openAggregate ? (
         <div
           ref={popoverRef}
           className="wx-4kNpQzTa wx-aggregate-popover"
           data-aggregate-popover={setID(openAggregate.aggregate.id)}
           style={{
-            left: `${openAggregate.badgeAnchor[0]}px`,
-            top: `${openAggregate.badgeAnchor[1] + BADGE_SIZE}px`,
+            left: `${popoverPosition.left}px`,
+            top: `${popoverPosition.top}px`,
           }}
         >
           <div className="wx-4kNpQzTa wx-aggregate-popover-title">

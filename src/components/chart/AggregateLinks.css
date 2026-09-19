@@ -10,7 +10,7 @@
 .wx-aggregate-line.wx-4kNpQzTa > .wx-line-draw {
   pointer-events: none;
   stroke: var(--wx-gantt-link-color);
-  stroke-width: var(--wx-gantt-link-stroke-width, 1.4px);
+  stroke-width: var(--wx-gantt-link-stroke-width, 2.1px);
   fill: none;
 }
 
@@ -37,6 +37,36 @@
 
 .wx-aggregate-line.wx-4kNpQzTa:hover > .wx-line-arrow {
   fill: var(--wx-gantt-link-color-hovered);
+}
+
+/* R1-10: the same "this line is selected" cue Links.css gives a normal
+   line (`.wx-line-selected`), mirrored into this component's own scope —
+   only ever applied to a `count === 1` aggregate, which IS a normal link
+   underneath. */
+.wx-aggregate-line.wx-aggregate-line-selected.wx-4kNpQzTa > .wx-line-draw {
+  stroke: var(--wx-color-danger);
+}
+
+.wx-aggregate-line.wx-aggregate-line-selected.wx-4kNpQzTa > .wx-line-arrow {
+  fill: var(--wx-color-danger);
+}
+
+/* R1-10: the delete affordance for that same selected `count === 1` link,
+   since its target bar (where this normally lives, Bars.css's own
+   `.wx-delete-button`) does not exist while the endpoint stays collapsed. */
+.wx-aggregate-delete-button.wx-4kNpQzTa {
+  position: absolute;
+  z-index: 5;
+  border: none;
+  border-radius: 50%;
+  background-color: var(--wx-color-danger);
+  color: var(--wx-button-danger-font-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: all;
+  padding: 0;
 }
 
 .wx-aggregate-badge.wx-4kNpQzTa {

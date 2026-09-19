@@ -732,8 +732,18 @@ function Bars(props) {
             ...(segmentIndex !== null && { segmentIndex }),
           });
         }
+        // R1-7 (Pavel manual acceptance remediation): a pending link's own
+        // marker is removed only on an accepted reason (successful link
+        // completion above, or the delete-button/select-task branches this
+        // same click just took) — never on a click this handler could not
+        // even identify a `data-id` for. A `CleanPanSurface` drag starts on
+        // empty canvas by construction (`isInteractiveTarget` refuses a
+        // `.wx-bar`/`.wx-link` mousedown), so its release fires exactly this
+        // "click hit nothing" case here; that is a Pan pointerup, not a
+        // cancellation, and must leave `linkFrom` alone. Esc already has its
+        // own `removeLinkMarker()` call above, independent of this handler.
+        removeLinkMarker();
       }
-      removeLinkMarker();
     },
     [
       api,
@@ -889,6 +899,7 @@ function Bars(props) {
           above every bar. */}
       <AggregateLinks
         onSelectLink={onSelectLink}
+        selectedLink={selectedLink}
         readonly={readonly}
         linkPresentation={linkPresentation}
       />

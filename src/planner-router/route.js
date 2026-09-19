@@ -36,9 +36,12 @@ export const LINK_TOKENS = Object.freeze({
   radius: 12,
   minRun: 10,
   channelStep: 7,
-  stroke: 1.4,
-  arrowLength: 7,
-  arrowWidth: 6.8,
+  // R1-2/R1-3 (Pavel manual acceptance remediation): 1.5x the Phase 4.1C
+  // starting values (stroke 1.4 -> 2.1, arrow 7x6.8 -> 10.5x10.2).
+  // `link.hitArea` is untouched — no hit-testing regression was found.
+  stroke: 2.1,
+  arrowLength: 10.5,
+  arrowWidth: 10.2,
   hitArea: 10,
 });
 

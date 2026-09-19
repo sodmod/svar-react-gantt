@@ -43,14 +43,23 @@
   --wx-gantt-milestone-color: #ad44ab;
 
   --wx-gantt-select-color: #384047;
-  /* SVAR-M32 (SVAR Production Planner, D-166 §J): a dedicated dark-theme
-     link token, distinct from the light-theme one above. Kept clearly
-     dimmer than task-title text and short of white, so it reads as
-     secondary rather than competing with labels (Pavel's "нужно развести
-     по яркости названия и связи" reference). Exact hex is a visual-tuning
-     value (D-166 §I), not an architecture constant. */
-  --wx-gantt-link-color: #7d8493;
-  --wx-gantt-link-color-hovered: #a7acb8;
+  /* SVAR-M32 (SVAR Production Planner, D-166 §J), R1-4 (Pavel manual
+     acceptance remediation): a dedicated dark-theme link token, distinct
+     from the light-theme one above. R1-4 explicitly SUPERSEDES the
+     original "clearly dimmer than task-title text" wording with a new
+     requirement — approximately the SAME visual brightness as ordinary
+     task-name text drawn on the Gantt canvas (outside a bar, never the
+     white text set INSIDE a coloured bar). `var(--wx-color-font)` is that
+     exact comparison target: it is the core Willow token this same
+     renderer's own `src/web/index.css` already colours outside-bar task
+     labels with (`.svar-planner-task-bar[data-task-bar-placement='outside']
+     > .svar-planner-task-bar__label`), so reusing it here is consuming
+     the SAME stable token rather than a second, unrelated hardcoded gray.
+     `-hovered` is bumped to pure white so it still reads as emphasis over
+     a normal state this light — the old darker-than-white pair inverted
+     that relationship once normal moved this close to white itself. */
+  --wx-gantt-link-color: var(--wx-color-font);
+  --wx-gantt-link-color-hovered: #ffffff;
   --wx-gantt-link-critical-color: var(--wx-gantt-critical-color);
   --wx-gantt-link-critical-color-hovered: #b22e2e;
   --wx-gantt-link-marker-background: #384047;

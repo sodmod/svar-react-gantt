@@ -2,7 +2,11 @@ import { useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import storeContext from '../../context';
 import { useStore, useStoreWithCounter } from '@svar-ui/lib-react';
 import { setID } from '@svar-ui/lib-dom';
-import { assignChannels, buildLink } from '../../planner-router/route.js';
+import {
+  assignChannels,
+  buildLink,
+  LINK_TOKENS,
+} from '../../planner-router/route.js';
 import './Links.css';
 
 /*
@@ -175,7 +179,10 @@ export default function Links({
     : null;
 
   return (
-    <svg className="wx-dkx3NwEn wx-links">
+    <svg
+      className="wx-dkx3NwEn wx-links"
+      style={{ '--wx-gantt-link-stroke-width': `${LINK_TOKENS.stroke}px` }}
+    >
       {visibleRoutedLinks.map(({ link, route }) => {
         const presentation = presentationOf(link);
         const dashClass =

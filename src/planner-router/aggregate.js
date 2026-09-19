@@ -67,6 +67,16 @@ export function findVisibleRepresentative(taskId, getTask, visibleIds) {
  * fully visible link — D-166 §G already gives it its own channel and this
  * aggregation must never re-draw it a second time, so it is excluded here,
  * not merely left un-badged.
+ *
+ * A link whose two endpoints resolve to the SAME representative (R1-1: both
+ * real endpoints sit inside the one collapsed subtree the same visible row
+ * stands for) is excluded too, and for a different reason than the case
+ * above: there is no SECOND visible row for it to reach. Routing it back to
+ * the row it already started from would draw a synthetic loop around a
+ * single representative — not an aggregate of anything, since an aggregate
+ * is a stand-in for a relationship the collapse hides ONE side of. It is an
+ * internal relationship of content the person chose to hide, in full, and
+ * this presentation owes it nothing to show: no loop, no badge, no chip.
  */
 export function buildAggregates(links, getTask, visibleIds) {
   const groups = new Map();
@@ -83,6 +93,7 @@ export function buildAggregates(links, getTask, visibleIds) {
     );
     if (repSource === null || repTarget === null) continue;
     if (repSource === link.source && repTarget === link.target) continue;
+    if (repSource === repTarget) continue;
 
     const mode = link.mode ?? 'soft';
     const key = `${repSource}\u0000${repTarget}\u0000${mode}`;

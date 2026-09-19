@@ -1,7 +1,14 @@
+/* R1-5 (Pavel manual acceptance remediation): position (`top`/`left`) is now
+   fully resolved by `clampChipRect` in JS — no `transform: translateY(-50%)`
+   trick needed or wanted, since a transform-based centring would fight a
+   clamp that already computed the exact top-left corner. Background/border
+   reuse the SAME elevated-overlay treatment `.wx-aggregate-popover` already
+   established (border + shadow), rather than the flat single-border look
+   that read as "weak" against the chart background — a chip is stronger
+   than the link it names, per Pavel's explicit requirement, not quieter. */
 .wx-offscreen-link-chip.wx-4kNpQzTa {
   position: absolute;
   z-index: 5;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
   gap: 4px;
@@ -10,10 +17,12 @@
   box-sizing: border-box;
   border-radius: 11px;
   border: 1px solid var(--wx-gantt-link-color);
-  background-color: var(--wx-background);
-  color: var(--wx-gantt-link-color);
+  background-color: var(--wx-background-alt, var(--wx-background));
+  box-shadow: var(--wx-gantt-bar-shadow);
+  color: var(--wx-color-font);
   font: var(--wx-gantt-bar-font);
   font-size: calc(var(--wx-font-size-sm) - 1px);
+  font-weight: var(--wx-font-weight-md);
   line-height: 1;
   cursor: pointer;
   pointer-events: all;

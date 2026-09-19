@@ -21,7 +21,11 @@ import {
   collapsedAncestorsToOpen,
 } from '../src/planner-router/aggregate.js';
 
-/* A small tree: 0 (root) -> A -> [B, C], D (sibling leaf), E -> F -> G. */
+/*
+ * A small tree: 0 (root) -> A -> [B, C], D (sibling leaf), E -> F -> G,
+ * H -> I (a SECOND collapsed group, sibling of A, for R1-1 Case C: two
+ * different collapsed groups aggregating between their representatives).
+ */
 const TREE = {
   A: { id: 'A', parent: 0, open: false },
   B: { id: 'B', parent: 'A' },
@@ -30,6 +34,8 @@ const TREE = {
   E: { id: 'E', parent: 0, open: true },
   F: { id: 'F', parent: 'E', open: false },
   G: { id: 'G', parent: 'F' },
+  H: { id: 'H', parent: 0, open: false },
+  I: { id: 'I', parent: 'H' },
 };
 
 function getTask(id) {
@@ -124,6 +130,66 @@ test('buildAggregates: a link with a filter-hidden endpoint (no tree entry) is s
   const visible = new Set(['A', 'D']);
   const links = [{ id: 'l1', source: 'ghost', target: 'D', mode: 'soft' }];
   assert.deepEqual(buildAggregates(links, getTask, visible), []);
+});
+
+test('NEGATIVE CONTROL / R1-1 Case A: a link whose BOTH real endpoints are hidden inside the SAME collapsed representative is never drawn — no self-loop, no badge, no chip', () => {
+  const visible = new Set(['A', 'D']);
+  // B and C are both children of the one collapsed A: an internal
+  // relationship of content the person chose to hide, in full.
+  const links = [{ id: 'l1', source: 'B', target: 'C', mode: 'soft' }];
+  assert.deepEqual(
+    buildAggregates(links, getTask, visible),
+    [],
+    'both endpoints resolving to the same representative must produce no aggregate at all',
+  );
+});
+
+test('R1-1 Case B: one hidden child -> one visible external task still aggregates normally', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [{ id: 'l1', source: 'B', target: 'D', mode: 'soft' }];
+  const aggregates = buildAggregates(links, getTask, visible);
+  assert.equal(aggregates.length, 1);
+  assert.equal(aggregates[0].source, 'A');
+  assert.equal(aggregates[0].target, 'D');
+});
+
+test('R1-1 Case C: a hidden child of one collapsed group -> a hidden child of a DIFFERENT collapsed group aggregates between the two representatives', () => {
+  const visible = new Set(['A', 'H']);
+  const links = [{ id: 'l1', source: 'B', target: 'I', mode: 'soft' }];
+  const aggregates = buildAggregates(links, getTask, visible);
+  assert.equal(aggregates.length, 1);
+  assert.equal(aggregates[0].source, 'A');
+  assert.equal(aggregates[0].target, 'H');
+  assert.equal(aggregates[0].count, 1);
+});
+
+test('R1-11: an aggregate id is never shaped like a canonical UUID — the consuming app relies on this to refuse it as a TaskLinkId', () => {
+  // Phase 4.1C manual acceptance remediation, R1-11 audit: "no mutation API
+  // accepts an aggregate id as if it were a TaskLink id". The consuming
+  // app's own `parseTaskLinkId` (src/core/domain/ids.ts) enforces that at
+  // its own boundary by requiring a UUID — this proves the OTHER half of
+  // that guarantee, that this module never hands out anything a UUID
+  // pattern (`^[0-9a-f]{8}-...`) could match, so the two halves cannot
+  // silently stop agreeing.
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  const visible = new Set(['A', 'D']);
+  const links = [{ id: 'l1', source: 'B', target: 'D', mode: 'soft' }];
+  const [aggregate] = buildAggregates(links, getTask, visible);
+  assert.ok(aggregate.id.startsWith('aggregate:'));
+  assert.equal(uuidPattern.test(aggregate.id), false);
+});
+
+test('R1-1 Case D / E-2 firebreak: an endpoint hidden only by an active filter (no tree entry at all) is not folded into collapsed-group aggregation, even when the other side is a genuine collapsed group', () => {
+  const visible = new Set(['A', 'H']);
+  // 'ghost2' has no entry in TREE at all — a filtered-out task, never
+  // merely a collapsed one, per the E-2 firebreak this module leans on.
+  const links = [{ id: 'l1', source: 'B', target: 'ghost2', mode: 'soft' }];
+  assert.deepEqual(
+    buildAggregates(links, getTask, visible),
+    [],
+    'a filter-hidden representative (no tree entry) must never enter aggregation',
+  );
 });
 
 test('collapsedAncestorsToOpen: one collapsed ancestor -> just that one, in top-down order', () => {
