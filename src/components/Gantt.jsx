@@ -304,6 +304,20 @@ const Gantt = forwardRef(function Gantt(
      */
     gridMinWidth = 0,
     onGridWidthLimit = null,
+    // SVAR-M32 (SVAR Production Planner): new optional prop, purely
+    // additive. The presentation half of the existing link contract this
+    // package already documents in its public types (`lineStyle`,
+    // `arrowhead`): a plain function, called with the link's public
+    // identity `{ id, source, target, type }` and returning
+    // `{ lineStyle: 'solid'|'dashed'|'dotted', arrowhead: boolean }` or a
+    // falsy value for the default. This renderer does not know what
+    // `lineStyle` MEANS to the consumer (no `mode`, no `hard`/`soft`, no
+    // business semantics cross this seam) — it only maps the returned
+    // dictionary to a dash pattern on the line it was already about to
+    // draw, threaded down the same path as `taskTemplate`. `null` by
+    // default: without it every link draws solid with its arrowhead, byte
+    // for byte as before.
+    linkPresentation = null,
     init = null,
     autoScale = true,
     unscheduledTasks = false,
@@ -679,6 +693,7 @@ const Gantt = forwardRef(function Gantt(
           gridMaxWidth={gridMaxWidth}
           gridMinWidth={gridMinWidth}
           onGridWidthLimit={onGridWidthLimit}
+          linkPresentation={linkPresentation}
           readonly={readonly}
           barGesturesDisabled={barGesturesDisabled}
           onTableAPIChange={setTableAPI}

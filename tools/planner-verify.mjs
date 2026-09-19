@@ -107,8 +107,9 @@ const OWNED_UPSTREAM_FILES = {
   'package.json':
     '`prepare` builds the package: a git dependency has no publish step; ' +
     '`test:planner` runs the pure unit tests of SVAR-M4 (annotation layout), ' +
-    'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate) and ' +
-    'SVAR-M31 (the chart axis\' date <-> pixel projection)',
+    'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate), ' +
+    'SVAR-M31 (the chart axis\' date <-> pixel projection) and ' +
+    'SVAR-M32 (the deterministic link router)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -117,7 +118,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M2 — the drag-activation pixel threshold; ' +
     'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
     'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture; ' +
-    'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else, and the bars wearing the resize cursor give it back on the render that withholds them (R2, B-1)',
+    'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else, and the bars wearing the resize cursor give it back on the render that withholds them (R2, B-1); ' +
+    'SVAR-M32 — renders <Links> with the linkPresentation pass-through',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -130,7 +132,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M25 — new `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report, threaded through to Layout.jsx; ' +
     'SVAR-M26 — new `columnMaxWidth` prop, threaded through to Layout.jsx; ' +
     'SVAR-M30 — new `barGesturesDisabled` prop, threaded through to Layout.jsx; ' +
-    'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1)',
+    'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1); ' +
+    'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -144,7 +147,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M22 — hands the theme value down so the lattice can be redrawn when it changes; ' +
     'SVAR-M25 — owns the width limit this layout\'s own geometry allows (a different number once the chart has been hidden on purpose), reports it through `onGridWidthLimit`, and resolves the consumer\'s ceiling and floor against it for the splitter gesture; the floor is the one bound geometry may not narrow; ' +
     'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread; ' +
-    'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread',
+    'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread; ' +
+    'SVAR-M32 — passes `linkPresentation` through to the chart half only, unread',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through; ' +
@@ -152,7 +156,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M5 — carries onBarDragPreview down to Bars.jsx; ' +
     'SVAR-M12 — carries reserveTopScaleRow down to TimeScale.jsx; ' +
     'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx; ' +
-    'SVAR-M30 — carries barGesturesDisabled down to Bars.jsx, unread',
+    'SVAR-M30 — carries barGesturesDisabled down to Bars.jsx, unread; ' +
+    'SVAR-M32 — carries linkPresentation down to Bars.jsx, unread',
   'src/components/chart/TimeScale.jsx':
     'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
     'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +
@@ -175,7 +180,16 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M20 — the `columnMinWidth` prop; ' +
     'SVAR-M23 — `IHeaderCellConfig` and the header descriptor\'s `align`; ' +
     'SVAR-M25 — the `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report; ' +
-    'SVAR-M26 — the `columnMaxWidth` prop',
+    'SVAR-M26 — the `columnMaxWidth` prop; ' +
+    'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop',
+  'src/components/chart/Links.jsx':
+    'SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store\'s OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop\'s `lineStyle` as a stroke-dasharray (never on the arrowhead)',
+  'src/components/chart/Links.css':
+    'SVAR-M32 — draws the router\'s `<path>` output (was a `<polyline>`), the dash patterns `linkPresentation` selects, and the arrowhead polygon\'s fill, matching the line\'s own colour/hover/critical/selected states',
+  'src/themes/Willow.css':
+    'SVAR-M32 — a dedicated light-theme `--wx-gantt-link-color`, distinct from the dark theme\'s (D-166 §J): the pale grey shared between both themes read as barely visible against a light background',
+  'src/themes/WillowDark.css':
+    'SVAR-M32 — a dedicated dark-theme `--wx-gantt-link-color`, distinct from the light theme\'s and kept clearly dimmer than task-title text (D-166 §J)',
   'src/components/Resizer.jsx':
     'SVAR-M25 — the splitter gesture answers to the consumer\'s own range: `RESIZER_RIGHT_THRESHOLD` and `RESIZER_SIZE` become named exports so the layout can read the two numbers instead of spelling them again, `maxWidth`/`minWidth` clamp the ONE position the store write, the display-mode branch and the drawn splitter all read, and a consumer that declares a range also takes over which side is shown, so a drag can no longer collapse either half into a state where this component refuses the resize cursor and pointerdown',
   'src/components/chart/CellGrid.jsx':
@@ -237,6 +251,8 @@ const PROJECT_ADDED = [
 	'src/components/chart/summaryDragGeometry.js',
 	// SVAR-M31: the pure owner of the chart axis' date <-> pixel projection.
 	'src/components/chart/chartDateProjection.js',
+	// SVAR-M32: the deterministic link router.
+	'src/planner-router/',
 ];
 
 /**

@@ -144,6 +144,27 @@ export interface IScaleCellContextMenu {
   unit: string;
 }
 
+// SVAR-M32 (SVAR Production Planner): the public identity of a link this
+// renderer already routes and draws — never its business fields. The
+// consumer's own `mode`/`hard`/`soft`/`informational` vocabulary never
+// crosses this seam; only `type` (the store's own FS/SS/FF/SF-shaped
+// four-letter code) does.
+export interface ILinkIdentity {
+  id: string | number;
+  source: string | number;
+  target: string | number;
+  type: string;
+}
+
+// SVAR-M32: what `linkPresentation` may answer for one link. `lineStyle`
+// selects a stroke-dasharray this stylesheet owns; the arrowhead is always a
+// separate filled shape and is never dashed by a `'dashed'`/`'dotted'`
+// choice here. `arrowhead: false` omits the arrow entirely.
+export interface ILinkPresentation {
+  lineStyle?: 'solid' | 'dashed' | 'dotted';
+  arrowhead?: boolean;
+}
+
 // SVAR-M23 (SVAR Production Planner): a header descriptor may align ITS OWN
 // text, independently of the column's `align`, which is one value for the
 // header and the cells under it. A column whose cells read left — a name
@@ -261,6 +282,13 @@ export declare const Gantt: ForwardRefExoticComponent<
     // Reported whenever it changes, so a consumer can compose it with its own
     // ceiling and declare the result above.
     onGridWidthLimit?: (widthPx: number) => void;
+    // SVAR-M32 (SVAR Production Planner): the presentation half of the
+    // existing link contract — called per link with its public identity
+    // (`ILinkIdentity`), answering how to draw the route this renderer
+    // already computed (`ILinkPresentation`). Falsy/omitted per link, or the
+    // prop itself omitted, draws every link solid with its arrowhead, byte
+    // for byte as before.
+    linkPresentation?: (link: ILinkIdentity) => ILinkPresentation | undefined;
     init?: (api: IApi) => void;
   } & IConfig &
     GanttActions<TMethodsConfig> &

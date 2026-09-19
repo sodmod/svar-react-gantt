@@ -50,6 +50,9 @@ function Chart(props) {
     // is given, so both halves ask the split owner the same question.
     gridActionSlotMinHeight,
     onBarDragPreview,
+    // SVAR-M32 (SVAR Production Planner): pass-through to Bars.jsx, which
+    // renders <Links> — see Gantt.jsx.
+    linkPresentation,
   } = props;
 
   const api = useContext(storeContext);
@@ -395,6 +398,7 @@ function Chart(props) {
           barGesturesDisabled={barGesturesDisabled}
           taskTemplate={taskTemplate}
           onDragPreview={onBarDragPreview}
+          linkPresentation={linkPresentation}
         />
       </div>
     </div>

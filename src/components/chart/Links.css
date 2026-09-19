@@ -13,23 +13,50 @@
 .wx-line.wx-dkx3NwEn > .wx-line-draw {
   pointer-events: none;
   stroke: var(--wx-gantt-link-color);
-  stroke-width: 2;
-  fill: transparent;
+  stroke-width: var(--wx-gantt-link-stroke-width, 1.4px);
+  fill: none;
+}
+
+/* SVAR-M32 (SVAR Production Planner): mode presentation (D-166 §J,
+   TECH_SPEC.md §6.10.1 / §6.10) — the consumer maps its own `mode` to
+   `lineStyle` through the `linkPresentation` prop; this stylesheet only
+   owns the dash PATTERN each named style draws. The arrowhead is a
+   separate filled `<polygon>` (below) and is never affected by these
+   dash patterns, whatever style its own line uses. */
+.wx-line.wx-line-dashed.wx-dkx3NwEn > .wx-line-draw {
+  stroke-dasharray: 6 4;
+}
+
+.wx-line.wx-line-dotted.wx-dkx3NwEn > .wx-line-draw {
+  stroke-dasharray: 1.5 3;
 }
 
 .wx-line.wx-dkx3NwEn > .wx-line-hitbox {
   pointer-events: stroke;
   stroke: transparent;
-  stroke-width: 20;
-  fill: transparent;
+  stroke-width: var(--wx-gantt-link-hit-area, 10px);
+  fill: none;
+}
+
+.wx-line.wx-dkx3NwEn > .wx-line-arrow {
+  pointer-events: none;
+  fill: var(--wx-gantt-link-color);
 }
 
 .wx-line-selectable.wx-dkx3NwEn:hover > .wx-line-draw {
   stroke: var(--wx-gantt-link-color-hovered);
 }
 
+.wx-line-selectable.wx-dkx3NwEn:hover > .wx-line-arrow {
+  fill: var(--wx-gantt-link-color-hovered);
+}
+
 .wx-line-selectable.wx-critical.wx-dkx3NwEn:hover > .wx-line-draw {
   stroke: var(--wx-gantt-link-critical-color-hovered);
+}
+
+.wx-line-selectable.wx-critical.wx-dkx3NwEn:hover > .wx-line-arrow {
+  fill: var(--wx-gantt-link-critical-color-hovered);
 }
 
 .wx-line-selectable.wx-dkx3NwEn {
@@ -40,6 +67,14 @@
   stroke: var(--wx-color-danger);
 }
 
+.wx-line.wx-line-selected.wx-dkx3NwEn > .wx-line-arrow {
+  fill: var(--wx-color-danger);
+}
+
 .wx-critical.wx-dkx3NwEn > .wx-line-draw {
   stroke: var(--wx-gantt-link-critical-color);
+}
+
+.wx-critical.wx-dkx3NwEn > .wx-line-arrow {
+  fill: var(--wx-gantt-link-critical-color);
 }

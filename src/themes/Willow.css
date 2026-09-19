@@ -32,8 +32,15 @@
   --wx-gantt-milestone-color: #ad44ab;
 
   --wx-gantt-select-color: #eaedf5;
-  --wx-gantt-link-color: #9fa1ae;
-  --wx-gantt-link-color-hovered: #6e777d;
+  /* SVAR-M32 (SVAR Production Planner, D-166 §J): a dedicated, clearly
+     readable light-theme link token — the pale #9fa1ae this used to share
+     with the dark theme read as barely visible against a light background
+     (Pavel's "Линии связей плохо читаются" reference). Near-black, but kept
+     visually secondary to task names/selection/Today by staying a step off
+     true black. Exact hex is a visual-tuning value (D-166 §I), not an
+     architecture constant. */
+  --wx-gantt-link-color: #3d4451;
+  --wx-gantt-link-color-hovered: #23272e;
   --wx-gantt-link-critical-color: var(--wx-gantt-critical-color);
   --wx-gantt-link-critical-color-hovered: #b22e2e;
   --wx-gantt-link-marker-background: #eaedf5;

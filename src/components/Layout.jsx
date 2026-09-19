@@ -70,6 +70,9 @@ function Layout(props) {
     gridMaxWidth,
     gridMinWidth,
     onGridWidthLimit,
+    // SVAR-M32 (SVAR Production Planner): `linkPresentation` — see
+    // `Gantt.jsx`. Plain pass-through to the chart half, unread here.
+    linkPresentation,
     readonly,
     // SVAR-M30 (SVAR Production Planner): pass-through to the chart half,
     // unread here. The grid half is deliberately NOT given it: what it
@@ -515,6 +518,7 @@ function Layout(props) {
                 reserveTopScaleRow={reserveTopScaleRow}
                 gridActionSlotMinHeight={slotMinHeight}
                 onBarDragPreview={onBarDragPreview}
+                linkPresentation={linkPresentation}
               />
             </div>
           </div>

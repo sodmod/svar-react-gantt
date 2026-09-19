@@ -55,6 +55,9 @@ function Bars(props) {
     barGesturesDisabled,
     taskTemplate: TaskTemplate,
     onDragPreview,
+    // SVAR-M32 (SVAR Production Planner): pass-through to <Links> — see
+    // Gantt.jsx.
+    linkPresentation,
   } = props;
 
   /*
@@ -856,6 +859,7 @@ function Bars(props) {
         onSelectLink={onSelectLink}
         selectedLink={selectedLink}
         readonly={readonly}
+        linkPresentation={linkPresentation}
       />
       {tasks.map((task) => {
         if (task.$skip && task.$skip_baseline && !(rollups && rRollups?.[task.id])) return null;
