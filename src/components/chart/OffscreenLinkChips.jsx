@@ -38,6 +38,7 @@ export default function OffscreenLinkChips() {
   const area = useStore(api, 'area');
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
+  const cellHeight = useStore(api, 'cellHeight');
 
   const taskById = useMemo(() => {
     const map = new Map();
@@ -47,8 +48,11 @@ export default function OffscreenLinkChips() {
 
   const chips = useMemo(() => {
     if (!xArea || !area || !linksValue) return [];
+    // `area.to` is not a field the store publishes; its own row-space end
+    // (`area.end`, a row COUNT) must be scaled to pixels the same way
+    // Links.jsx's own vertical-viewport check already does.
     const vFrom = area.from ?? 0;
-    const vTo = area.to ?? 0;
+    const vTo = area.to ?? (area.end ?? 0) * (cellHeight || 0);
     const byKey = new Map();
 
     const consider = (localId, partnerId, linkId) => {
@@ -82,7 +86,7 @@ export default function OffscreenLinkChips() {
       consider(link.target, link.source, link.id);
     }
     return Array.from(byKey.values());
-  }, [linksCounter, taskById, xArea, area]);
+  }, [linksCounter, taskById, xArea, area, cellHeight]);
 
   const onReveal = useCallback(
     (chip) => {
