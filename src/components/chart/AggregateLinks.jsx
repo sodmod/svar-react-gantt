@@ -145,10 +145,21 @@ export default function AggregateLinks({
   const area = useStore(api, 'area');
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
-  // SVAR-M45 (R3-6): the chart's own usable width, published by the store
-  // as `ganttWidth - columnsWidth - scrollSize - 4` (`Layout.jsx`) — the
-  // scrollbar and the resizer are already out of it.
-  const usableWidth = useStore(api, '_chartWidth');
+  const scrollLeft = useStore(api, 'scrollLeft');
+  /*
+   * SVAR-M45 (R3-6): the chart's own usable width, which `Layout.jsx`
+   * publishes as `ganttWidth - columnsWidth - scrollSize - 4` — the
+   * scrollbar and the resizer are already out of it. Read through
+   * `getState()` rather than `useStore`, for the reason SVAR-M42's own note
+   * in `OffscreenLinkChips.jsx` records: `_chartWidth` is ordinary store
+   * state, not a published reactive value, and it is an input to the store's
+   * own `xArea` reaction — so keying the read on `xArea`/`scrollLeft` keeps
+   * it fresh without asking for a Writable that does not exist.
+   */
+  const usableWidth = useMemo(
+    () => api.getState()?._chartWidth,
+    [api, xArea, scrollLeft],
+  );
 
   const [openAggregateId, setOpenAggregateId] = useState(null);
   const pendingRevealRef = useRef(null);

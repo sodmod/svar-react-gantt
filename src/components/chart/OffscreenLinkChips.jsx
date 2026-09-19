@@ -120,8 +120,24 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
   const scrollLeft = useStore(api, 'scrollLeft');
-  const chartWidth = useStore(api, '_chartWidth');
   const cellHeight = useStore(api, 'cellHeight');
+  /*
+   * SVAR-M42 (R3-3): `_chartWidth` is NOT one of the store's published
+   * reactive values — `useStore(api, '_chartWidth')` warns "Writable
+   * _chartWidth is not defined" and answers `undefined`, which would have
+   * silently left this component back on `xArea`, the very bound this
+   * modification exists to stop using. It IS ordinary store state, and it is
+   * one of the three inputs the store's own `xArea` reaction declares
+   * (`{in: ['_scales', 'scrollLeft', '_chartWidth'], out: ['xArea']}`), so
+   * every change to it necessarily produces a new `xArea`. Reading it
+   * through `getState()`, keyed on the two values that ARE reactive here, is
+   * therefore never stale — and it asks the store for the number it already
+   * owns rather than re-deriving a second one from the DOM.
+   */
+  const chartWidth = useMemo(
+    () => api.getState()?._chartWidth,
+    [api, xArea, scrollLeft],
+  );
 
   const taskById = useMemo(() => {
     const map = new Map();
