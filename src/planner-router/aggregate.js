@@ -194,14 +194,43 @@ function pointAtFraction(points, fraction) {
 /*
  * The reveal gesture's own geometry (D-166 §K: "клик по строке раскрывает
  * минимальную цепочку свёрнутых предков"): every ancestor of `taskId`,
- * walking up from its immediate parent, that is not ALREADY open — stopping
- * the moment one is, since everything above an already-open ancestor is,
- * by definition, not what is hiding `taskId`. Returns ids in TOP-DOWN order
- * (furthest ancestor first) so a caller opening them in this order gets the
- * same cascade a person expanding one row at a time would produce; the
- * store's own `open-task` handler does not actually require this order (it
- * reads the full tree by id, not the current visible slice), but nothing
- * is lost by giving it anyway.
+ * walking up from its immediate parent to the root, that is not ALREADY
+ * open. Returns ids in TOP-DOWN order (furthest ancestor first) so a caller
+ * opening them in this order gets the same cascade a person expanding one
+ * row at a time would produce; the store's own `open-task` handler does not
+ * actually require this order (it reads the full tree by id, not the
+ * current visible slice), but nothing is lost by giving it anyway.
+ *
+ * "Minimal" means the CLOSED ancestors only: an ancestor already open is
+ * skipped, never re-opened, and no row outside this task's own chain is
+ * ever touched. It does not mean "the closed ones nearest the task".
+ *
+ * SVAR-M44 (R3-6, Pavel manual acceptance remediation —
+ * "не открываетгруппу.jpg"). This used to STOP at the first ancestor whose
+ * own `open` was true, on the stated reasoning that "everything above an
+ * already-open ancestor is, by definition, not what is hiding `taskId`".
+ * That reasoning is false, and the product's own demo hierarchy is a
+ * counterexample:
+ *
+ *   Engineering            CLOSED   <- the collapsed representative
+ *     Infra migration               a direct child
+ *     Tools              open:true  <- open, and hidden ANYWAY, because
+ *       Level editor upgrade           its own parent is closed
+ *       Build pipeline hardening
+ *
+ * An open subtree nested inside a closed one is still not on screen, so the
+ * closed grandparent is still what hides the leaf. Walking up from
+ * `Level editor upgrade` hit `Tools` (open), returned an EMPTY list, and the
+ * caller — seeing nothing to open — went straight to scrolling to a task
+ * that was still not rendered, which silently did nothing at all. MEASURED
+ * against this exact tree: `Infra migration` returned `[Engineering]` and
+ * worked; `Level editor upgrade` and `Build pipeline hardening` both
+ * returned `[]` and did nothing. That is precisely the popover Pavel
+ * photographed — row 1 revealing, rows 2 and 3 dead.
+ *
+ * The walk now runs to the root and collects every closed ancestor on the
+ * way: the same answer for the case that already worked (a chain closed all
+ * the way up), and the correct one for the case that did not.
  */
 export function collapsedAncestorsToOpen(taskId, getTask) {
   const toOpen = [];
@@ -214,8 +243,7 @@ export function collapsedAncestorsToOpen(taskId, getTask) {
     seen.add(parentId);
     const parent = getTask(parentId);
     if (!parent) break;
-    if (parent.open === true) break;
-    toOpen.push(parent.id);
+    if (parent.open !== true) toOpen.push(parent.id);
     current = parent;
   }
   return toOpen.reverse();

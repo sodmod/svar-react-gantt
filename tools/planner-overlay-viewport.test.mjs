@@ -172,3 +172,84 @@ test('NEGATIVE CONTROL / R1-6 NC-POPOVER-FLIP: a popover opened near the bottom-
   assert.ok(naiveRect.right > VIEWPORT.right - 8);
   assert.ok(naiveRect.bottom > VIEWPORT.bottom - 8);
 });
+
+/* ======================================================================== *
+ * SVAR-M43 (R3-3, Pavel manual acceptance remediation — "чипса связи.jpg")
+ *
+ * `useScreenViewportCorrection` renders an overlay at `basePosition +
+ * delta` and then measures it. The arithmetic below is the whole of what
+ * that hook does with `clampDelta`, stated here without a DOM: the hook's
+ * own real-browser behaviour is the Planner product's Chromium suite's job
+ * (D-091 §1 — this file proves the arithmetic, not the rendering).
+ * ======================================================================== */
+
+const CHART = { left: 0, top: 0, right: 1000, bottom: 600 };
+const OVERLAY_WIDTH = 168;
+const MARGIN = 8;
+
+function rectAt(left) {
+  return { left, top: 100, right: left + OVERLAY_WIDTH, bottom: 122 };
+}
+
+test('SVAR-M43: the correction is computed from the UNCORRECTED rect, so a moved base is corrected in full', () => {
+  // Frame 1: the overlay opens at 900 with no correction yet, and needs to
+  // come back inside 1000 - margin - gutter.
+  const d0 = clampDelta(rectAt(900), CHART, MARGIN, SCROLLBAR_GUTTER_PX);
+  const settled = 900 + d0.dx;
+  assert.ok(
+    settled + OVERLAY_WIDTH <= CHART.right - MARGIN - SCROLLBAR_GUTTER_PX,
+    'frame 1 lands inside the usable right edge',
+  );
+
+  // Frame 2: a pan moves the base by the same amount it moved before. The
+  // element currently renders at `base2 + d0`, so the rect the hook reads
+  // already contains d0 — subtracting it recovers the true uncorrected
+  // rect and the correction computed from THAT is the whole correction.
+  const base2 = 920;
+  const measured = rectAt(base2 + d0.dx);
+  const uncorrected = {
+    left: measured.left - d0.dx,
+    top: measured.top,
+    right: measured.right - d0.dx,
+    bottom: measured.bottom,
+  };
+  const d1 = clampDelta(uncorrected, CHART, MARGIN, SCROLLBAR_GUTTER_PX);
+  assert.ok(
+    base2 + d1.dx + OVERLAY_WIDTH <= CHART.right - MARGIN - SCROLLBAR_GUTTER_PX,
+    'frame 2 lands inside the usable right edge too',
+  );
+});
+
+test('NEGATIVE CONTROL / SVAR-M43: storing the measured rect\'s own delta as if it were absolute leaves the overlay outside the edge', () => {
+  const d0 = clampDelta(rectAt(900), CHART, MARGIN, SCROLLBAR_GUTTER_PX);
+  const base2 = 920;
+  // The retired form: measure the ALREADY-CORRECTED rect and store that
+  // answer as the new absolute delta.
+  const retired = clampDelta(
+    rectAt(base2 + d0.dx),
+    CHART,
+    MARGIN,
+    SCROLLBAR_GUTTER_PX,
+  );
+  const placed = base2 + retired.dx;
+  assert.ok(
+    placed + OVERLAY_WIDTH > CHART.right - MARGIN - SCROLLBAR_GUTTER_PX,
+    'this control only proves something if the retired form really did leave the overlay past the usable edge (SVAR-M43 red-before)',
+  );
+});
+
+test('SVAR-M43: an overlay that no longer needs correcting returns to zero instead of keeping an old shift', () => {
+  const d0 = clampDelta(rectAt(900), CHART, MARGIN, SCROLLBAR_GUTTER_PX);
+  assert.notEqual(d0.dx, 0, 'it really was corrected at the edge');
+  // Now the base moves to the middle of the chart, where nothing is needed.
+  const base2 = 400;
+  const measured = rectAt(base2 + d0.dx);
+  const uncorrected = {
+    left: measured.left - d0.dx,
+    top: measured.top,
+    right: measured.right - d0.dx,
+    bottom: measured.bottom,
+  };
+  const d1 = clampDelta(uncorrected, CHART, MARGIN, SCROLLBAR_GUTTER_PX);
+  assert.equal(d1.dx, 0, 'the correction releases the overlay completely');
+});

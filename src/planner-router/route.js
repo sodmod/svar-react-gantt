@@ -46,18 +46,61 @@ export const LINK_TOKENS = Object.freeze({
 });
 
 /*
- * The literal minimum horizontal room a standard "L" needs: `clearance` off
- * the source, `clearance` before the target, and `minRun` of actually
- * visible vertical travel between the two. A gap tighter than this cannot
- * render a standard L without looking compressed, so it is drawn as a tight
- * entry instead. This is derived from the router's own already-adopted
- * tokens, not a value copied from the reference prototype (D-166 §E; the
- * prototype's own `gap >= clearance + 10px` threshold is explicitly rejected
- * there because it is smaller than a real one-day gap at the product's
- * default day-cell width and would misclassify it as a standard L).
+ * SVAR-M41 (R3-1, Pavel manual acceptance remediation — "Не исправлено.jpg").
+ *
+ * The horizontal room a SIDE entry needs at the target end before it reads
+ * as a dependency arriving, rather than as a line that simply stops. It is
+ * the sum of the three things that actually occupy that run, in the order
+ * the stroke travels them:
+ *
+ *   radius       the last corner's own curve, which consumes exactly
+ *                `radius` of the run it turns INTO
+ *   minRun       the token that already means "a genuinely visible straight
+ *                run", now applied where the run is actually looked at
+ *   arrowLength  the filled triangle, which is drawn over the last
+ *                `arrowLength` px of that same run
+ *
+ * The retired floor was `minRun` alone (10px), chosen when the arrow was
+ * 7x6.8px and never revisited when R1-3 enlarged it to 10.5x10.2 — so the
+ * floor became SMALLER than the arrow it has to leave room for, and smaller
+ * than the corner radius as well. MEASURED on the screenshot's own geometry
+ * (a 10px final run): `buildRoundedPath` clamped the last corner to
+ * `minRun / 2` = 5px, `trimForArrow` pulled the endpoint back by
+ * `arrowLength - 1` = 9.5px to 0.5px from that corner, and `dedupePoints`
+ * (which drops any point within 0.5px of the previous one) then deleted the
+ * endpoint outright: the emitted path ENDED AT THE CORNER, with no final
+ * run drawn at all and the arrowhead left sitting on the bend. That is
+ * exactly the broken last turn Pavel photographed.
+ *
+ * Every route class that enters from the side is measured against this, and
+ * `routeLink` refuses to emit a side entry that cannot meet it (D-166 §E's
+ * own rule: the tight-entry family, not a compressed side L, is what a
+ * geometry too tight for a proper side approach is drawn as).
+ */
+export function sideEntryRun(tokens) {
+  return tokens.radius + tokens.minRun + tokens.arrowLength;
+}
+
+/*
+ * The minimum forward gap a standard "L" needs: `clearance` off the source
+ * before it may turn, plus a target-end approach that satisfies
+ * `sideEntryRun` above. A gap tighter than this cannot render a standard L
+ * without looking compressed, so it is drawn as a tight entry instead. This
+ * is derived from the router's own already-adopted tokens, not a value
+ * copied from the reference prototype (D-166 §E; the prototype's own
+ * `gap >= clearance + 10px` threshold is explicitly rejected there because
+ * it is smaller than a real one-day gap at the product's default day-cell
+ * width and would misclassify it as a standard L).
+ *
+ * SVAR-M41: this used to read `2 * clearance + minRun`, which counted the
+ * target-end room as `clearance + minRun` = 22px — below the 32.5px a side
+ * entry actually occupies, so gaps between the two produced a standard L
+ * whose final approach was already too short before any corridor push made
+ * it worse. Raising it moves those cases into the tight-entry family, which
+ * is where D-166 §E already says a joint too tight for a clean L belongs.
  */
 function tightGapLimit(tokens) {
-  return 2 * tokens.clearance + tokens.minRun;
+  return tokens.clearance + sideEntryRun(tokens);
 }
 
 function midY(rect) {
@@ -160,12 +203,42 @@ function standardRoute({
     vx += channelOffset * tokens.channelStep;
   }
 
-  // If clearing every blocker would push the vertical past the target
-  // itself, there is no clean corridor: cap it short of the target and let
-  // the line pass visually behind whatever bar remains in the way (Links.jsx
-  // paints links below bars, so this is the "behind-bar occlusion fallback"
-  // of D-166 §C / TECH_SPEC §6.10.1 — z-order alone, no extra geometry).
-  vx = Math.min(vx, tx - tokens.minRun);
+  /*
+   * If clearing every blocker would push the vertical past the target
+   * itself, there is no clean corridor: cap it short of the target and let
+   * the line pass visually behind whatever bar remains in the way (Links.jsx
+   * paints links below bars, so this is the "behind-bar occlusion fallback"
+   * of D-166 §C / TECH_SPEC §6.10.1 — z-order alone, no extra geometry).
+   *
+   * SVAR-M41 (R3-1): the cap is `sideEntryRun`, not `minRun`. This is the
+   * line that actually produced "Не исправлено.jpg": the product's GROUP
+   * rows are summary bars spanning the whole project width, so ANY link
+   * crossing a collapsed or expanded group's row finds a blocker whose own
+   * right edge is off past the end of the timeline — the push always
+   * overshoots, this cap always fires, and with `minRun` it always landed
+   * the vertical exactly 10px from the target's left edge. Ten pixels is
+   * less than the corner radius alone, so every such link got the collapsed
+   * final run and the stranded arrowhead. Capping at the room a side entry
+   * really needs keeps the accepted occlusion fallback and gives it a final
+   * approach that reads.
+   *
+   * The channel offset is subtracted rather than added once the cap binds:
+   * a fan-in whose members all cap would otherwise collapse onto one
+   * vertical x, which is the shared trunk D-166 §G forbids. Stepping them
+   * back to the LEFT keeps them `channelStep` apart and keeps every one of
+   * them at or beyond the floor.
+   *
+   * The final `Math.max` is the floor's own guarantee: `routeLink` only
+   * reaches this route class when `gap > clearance + sideEntryRun`, so
+   * `sx + clearance` is always left of the cap and the resulting final run
+   * is always at least `sideEntryRun` — with a channel offset it is the gap
+   * minus the clearance, which is larger still.
+   */
+  vx = Math.min(
+    vx,
+    tx - sideEntryRun(tokens) - channelOffset * tokens.channelStep,
+  );
+  vx = Math.max(vx, sx + tokens.clearance);
 
   return {
     routeClass: 'standard',
@@ -235,7 +308,21 @@ function reverseBypassRoute({
   // to be). `entryRun` is the longer of the two, so both corners get the
   // FULL `radius` whenever there is room for it, matching the corridor's
   // own already-smooth corners instead of reading tighter than them.
-  const entryRun = Math.max(tokens.clearance, tokens.radius * 2);
+  /*
+   * SVAR-M41 (R3-1): `sideEntryRun` joins the two terms already here. The
+   * corridor's return run (`returnX -> tx`) IS a side entry — same corner,
+   * same straight run, same arrowhead as a standard L's — so it needs the
+   * same room, and `radius * 2` (24px) left it only 12px of stroke after
+   * the corner for a 10.5px arrowhead. The source-exit run is given the
+   * same value for the same reason SVAR-M36 gave it `radius * 2`: the two
+   * corners sit next to bars, where reading tighter than the corridor's own
+   * corners is exactly the defect that fix addressed.
+   */
+  const entryRun = Math.max(
+    tokens.clearance,
+    tokens.radius * 2,
+    sideEntryRun(tokens),
+  );
   /*
    * R2-2/R2-8 (Pavel manual acceptance remediation, live findings): the
    * swing-out point used to be `Math.max(sx, targetRect.x + targetRect.w)`
@@ -309,6 +396,41 @@ function genericRoute({ sourceRect, targetRect, type, tokens }) {
  * corridor, the current row height and a deterministic channel offset (see
  * `assignChannels` below).
  */
+/*
+ * SVAR-M41 (R3-1): the length of the run the arrowhead is drawn on — the
+ * route's own last segment, before rounding and before the arrow trim.
+ */
+function finalRunLength(points) {
+  if (points.length < 2) return 0;
+  return distance(points[points.length - 2], points[points.length - 1]);
+}
+
+/*
+ * SVAR-M41 (R3-1), the invariant itself, stated once for every route class
+ * that enters from the side.
+ *
+ * A side entry is only allowed to be EMITTED when the geometry can actually
+ * host one: the last corner's radius, a visible straight run, and the
+ * arrowhead. The three route builders above each keep their own end of this
+ * by construction, so in practice this never fires for them — it is here
+ * because "never emit a degenerate side entry" is the product rule, and a
+ * rule that lives only inside three separate formulas is a rule that the
+ * next change to any one of them can lose. When it does fire, the answer is
+ * NOT a compressed side L drawn anyway: it is the tight-entry family, the
+ * accepted fallback D-166 §E/§F already names for a joint with no room for
+ * a clean side approach (and the reason the product has `tightEntry` at
+ * all).
+ *
+ * Scoped to the canonical forward shape. A `generic` route (a link type the
+ * product cannot create — see `isCanonicalForwardType`) deliberately gets a
+ * plain clearance-only orthogonal path and no route-class taxonomy, and
+ * rewriting it into a family built for `e2s` would be inventing behaviour
+ * for a shape nothing produces.
+ */
+function isSideEntry(route) {
+  return route.arrowDir === 'right' || route.arrowDir === 'left';
+}
+
 export function routeLink({
   sourceRect,
   targetRect,
@@ -333,22 +455,30 @@ export function routeLink({
   if (fwd && gap <= tightGapLimit(tokens)) {
     return tightEntryRoute({ sourceRect, targetRect, channelOffset, tokens });
   }
-  if (fwd) {
-    return standardRoute({
-      sourceRect,
-      targetRect,
-      obstacles,
-      channelOffset,
-      tokens,
-    });
+
+  const route = fwd
+    ? standardRoute({
+        sourceRect,
+        targetRect,
+        obstacles,
+        channelOffset,
+        tokens,
+      })
+    : reverseBypassRoute({
+        sourceRect,
+        targetRect,
+        rowHeight,
+        channelOffset,
+        tokens,
+      });
+
+  if (
+    isSideEntry(route) &&
+    finalRunLength(route.points) + 0.5 < sideEntryRun(tokens)
+  ) {
+    return tightEntryRoute({ sourceRect, targetRect, channelOffset, tokens });
   }
-  return reverseBypassRoute({
-    sourceRect,
-    targetRect,
-    rowHeight,
-    channelOffset,
-    tokens,
-  });
+  return route;
 }
 
 /* ------------------------------------------------------------------------ *

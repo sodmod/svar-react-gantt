@@ -110,8 +110,11 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate), ' +
     'SVAR-M31 (the chart axis\' date <-> pixel projection), ' +
     'SVAR-M32 (the deterministic link router), ' +
-    'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp) and ' +
-    'SVAR-M37 (collapsed-group link aggregation)',
+    'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp), ' +
+    'SVAR-M37 (collapsed-group link aggregation), ' +
+    'SVAR-M41 (the room a side entry needs before it may be emitted), ' +
+    'SVAR-M43 (the overlay correction\'s own origin) and ' +
+    'SVAR-M44 (the closed-ancestor walk)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -266,6 +269,11 @@ const PROJECT_ADDED = [
 	// SVAR-M37: collapsed-group link aggregation.
 	'src/components/chart/AggregateLinks.jsx',
 	'src/components/chart/AggregateLinks.css',
+	// SVAR-M38: the shared real-screen viewport correction pass both the
+	// offscreen chip and the aggregate popover render through. Added in R1
+	// and left undeclared there, which made check 3 red from that commit
+	// onwards; found and declared in R3.
+	'src/components/chart/useScreenViewportCorrection.js',
 ];
 
 /**

@@ -80,13 +80,38 @@ function rectOf(task) {
  * see last commit's DOM, which on a first paint is no DOM at all. `bandOf`
  * (below) stays a pure function of already-read data for exactly that
  * reason: the actual `document.querySelector`/`getComputedStyle` calls live
- * in a `useEffect`, which runs AFTER commit, so the bar is always there by
- * the time it looks; that effect's result is state, so its one necessarily
- * late correction is a normal extra render, not a permanent fallback.
+ * in a `useLayoutEffect`, which runs AFTER commit, so the bar is always
+ * there by the time it looks; that effect's result is state, and because
+ * the phase is the LAYOUT one, React flushes that state before the browser
+ * paints, so the correction is never a frame the person can see (SVAR-M46,
+ * R3-7).
  */
 function bandOf(rect, band) {
   if (!rect || !band) return rect;
   return { x: rect.x, w: rect.w, y: rect.y + rect.h - band.bottom - band.height, h: band.height };
+}
+
+/*
+ * SVAR-M46 (R3-7): two band maps hold the same answer. The read above runs
+ * in a layout effect whose own state write would otherwise re-render on
+ * every commit that touches `_tasks` — including the ones where nothing
+ * about any ribbon moved — and each such render re-runs the router for
+ * every aggregate. Comparing first keeps the identity stable, so the memo
+ * below is not invalidated by a measurement that found no change.
+ */
+function sameBands(a, b) {
+  if (a.size !== b.size) return false;
+  for (const [id, band] of b) {
+    const previous = a.get(id);
+    if (
+      !previous ||
+      previous.bottom !== band.bottom ||
+      previous.height !== band.height
+    ) {
+      return false;
+    }
+  }
+  return true;
 }
 
 function readVisualBand(taskId) {
@@ -120,6 +145,10 @@ export default function AggregateLinks({
   const area = useStore(api, 'area');
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
+  // SVAR-M45 (R3-6): the chart's own usable width, published by the store
+  // as `ganttWidth - columnsWidth - scrollSize - 4` (`Layout.jsx`) — the
+  // scrollbar and the resizer are already out of it.
+  const usableWidth = useStore(api, '_chartWidth');
 
   const [openAggregateId, setOpenAggregateId] = useState(null);
   const pendingRevealRef = useRef(null);
@@ -142,14 +171,38 @@ export default function AggregateLinks({
 
   const [bandInfo, setBandInfo] = useState(new Map());
 
-  useEffect(() => {
+  /*
+   * SVAR-M46 (R3-7, Pavel manual acceptance remediation — "нестыкуется.jpg",
+   * reported as intermittent): `useLayoutEffect`, not `useEffect`.
+   *
+   * Both run AFTER commit, which is the whole reason the read lives outside
+   * the render-phase memo (see `bandOf` above — the `.wx-bar` this queries
+   * does not exist yet during the render that first paints it). The
+   * difference is WHEN the state they set is flushed. A `useEffect` write
+   * is flushed after the browser has already painted, so the frame between
+   * commit and correction is a real, visible frame in which every aggregate
+   * route is anchored to the container's own BOX centre instead of the
+   * ribbon `::before` actually paints — the endpoint sitting ~15px above
+   * the stripe it should touch, for exactly one frame, on every transition
+   * that adds or re-measures a bar (collapse, expand, re-collapse, a scale
+   * change). `useLayoutEffect` is flushed synchronously BEFORE paint, so
+   * the corrected geometry is in the very first frame the person sees and
+   * there is no wrong frame to catch.
+   *
+   * This is not a timing hack and adds no delay, retry or measurement loop:
+   * it is the same single read, committed one phase earlier, which is the
+   * phase React provides for a layout measurement that the paint depends
+   * on. `cellHeight` joins the dependencies because a row-height change
+   * moves the ribbon without necessarily changing `_tasks`.
+   */
+  useLayoutEffect(() => {
     const next = new Map();
     for (const id of taskRects.keys()) {
       const band = readVisualBand(id);
       if (band) next.set(id, band);
     }
-    setBandInfo(next);
-  }, [taskRects]);
+    setBandInfo((current) => (sameBands(current, next) ? current : next));
+  }, [taskRects, cellHeight]);
 
   const aggregates = useMemo(() => {
     if (!linksValue) return [];
@@ -243,11 +296,22 @@ export default function AggregateLinks({
     return map;
   }, [linksValue]);
 
+  /*
+   * SVAR-M45 (R3-5): `badgeAnchor` is what the popover opens FROM, so an
+   * aggregate whose route has no anchor (its polyline never enters the
+   * current horizontal viewport — `pickBadgeAnchor`'s own `null` contract)
+   * has nowhere to put one. The bbox filter above already makes that
+   * practically unreachable; requiring it here means the placement below
+   * never has to dereference a missing anchor, which matters more now that
+   * a `count === 1` line opens a popover too and therefore reaches this
+   * code on a path it never used to.
+   */
   const openAggregate = openAggregateId
-    ? visibleRoutedAggregates.find(
+    ? (visibleRoutedAggregates.find(
         (entry) => entry.aggregate.id === openAggregateId,
-      )
+      ) ?? null)
     : null;
+  const openAnchor = openAggregate?.badgeAnchor ?? null;
 
   // R1-6 (Pavel manual acceptance remediation): `basePosition` is the
   // canvas-space placement `clampPopoverRect` computes from `xArea`/`area`
@@ -255,11 +319,11 @@ export default function AggregateLinks({
   // run unconditionally, so this is computed (and the correction hook
   // called) whether or not a popover is actually open; when it is not,
   // `popoverRef.current` is null and the hook is a no-op.
-  const popoverBasePosition = openAggregate
+  const popoverBasePosition = openAnchor
     ? clampPopoverRect(
         {
-          x: openAggregate.badgeAnchor[0],
-          y: openAggregate.badgeAnchor[1] + BADGE_SIZE / 2,
+          x: openAnchor[0],
+          y: openAnchor[1] + BADGE_SIZE / 2,
         },
         popoverSize ?? POPOVER_FALLBACK_SIZE,
         {
@@ -279,14 +343,23 @@ export default function AggregateLinks({
   const revealNow = useCallback(
     (taskId, linkId) => {
       const rect = taskRects.get(taskId);
-      if (!rect || !xArea) return false;
-      const viewportWidth = xArea.to - xArea.from;
+      if (!rect) return false;
+      /*
+       * SVAR-M45 (R3-6): the USABLE chart width, the same one
+       * `OffscreenLinkChips.jsx` now decides its own geometry with
+       * (SVAR-M42's own note). `xArea.to - xArea.from` is the store's
+       * VIRTUALIZATION window — wider than the chart by its pre-render
+       * buffer on each side — so centring on it put the revealed task
+       * visibly left of the middle, by half that buffer, every time.
+       */
+      const viewportWidth = usableWidth;
+      if (!(viewportWidth > 0)) return false;
       const left = Math.max(0, rect.x + rect.w / 2 - viewportWidth / 2);
       api.exec('scroll-chart', { left, top: scrollTop });
       if (!readonly) onSelectLink(linkId);
       return true;
     },
-    [taskRects, xArea, api, scrollTop, readonly, onSelectLink],
+    [taskRects, usableWidth, api, scrollTop, readonly, onSelectLink],
   );
 
   useEffect(() => {
@@ -295,26 +368,70 @@ export default function AggregateLinks({
     if (revealNow(pending.taskId, pending.linkId)) {
       pendingRevealRef.current = null;
       setOpenAggregateId(null);
+      return;
     }
+    /*
+     * SVAR-M45 (R3-6): a pending reveal that cannot resolve gives up
+     * instead of waiting forever. Before SVAR-M44 an unresolvable one was
+     * the NORMAL outcome for two rows out of three, and it stayed in the
+     * ref indefinitely — so the next unrelated `_tasks` change (another
+     * collapse, a drag, a new task) could fire that stale scroll long after
+     * the click, which is its own surprise. A small bounded number of
+     * attempts covers the legitimate case (one commit per `open-task`
+     * cascade) and nothing beyond it.
+     */
+    pending.attemptsLeft -= 1;
+    if (pending.attemptsLeft <= 0) pendingRevealRef.current = null;
   }, [taskRects, revealNow]);
 
   const onRevealMember = useCallback(
     (link) => {
-      const sourceAncestors = collapsedAncestorsToOpen(link.source, getTask);
-      const targetAncestors = collapsedAncestorsToOpen(link.target, getTask);
-      for (const id of sourceAncestors) {
+      /*
+       * SVAR-M45 (R3-6): the endpoint this row is FOR. A row names a real
+       * canonical link whose own hidden side is what the aggregate stands
+       * in for, and scrolling to the side that was already on screen is not
+       * a reveal of anything. `taskRects` is the render truth here — a task
+       * hidden inside a collapsed ancestor is simply absent from `_tasks`
+       * (`aggregate.js`'s own opening note), so "not in `taskRects`" IS
+       * "hidden", with no second definition of hidden to drift from the
+       * first. Both hidden (a link between two collapsed groups) reveals
+       * the TARGET, the end the arrow points at; neither hidden keeps the
+       * previous behaviour exactly.
+       */
+      const revealId = !taskRects.has(link.target)
+        ? link.target
+        : !taskRects.has(link.source)
+          ? link.source
+          : link.target;
+
+      // Both chains, because a link between two collapsed groups hides both
+      // of its ends and showing only one of them is not showing the link.
+      const ancestors = [
+        ...collapsedAncestorsToOpen(link.source, getTask),
+        ...collapsedAncestorsToOpen(link.target, getTask),
+      ];
+      for (const id of ancestors) {
         api.exec('open-task', { id, mode: true });
       }
-      for (const id of targetAncestors) {
-        api.exec('open-task', { id, mode: true });
-      }
-      if (sourceAncestors.length === 0 && targetAncestors.length === 0) {
-        if (revealNow(link.target, link.id)) setOpenAggregateId(null);
+      if (ancestors.length === 0) {
+        if (revealNow(revealId, link.id)) setOpenAggregateId(null);
       } else {
-        pendingRevealRef.current = { taskId: link.target, linkId: link.id };
+        /*
+         * SVAR-M45 (R3-6): the disclosure the `open-task` calls above just
+         * asked for has not produced new rows yet, so the scroll waits for
+         * the `taskRects` that carries them (the effect right above). The
+         * generation counter is what stops a reveal that can never succeed
+         * from sitting in the ref and firing later, against an unrelated
+         * `taskRects` change, as a scroll the person did not ask for.
+         */
+        pendingRevealRef.current = {
+          taskId: revealId,
+          linkId: link.id,
+          attemptsLeft: 4,
+        };
       }
     },
-    [api, getTask, revealNow],
+    [api, getTask, revealNow, taskRects],
   );
 
   useLayoutEffect(() => {
@@ -339,6 +456,24 @@ export default function AggregateLinks({
     document.addEventListener('click', handler);
     return () => {
       document.removeEventListener('click', handler);
+    };
+  }, [openAggregateId]);
+
+  /*
+   * SVAR-M45 (R3-5): Escape closes the popover, the same key `Bars.jsx`
+   * already clears a selected link (and a pending link-create draft) with.
+   * Needed here because a `count === 1` line now opens BOTH at once: with
+   * only that handler, Escape would take the delete button away and leave
+   * the popover it opened alongside it still on screen.
+   */
+  useEffect(() => {
+    if (!openAggregateId) return;
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOpenAggregateId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
     };
   }, [openAggregateId]);
 
@@ -427,16 +562,30 @@ export default function AggregateLinks({
                  * popover — one more way out of the delete-affordance
                  * state, reported live as missing alongside Escape and
                  * click-outside (both fixed above).
+                 *
+                 * SVAR-M45 (R3-5, Pavel manual acceptance remediation —
+                 * "где таблица?"): a `count === 1` line now opens the
+                 * popover TOO, not instead. R1-10 replaced the popover with
+                 * the direct selection because selection was what the
+                 * delete affordance needed, and that traded away the only
+                 * route this presentation has to its own hidden end: with
+                 * no badge (D-166 §K gives none at count 1) and no popover,
+                 * a single hidden link could be selected and deleted but
+                 * never REVEALED — the row that expands the group and
+                 * scrolls to the real task had simply disappeared from the
+                 * product. Both now happen on the one click: the canonical
+                 * link is selected (so the delete button appears, R1-10 and
+                 * A37 unchanged) and the one-row popover opens beneath it
+                 * (so the reveal is reachable again, A32/A36). The two do
+                 * not collide on screen — the delete button occupies
+                 * `BADGE_SIZE` centred on the anchor and the popover opens
+                 * from `anchor + BADGE_SIZE / 2` downwards — and the same
+                 * second click still closes both.
                  */
-                if (aggregate.count === 1) {
-                  if (!readonly) {
-                    onSelectLink(
-                      selectedLink?.id === aggregate.memberLinkIds[0]
-                        ? null
-                        : aggregate.memberLinkIds[0],
-                    );
-                  }
-                  return;
+                const soloId =
+                  aggregate.count === 1 ? aggregate.memberLinkIds[0] : null;
+                if (soloId !== null && !readonly) {
+                  onSelectLink(selectedLink?.id === soloId ? null : soloId);
                 }
                 setOpenAggregateId((current) =>
                   current === aggregate.id ? null : aggregate.id,
@@ -538,7 +687,7 @@ export default function AggregateLinks({
             <i className="wxi-close wx-delete-button-icon"></i>
           </button>
         ))}
-      {openAggregate ? (
+      {openAggregate && openAnchor ? (
         <div
           ref={popoverRef}
           className="wx-4kNpQzTa wx-aggregate-popover"

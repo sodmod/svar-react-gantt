@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   clampDelta,
   SCROLLBAR_GUTTER_PX,
@@ -28,6 +28,13 @@ import {
  */
 export function useScreenViewportCorrection(ref, basePosition, deps) {
   const [delta, setDelta] = useState({ dx: 0, dy: 0 });
+  /*
+   * SVAR-M43 (R3-3): the delta currently BAKED INTO what the element
+   * renders at, mirrored where the layout effect can read it without
+   * listing `delta` among the caller-supplied `deps`. This effect is the
+   * only writer of `delta`, so the two never diverge.
+   */
+  const appliedRef = useRef({ dx: 0, dy: 0 });
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -47,12 +54,49 @@ export function useScreenViewportCorrection(ref, basePosition, deps) {
      * canvas-space pass already kept clear of that scrollbar back toward
      * the true edge, undoing the one gutter neither pass can measure away.
      */
+    /*
+     * SVAR-M43 (R3-3, Pavel manual acceptance remediation): the correction
+     * is computed from where the element would be with NO correction at
+     * all, not from where it currently renders.
+     *
+     * `rect` is the element as it is rendered RIGHT NOW, which is
+     * `basePosition + delta` — the previous correction is already inside
+     * the measurement. `clampDelta` answers "how far must THIS rect move",
+     * so measuring `rect` directly and storing the answer as the new delta
+     * threw away exactly the old delta's worth of correction on every
+     * render where `basePosition` changed and this effect re-ran: that is,
+     * on every pan.
+     *
+     * MEASURED, real Chromium at 1440x900 with the chart's own right edge
+     * at 1440: panning in equal 90px steps walked the chip's left edge
+     * around 1250 / 1262 / 1272 / 1276 / 1250 ... instead of holding still,
+     * and let its right edge reach 1442 and 1444 — past the very edge this
+     * pass exists to keep it inside of. Both are the same arithmetic error,
+     * a delta applied to the wrong origin, and both are what Pavel sees as
+     * a chip that shifts and clips with small pans.
+     *
+     * Subtracting the applied delta first makes the answer ABSOLUTE, and
+     * exact in one pass: the rect translates one-for-one with the delta, so
+     * the uncorrected rect is `rect - applied` and the correction that rect
+     * needs is the whole correction, freshly. It also lets the delta shrink
+     * back to zero on its own — the arithmetically equivalent "add the
+     * residual" form would keep an old shift forever once the overlay moved
+     * somewhere that needs none, since a rect already inside the viewport
+     * reports a residual of zero either way.
+     */
+    const applied = appliedRef.current;
     const next = clampDelta(
-      { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom },
+      {
+        left: rect.left - applied.dx,
+        top: rect.top - applied.dy,
+        right: rect.right - applied.dx,
+        bottom: rect.bottom - applied.dy,
+      },
       { left: v.left, top: v.top, right: v.right, bottom: v.bottom },
       8,
       SCROLLBAR_GUTTER_PX,
     );
+    appliedRef.current = next;
     setDelta((current) =>
       current.dx === next.dx && current.dy === next.dy ? current : next,
     );

@@ -119,6 +119,8 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
   const area = useStore(api, 'area');
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
+  const scrollLeft = useStore(api, 'scrollLeft');
+  const chartWidth = useStore(api, '_chartWidth');
   const cellHeight = useStore(api, 'cellHeight');
 
   const taskById = useMemo(() => {
@@ -136,6 +138,45 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
   const vFrom = area?.from ?? 0;
   const vTo = area?.to ?? (area?.end ?? 0) * (cellHeight || 0);
 
+  /*
+   * SVAR-M42 (R3-3, Pavel manual acceptance remediation — "чипса связи.jpg",
+   * reported as "sometimes appears, sometimes does not, most often does
+   * not"). THE USABLE horizontal viewport, in the same canvas pixel space
+   * `$x` is in — not `xArea`.
+   *
+   * `xArea` is the store's own VIRTUALIZATION window, and the store derives
+   * it from exactly these two values: `xArea = {from: floor(scrollLeft/cell)
+   * - 1, to: ceil((scrollLeft + _chartWidth)/cell) + 1}` scaled back to
+   * pixels (`gantt-store`'s own `_scales`/`scrollLeft`/`_chartWidth` ->
+   * `xArea` reaction). So `xArea` is this window snapped OUT to whole cells
+   * and then padded by one more cell on each side — at the product's default
+   * 34px day cell, up to 68px of pre-render buffer past each real edge.
+   *
+   * Asking "is the partner outside `xArea`" therefore asks "is it outside
+   * the buffer", and a partner in the band between the real edge and the
+   * buffer edge got NO chip while being genuinely off screen. MEASURED, on
+   * a real 1440x900 Chromium with the chart at x 592..1440 and a partner
+   * panned gradually right: with the partner's bar at screen x 1572 the
+   * chip was there; one 90px pan later, at 1482 — still 42px past the
+   * chart's own right edge, still completely invisible — the chip was gone,
+   * and stayed gone until the bar came back on screen entirely. A dead band
+   * roughly one buffer wide, entered and left by ordinary panning: exactly
+   * "sometimes appears, sometimes does not".
+   *
+   * `_chartWidth` is the right width to ask with, and not by coincidence:
+   * `Layout.jsx` publishes it as `ganttWidth - columnsWidth - scrollSize -
+   * 4`, so the vertical scrollbar and the grid/chart resizer are ALREADY
+   * subtracted from it. It is the usable chart viewport by construction,
+   * which is what R3-3's own rule asks the eligibility to be measured
+   * against, and it needs no DOM read and no second scrollbar correction of
+   * its own.
+   */
+  const viewFrom = Number.isFinite(scrollLeft) ? scrollLeft : (xArea?.from ?? 0);
+  const viewTo =
+    Number.isFinite(scrollLeft) && chartWidth > 0
+      ? scrollLeft + chartWidth
+      : (xArea?.to ?? 0);
+
   const chips = useMemo(() => {
     if (!xArea || !area || !linksValue) return [];
     const byKey = new Map();
@@ -147,11 +188,13 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
       if (!partner || typeof partner.$x !== 'number') return;
       const rowVisible = local.$y + local.$h >= vFrom && local.$y <= vTo;
       if (!rowVisible) return;
-      const offLeft = partner.$x + partner.$w < xArea.from;
-      const offRight = partner.$x > xArea.to;
+      // SVAR-M42 (R3-3): the USABLE viewport, not the virtualization
+      // window — see `viewFrom`/`viewTo` above.
+      const offLeft = partner.$x + partner.$w < viewFrom;
+      const offRight = partner.$x > viewTo;
       if (!offLeft && !offRight) return;
       const direction = offLeft ? 'left' : 'right';
-      const edgeX = offLeft ? xArea.from : xArea.to;
+      const edgeX = offLeft ? viewFrom : viewTo;
       // R1-5 R2: the router's own committed height at the edge, falling
       // back to the local row's own centre only when the route geometry
       // genuinely never crosses this edge (defensive — should not happen
@@ -192,7 +235,20 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
       consider(link.target, link.source, link.id, route);
     }
     return Array.from(byKey.values());
-  }, [linksCounter, taskById, xArea, area, cellHeight, vFrom, vTo]);
+    // SVAR-M42 (R3-3): `viewFrom`/`viewTo` are what eligibility is decided
+    // by now, so they are what this has to recompute on — `xArea` stays
+    // only as the "is the chart laid out at all" guard above.
+  }, [
+    linksCounter,
+    taskById,
+    xArea,
+    area,
+    cellHeight,
+    vFrom,
+    vTo,
+    viewFrom,
+    viewTo,
+  ]);
 
   /*
    * R2-5 (Pavel manual acceptance remediation): when the consumer supplies
@@ -215,28 +271,42 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
         return;
       }
       const partner = taskById.get(chip.partnerTaskId);
-      if (!partner || typeof partner.$x !== 'number' || !xArea) return;
-      const viewportWidth = xArea.to - xArea.from;
+      if (!partner || typeof partner.$x !== 'number') return;
+      // SVAR-M42 (R3-3): the same usable width the eligibility above uses,
+      // which is also the fix R2-5 described for this fallback but could
+      // only state — `xArea.to - xArea.from` is the virtualization window
+      // and systematically under-scrolls by its own buffer.
+      const viewportWidth = viewTo - viewFrom;
+      if (!(viewportWidth > 0)) return;
       const left =
         chip.direction === 'left'
           ? Math.max(0, partner.$x - EDGE_INSET * 4)
           : partner.$x + partner.$w - viewportWidth + EDGE_INSET * 4;
       api.exec('scroll-chart', { left: Math.max(0, left), top: scrollTop });
     },
-    [onRevealPartner, taskById, xArea, api, scrollTop],
+    [onRevealPartner, taskById, viewFrom, viewTo, api, scrollTop],
   );
 
   if (!chips.length || !xArea) return null;
 
-  // R1-5: the chip hangs ABOVE the visible route segment it names by
-  // default (flipping below only when the chart viewport genuinely has no
-  // room above it), and is clamped so its own edges never cross the
-  // viewport's — the "Подсказка за границей.jpg" defect. The viewport this
-  // clamps against is expressed in the SAME canvas-pixel space `xArea`/
-  // `$x`/`$y` already are (not a real screen `getBoundingClientRect`),
-  // which is exact because every size fed into it is a fixed, known
-  // constant (`CHIP_WIDTH`/`CHIP_HEIGHT`), not measured content.
-  const viewport = { left: xArea.from, top: vFrom, right: xArea.to, bottom: vTo };
+  /*
+   * R1-5: the chip hangs ABOVE the visible route segment it names by
+   * default (flipping below only when the chart viewport genuinely has no
+   * room above it), and is clamped so its own edges never cross the
+   * viewport's — the "Подсказка за границей.jpg" defect. The viewport this
+   * clamps against is expressed in the SAME canvas-pixel space `$x`/`$y`
+   * already are (not a real screen `getBoundingClientRect`), which is exact
+   * because every size fed into it is a fixed, known constant
+   * (`CHIP_WIDTH`/`CHIP_HEIGHT`), not measured content.
+   *
+   * SVAR-M42 (R3-3): the horizontal bounds are the USABLE viewport, the
+   * same one eligibility is decided by. Clamping against `xArea` placed the
+   * chip inside the virtualization BUFFER — up to a cell and a half past
+   * the chart's own right edge — and left the real-screen correction pass
+   * to drag it back every frame, which is both why the chip could still
+   * read as clipped and why it shifted a few px on each small pan.
+   */
+  const viewport = { left: viewFrom, top: vFrom, right: viewTo, bottom: vTo };
 
   return (
     <>
@@ -244,8 +314,8 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
       {chips.map((chip) => {
         const edgeCenterX =
           chip.direction === 'left'
-            ? xArea.from + EDGE_INSET + CHIP_WIDTH / 2
-            : xArea.to - EDGE_INSET - CHIP_WIDTH / 2;
+            ? viewFrom + EDGE_INSET + CHIP_WIDTH / 2
+            : viewTo - EDGE_INSET - CHIP_WIDTH / 2;
         const basePosition = clampChipRect(
           { x: edgeCenterX, y: chip.y },
           { width: CHIP_WIDTH, height: CHIP_HEIGHT },

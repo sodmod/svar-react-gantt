@@ -200,10 +200,113 @@ test('collapsedAncestorsToOpen: two collapsed ancestors -> the FARTHER one first
   assert.deepEqual(collapsedAncestorsToOpen('G', getTask), ['F']);
 });
 
-test('collapsedAncestorsToOpen: stops at an already-open ancestor, opens nothing above it', () => {
-  // D is already open (and has no children in this fixture, but the rule
-  // is the same): nothing needs opening for an already-visible task.
+test('collapsedAncestorsToOpen: an already-visible root task needs nothing opened', () => {
+  // D sits at the root and is already open: nothing hides it.
   assert.deepEqual(collapsedAncestorsToOpen('D', getTask), []);
+});
+
+test('collapsedAncestorsToOpen: an already-open ancestor is SKIPPED, never re-opened — "minimal" is the closed ones only', () => {
+  // G's chain is G -> F (closed) -> E (open) -> root. Only F is returned.
+  assert.deepEqual(collapsedAncestorsToOpen('G', getTask), ['F']);
+});
+
+/* ======================================================================== *
+ * SVAR-M44 (R3-6, Pavel manual acceptance remediation —
+ * "не открываетгруппу.jpg")
+ *
+ * The product's own demo hierarchy, reduced to the shape that broke: a
+ * collapsed group with BOTH a direct leaf child and an OPEN subgroup whose
+ * own leaves are therefore hidden by the grandparent rather than by their
+ * own parent. Pavel's popover listed one link into the direct child and two
+ * into the open subgroup's leaves; row 1 revealed and rows 2 and 3 did
+ * nothing at all.
+ * ======================================================================== */
+
+const NESTED_TREE = {
+  engineering: { id: 'engineering', parent: 0, open: false },
+  infra: { id: 'infra', parent: 'engineering' },
+  tools: { id: 'tools', parent: 'engineering', open: true },
+  levelEditor: { id: 'levelEditor', parent: 'tools' },
+  buildPipeline: { id: 'buildPipeline', parent: 'tools' },
+  gameplay: { id: 'gameplay', parent: 'engineering', open: true },
+  combat: { id: 'combat', parent: 'gameplay' },
+};
+
+function getNested(id) {
+  return NESTED_TREE[id];
+}
+
+test('R3-6: every leaf under a collapsed group resolves the SAME collapsed ancestor, whether its own parent is open or not', () => {
+  for (const id of ['infra', 'levelEditor', 'buildPipeline', 'combat']) {
+    assert.deepEqual(
+      collapsedAncestorsToOpen(id, getNested),
+      ['engineering'],
+      `${id} must name the closed grandparent that actually hides it`,
+    );
+  }
+});
+
+test('R3-6: the chain stays MINIMAL — an open subgroup on the way up is not re-opened, and no unrelated group is named', () => {
+  const chain = collapsedAncestorsToOpen('levelEditor', getNested);
+  assert.ok(!chain.includes('tools'), 'the open subgroup is left alone');
+  assert.ok(!chain.includes('gameplay'), 'and no sibling group is touched');
+  assert.equal(chain.length, 1);
+});
+
+test('R3-6: the three popover rows of the screenshot resolve to three DIFFERENT hidden tasks, all reachable', () => {
+  const visible = new Set(['engineering', 'conceptArt']);
+  const rows = [
+    { source: 'conceptArt', target: 'infra' },
+    { source: 'conceptArt', target: 'levelEditor' },
+    { source: 'conceptArt', target: 'buildPipeline' },
+  ];
+  const revealed = rows.map((row) => {
+    const chain = collapsedAncestorsToOpen(row.target, getNested);
+    assert.ok(
+      chain.length > 0,
+      `row for ${row.target} must have something to open — an empty chain is what made rows 2 and 3 dead`,
+    );
+    return row.target;
+  });
+  assert.equal(
+    new Set(revealed).size,
+    3,
+    'each row reveals its own distinct task',
+  );
+  assert.equal(
+    findVisibleRepresentative('infra', getNested, visible),
+    'engineering',
+    'and all three really do aggregate behind the one representative',
+  );
+});
+
+test('NEGATIVE CONTROL / R3-6: the retired "stop at the first open ancestor" walk returns nothing for exactly the rows that were dead', () => {
+  const retired = (taskId) => {
+    const toOpen = [];
+    let current = getNested(taskId);
+    while (current) {
+      const parentId = current.parent;
+      if (!parentId) break;
+      const parent = getNested(parentId);
+      if (!parent) break;
+      if (parent.open === true) break; // the retired line
+      toOpen.push(parent.id);
+      current = parent;
+    }
+    return toOpen.reverse();
+  };
+  assert.deepEqual(
+    retired('infra'),
+    ['engineering'],
+    'the row that worked really did work under the retired walk',
+  );
+  for (const id of ['levelEditor', 'buildPipeline']) {
+    assert.deepEqual(
+      retired(id),
+      [],
+      `${id} returned an empty chain, so the caller opened nothing and then scrolled to a task that was still not rendered — silently doing nothing (SVAR-M44 red-before)`,
+    );
+  }
 });
 
 test('pickBadgeAnchor: both ends visible -> the midpoint of the (fully clipped) route', () => {

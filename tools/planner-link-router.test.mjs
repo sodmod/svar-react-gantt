@@ -20,10 +20,24 @@ import {
   LINK_TOKENS,
   routeLink,
   assignChannels,
+  buildLink,
   buildRoundedPath,
   arrowPolygonPoints,
   boundingBox,
+  sideEntryRun,
 } from '../src/planner-router/route.js';
+
+/*
+ * SVAR-M41 (R3-1): the reverse-bypass corridor's own entry/exit run, taken
+ * from the production formula's own terms rather than restated as a number.
+ * Two tests below assert against it, and the previous copy of it (a literal
+ * `Math.max(clearance, radius * 2)`) went stale the moment the production
+ * value grew — reporting a failure about the TARGET's far edge for a change
+ * that had nothing to do with the target.
+ */
+function reverseEntryRun(tokens) {
+  return Math.max(tokens.clearance, tokens.radius * 2, sideEntryRun(tokens));
+}
 
 const ROW_HEIGHT = 40;
 
@@ -119,7 +133,19 @@ test('reverse-time bypass: a successor that starts before the predecessor ends i
   assert.ok(box.x2 >= source.x + source.w);
 });
 
-test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source does not send the corridor past the target\'s own far edge (a collapsed group\'s summary bar, "Неправильно проложенный маршрут.jpg")', () => {
+/*
+ * R3 note on the wording of this title. It used to say "a collapsed group's
+ * summary bar", and `summary` is one of the PRO store properties check 4 of
+ * `tools/planner-verify.mjs` refuses on an added EXECUTABLE line — a test
+ * title is one, so that check has been red since R2 added this line. Under
+ * the project's own rule for classifying such a counterexample (AGENTS.md
+ * §10.1), it falls INSIDE the guarantee the guard already promised, so the
+ * fix belongs on this side and the checker is not widened to admit it. The
+ * bar meant here is the Community `task.type === 'summary'` row kind the
+ * product paints as a group ribbon, never the PRO `summary.autoConvert` /
+ * `summary.autoProgress` API, which this fork does not use.
+ */
+test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source does not send the corridor past the target\'s own far edge (a collapsed group\'s ribbon bar, "Неправильно проложенный маршрут.jpg")', () => {
   // A collapsed group's own representative rect: hundreds of pixels wide,
   // starting at the chart's own left edge — the source sits well inside
   // its horizontal span, exactly AggregateLinks.jsx's own real geometry.
@@ -128,7 +154,7 @@ test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source do
   const route = routeLink({ sourceRect: source, targetRect: target, rowHeight: 30 });
   assert.equal(route.routeClass, 'reverseBypass');
 
-  const entryRun = Math.max(LINK_TOKENS.clearance, LINK_TOKENS.radius * 2);
+  const entryRun = reverseEntryRun(LINK_TOKENS);
   const sx = source.x + source.w;
   const hx = route.points[1][0];
   assert.ok(
@@ -145,7 +171,7 @@ test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source do
 test('negative control: clearing the target\'s far edge (the retired formula) really did send the corridor hundreds of px past where it needed to turn', () => {
   const source = rect(1350, 500, 30);
   const target = rect(0, 0, 1900, 30);
-  const entryRun = Math.max(LINK_TOKENS.clearance, LINK_TOKENS.radius * 2);
+  const entryRun = reverseEntryRun(LINK_TOKENS);
   const sx = source.x + source.w;
   const oldHx = Math.max(sx, target.x + target.w) + entryRun;
   assert.ok(
@@ -430,4 +456,246 @@ test('unsupported link type (not creatable through the product UI) still produce
   });
   assert.equal(route.routeClass, 'generic');
   assert.ok(route.points.length >= 2);
+});
+
+/* ======================================================================== *
+ * SVAR-M41 (R3-1, Pavel manual acceptance remediation — "Не исправлено.jpg")
+ *
+ * The screenshot's own geometry, as a fixture: two forward links whose
+ * verticals are pushed hard right by a GROUP row's summary bar (which in
+ * this product spans the whole project width), so the corridor cap is what
+ * decides where the vertical lands and therefore how much run is left for
+ * the final approach.
+ * ======================================================================== */
+
+const BROKEN_ROUTE_FIXTURE = Object.freeze({
+  // "Concept refinement", the shared source of both links in the shot.
+  sourceRect: { x: 25, y: 25, w: 172, h: 36 },
+  // "Combat prototype" and "Build pipeline hardening", the two targets
+  // Pavel's own arrows point at.
+  targets: [
+    { x: 503, y: 697, w: 340, h: 36 },
+    { x: 365, y: 890, w: 206, h: 36 },
+  ],
+  // Two collapsed-group ribbons in rows between them, each as wide as the
+  // whole timeline — the reason the single global corridor push always
+  // overshoots the target here.
+  obstacles: [
+    { x: 0, y: 186, w: 1800, h: 8 },
+    { x: 25, y: 610, w: 1600, h: 8 },
+  ],
+  rowHeight: 48,
+});
+
+function finalRunOf(points) {
+  const a = points[points.length - 2];
+  const b = points[points.length - 1];
+  return Math.hypot(b[0] - a[0], b[1] - a[1]);
+}
+
+function arrowBox(pointsAttr) {
+  const pairs = pointsAttr.split(' ').map((p) => p.split(',').map(Number));
+  return {
+    x1: Math.min(...pairs.map((p) => p[0])),
+    x2: Math.max(...pairs.map((p) => p[0])),
+    y1: Math.min(...pairs.map((p) => p[1])),
+    y2: Math.max(...pairs.map((p) => p[1])),
+  };
+}
+
+test('R3-1: the screenshot geometry keeps a valid final run — corner radius, a visible run and the arrowhead all fit', () => {
+  for (const targetRect of BROKEN_ROUTE_FIXTURE.targets) {
+    const route = routeLink({
+      sourceRect: BROKEN_ROUTE_FIXTURE.sourceRect,
+      targetRect,
+      obstacles: BROKEN_ROUTE_FIXTURE.obstacles,
+      rowHeight: BROKEN_ROUTE_FIXTURE.rowHeight,
+    });
+    const finalRun = finalRunOf(route.points);
+    assert.ok(
+      finalRun + 0.5 >= sideEntryRun(LINK_TOKENS),
+      `final run ${finalRun} must be at least sideEntryRun (${sideEntryRun(LINK_TOKENS)}) for target x=${targetRect.x}`,
+    );
+    // The corner is not allowed to eat the run: what is left of it after
+    // the last corner's own radius must still hold the whole arrowhead.
+    const cornerRadius = Math.min(LINK_TOKENS.radius, finalRun / 2);
+    assert.ok(
+      finalRun - cornerRadius >= LINK_TOKENS.arrowLength,
+      `after a ${cornerRadius}px corner only ${finalRun - cornerRadius}px is left for a ${LINK_TOKENS.arrowLength}px arrowhead`,
+    );
+    assert.equal(
+      cornerRadius,
+      LINK_TOKENS.radius,
+      'and the corner keeps its FULL radius rather than being clamped by a short run',
+    );
+  }
+});
+
+test('R3-1: the drawn path actually REACHES the target — the arrow-trimmed endpoint is never deduped away into the corner', () => {
+  for (const targetRect of BROKEN_ROUTE_FIXTURE.targets) {
+    const link = buildLink({
+      sourceRect: BROKEN_ROUTE_FIXTURE.sourceRect,
+      targetRect,
+      obstacles: BROKEN_ROUTE_FIXTURE.obstacles,
+      rowHeight: BROKEN_ROUTE_FIXTURE.rowHeight,
+    });
+    const corner = link.points[link.points.length - 2];
+    const coordinates = [
+      ...link.d.matchAll(/(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/g),
+    ].map((m) => [Number(m[1]), Number(m[2])]);
+    const endOfPath = coordinates[coordinates.length - 1];
+    assert.ok(
+      endOfPath[0] > corner[0] + LINK_TOKENS.radius,
+      `the path ends at ${JSON.stringify(endOfPath)}, which is not past its own last corner ${JSON.stringify(corner)} — the final run was not drawn at all`,
+    );
+    assert.ok(
+      endOfPath[0] < targetRect.x,
+      'and it stops short of the bar, leaving the arrowhead its own space',
+    );
+  }
+});
+
+test('R3-1: the arrowhead is outside the target bar, on the side it enters from', () => {
+  for (const targetRect of BROKEN_ROUTE_FIXTURE.targets) {
+    const link = buildLink({
+      sourceRect: BROKEN_ROUTE_FIXTURE.sourceRect,
+      targetRect,
+      obstacles: BROKEN_ROUTE_FIXTURE.obstacles,
+      rowHeight: BROKEN_ROUTE_FIXTURE.rowHeight,
+    });
+    assert.equal(link.arrowDir, 'right');
+    const box = arrowBox(link.arrow);
+    assert.ok(box.x2 <= targetRect.x + 0.01, 'arrow tip is at the bar edge');
+    assert.ok(
+      box.x1 >= targetRect.x - LINK_TOKENS.arrowLength - 0.01,
+      'and the whole triangle sits immediately outside it, not buried under the bar',
+    );
+    assert.ok(
+      box.x1 > link.points[link.points.length - 2][0],
+      'the triangle begins past the last corner, so it reads as an entry rather than as a bend',
+    );
+  }
+});
+
+test('NEGATIVE CONTROL / R3-1: the retired `tx - minRun` cap collapses the final run, over-rounds the corner and deletes the endpoint', () => {
+  const tokens = LINK_TOKENS;
+  for (const targetRect of BROKEN_ROUTE_FIXTURE.targets) {
+    // Exactly what `standardRoute` used to compute, restated here rather
+    // than reintroduced into production: `vx` pushed past the target by the
+    // full-width group ribbons, then capped at `tx - minRun`.
+    const vx = targetRect.x - tokens.minRun;
+    const brokenPoints = [
+      [
+        BROKEN_ROUTE_FIXTURE.sourceRect.x + BROKEN_ROUTE_FIXTURE.sourceRect.w,
+        BROKEN_ROUTE_FIXTURE.sourceRect.y +
+          BROKEN_ROUTE_FIXTURE.sourceRect.h / 2,
+      ],
+      [
+        vx,
+        BROKEN_ROUTE_FIXTURE.sourceRect.y +
+          BROKEN_ROUTE_FIXTURE.sourceRect.h / 2,
+      ],
+      [vx, targetRect.y + targetRect.h / 2],
+      [targetRect.x, targetRect.y + targetRect.h / 2],
+    ];
+    const finalRun = finalRunOf(brokenPoints);
+    assert.equal(finalRun, tokens.minRun);
+    assert.ok(
+      finalRun < sideEntryRun(tokens),
+      'this control only proves something if the retired cap really did fall below the room a side entry needs',
+    );
+    assert.ok(
+      finalRun / 2 < tokens.radius,
+      'and really did clamp the last corner below the full radius token',
+    );
+    // The decisive part: `trimForArrow` + `dedupePoints` delete the endpoint.
+    const d = buildRoundedPath(
+      [
+        ...brokenPoints.slice(0, -1),
+        [targetRect.x - (tokens.arrowLength - 1), brokenPoints[3][1]],
+      ],
+      tokens.radius,
+    );
+    assert.ok(
+      !d.includes(`L${targetRect.x - (tokens.arrowLength - 1)},`),
+      'the retired geometry put the trimmed endpoint within the 0.5px dedupe window, so the drawn path ended at the corner with no final run at all (SVAR-M41 red-before)',
+    );
+  }
+});
+
+test('R3-1: a side entry is never EMITTED without room for corner + run + arrowhead — the fallback is the tight-entry family, not a compressed L', () => {
+  // A forward gap just above the retired threshold (2*clearance + minRun =
+  // 34) and below the real one: a standard L here would have had only
+  // `gap - clearance` = 22px of final approach.
+  const route = routeLink({
+    sourceRect: { x: 0, y: 0, w: 100, h: 24 },
+    targetRect: { x: 100 + 36, y: 40, w: 100, h: 24 },
+    rowHeight: 40,
+  });
+  assert.equal(route.routeClass, 'tightEntry');
+  assert.equal(route.arrowDir, 'down');
+  assert.equal(
+    route.points[route.points.length - 1][1],
+    40,
+    'it enters at the target bar\'s TOP edge, the accepted tight-entry family (D-166 §E)',
+  );
+});
+
+test('NEGATIVE CONTROL / R3-1: the retired classifier threshold would have called that same gap a standard L', () => {
+  const gap = 36;
+  const retired = 2 * LINK_TOKENS.clearance + LINK_TOKENS.minRun;
+  assert.ok(
+    gap > retired,
+    'this control only proves something if the retired threshold really did classify this gap as a standard L',
+  );
+  assert.ok(
+    gap - LINK_TOKENS.clearance < sideEntryRun(LINK_TOKENS),
+    'and if the standard L it would have produced really did lack the room a side entry needs',
+  );
+});
+
+test('R3-1: a capped corridor keeps fan-in members on separate verticals rather than collapsing them onto one trunk (D-166 §G)', () => {
+  const targetRect = BROKEN_ROUTE_FIXTURE.targets[0];
+  const xs = [0, 1, 2].map(
+    (channelOffset) =>
+      routeLink({
+        sourceRect: BROKEN_ROUTE_FIXTURE.sourceRect,
+        targetRect,
+        obstacles: BROKEN_ROUTE_FIXTURE.obstacles,
+        rowHeight: BROKEN_ROUTE_FIXTURE.rowHeight,
+        channelOffset,
+      }).points[1][0],
+  );
+  assert.equal(new Set(xs).size, 3, 'three channels, three distinct verticals');
+  for (let i = 1; i < xs.length; i++) {
+    assert.equal(
+      Math.abs(xs[i] - xs[i - 1]),
+      LINK_TOKENS.channelStep,
+      'and they stay exactly channelStep apart',
+    );
+  }
+});
+
+test('R3-1: the reverse-bypass corridor returns to the target with the same valid side entry', () => {
+  const route = routeLink({
+    sourceRect: { x: 200, y: 0, w: 100, h: 24 },
+    targetRect: { x: 50, y: 160, w: 100, h: 24 },
+    rowHeight: 40,
+  });
+  assert.equal(route.routeClass, 'reverseBypass');
+  const finalRun = finalRunOf(route.points);
+  assert.ok(
+    finalRun + 0.5 >= sideEntryRun(LINK_TOKENS),
+    `reverse-bypass final run ${finalRun} must also satisfy sideEntryRun (${sideEntryRun(LINK_TOKENS)})`,
+  );
+});
+
+test('R3-1: an unsupported link type is left alone — the guard does not rewrite a `generic` route into a family built for e2s', () => {
+  const route = routeLink({
+    sourceRect: { x: 0, y: 0, w: 50, h: 24 },
+    targetRect: { x: 300, y: 40, w: 50, h: 24 },
+    type: 's2e',
+    rowHeight: 40,
+  });
+  assert.equal(route.routeClass, 'generic');
 });
