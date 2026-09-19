@@ -108,8 +108,9 @@ const OWNED_UPSTREAM_FILES = {
     '`prepare` builds the package: a git dependency has no publish step; ' +
     '`test:planner` runs the pure unit tests of SVAR-M4 (annotation layout), ' +
     'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate), ' +
-    'SVAR-M31 (the chart axis\' date <-> pixel projection) and ' +
-    'SVAR-M32 (the deterministic link router)',
+    'SVAR-M31 (the chart axis\' date <-> pixel projection), ' +
+    'SVAR-M32 (the deterministic link router) and ' +
+    'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -119,7 +120,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
     'SVAR-M10 — draws an ancestor summary whose transient width the store collapsed to zero at its pre-gesture size, translated by the gesture; ' +
     'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else, and the bars wearing the resize cursor give it back on the render that withholds them (R2, B-1); ' +
-    'SVAR-M32 — renders <Links> with the linkPresentation pass-through',
+    'SVAR-M32 — renders <Links> with the linkPresentation pass-through; ' +
+    'SVAR-M33 — Esc cancels a pending link-create draft: a keydown listener attached only while one is pending, calling the existing removeLinkMarker and nothing else',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -183,7 +185,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M26 — the `columnMaxWidth` prop; ' +
     'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop',
   'src/components/chart/Links.jsx':
-    'SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store\'s OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop\'s `lineStyle` as a stroke-dasharray (never on the arrowhead)',
+    'SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store\'s OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop\'s `lineStyle` as a stroke-dasharray (never on the arrowhead); ' +
+    'SVAR-M34 — the router\'s reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar\'s own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row',
   'src/components/chart/Links.css':
     'SVAR-M32 — draws the router\'s `<path>` output (was a `<polyline>`), the dash patterns `linkPresentation` selects, and the arrowhead polygon\'s fill, matching the line\'s own colour/hover/critical/selected states',
   'src/themes/Willow.css':
