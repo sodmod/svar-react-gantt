@@ -198,23 +198,28 @@ function reverseBypassRoute({
   const rowTop = rowCenter - rowHeight / 2;
   const rowBottom = rowCenter + rowHeight / 2;
 
-  // SVAR-M34 (visual-review correction to D-166 §D, "плохо реализовано.jpg"):
-  // the gutter is measured from the TARGET BAR'S OWN edge, not assumed from
-  // `rowHeight` alone. A bar that nearly fills its row leaves less real
-  // free space than a fixed `rowHeight`-fraction inset would assume, and
-  // the old fraction could land the corridor INSIDE the bar's own vertical
-  // span, so the horizontal run visually passed behind the bar it was
-  // meant to go around. Measuring the actual margin keeps the corridor
-  // clear of the bar by at least 1px and, whenever the bar leaves room,
-  // pulls it in only as far as `clearance` prefers — as close to the real
-  // row-separator line as that room allows, which is what makes the run
-  // read as passing BETWEEN rows rather than through one.
-  const preferredGutter = tokens.clearance / 2;
-  const topMargin = Math.max(0, targetRect.y - rowTop);
-  const bottomMargin = Math.max(0, rowBottom - (targetRect.y + targetRect.h));
+  // SVAR-M34 (visual-review correction to D-166 §D, "плохо реализовано.jpg";
+  // R1 correction to the first cut of this same fix, which pulled the
+  // corridor back from the boundary by up to `clearance / 2` even when the
+  // bar left no such room, landing it a few px ABOVE the real separator
+  // instead of ON it). The row boundary itself — not some inset measured
+  // off it — IS the corridor: every bar the chart draws already keeps some
+  // padding inside its own row (the theme reserves it; a bar is never as
+  // tall as its row), so the exact line between two rows is the one point
+  // guaranteed clear of BOTH the row above's bar and the row below's,
+  // without measuring either. The margin is still measured, but only as a
+  // guard for a bar that leaves none at all (a theme/config this router has
+  // never actually seen) — pull back the smallest step that clears it,
+  // never further.
+  const topMargin = targetRect.y - rowTop;
+  const bottomMargin = rowBottom - (targetRect.y + targetRect.h);
   const cy = below
-    ? rowTop + Math.max(0, Math.min(preferredGutter, topMargin - 1))
-    : rowBottom - Math.max(0, Math.min(preferredGutter, bottomMargin - 1));
+    ? topMargin > 0
+      ? rowTop
+      : rowTop + 1
+    : bottomMargin > 0
+      ? rowBottom
+      : rowBottom - 1;
 
   const hx =
     Math.max(sx, targetRect.x + targetRect.w) +

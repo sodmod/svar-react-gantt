@@ -119,10 +119,12 @@ test('reverse-time bypass: a successor that starts before the predecessor ends i
   assert.ok(box.x2 >= source.x + source.w);
 });
 
-test('SVAR-M34: the reverse-bypass corridor stays outside the target bar even when the bar nearly fills its row ("плохо реализовано.jpg")', () => {
+test('SVAR-M34: the reverse-bypass corridor runs exactly on the row separator, not merely outside the bar ("плохо реализовано.jpg", R1 correction)', () => {
   // Real product geometry (measured from a running build): a 48px row with
-  // a 41px bar leaves only ~3.5px of free margin on each side — far less
-  // than the retired `rowHeight / 4` (12px) the corridor used to assume.
+  // a 41px bar leaves ~3.5px of free margin on each side — far less than
+  // the retired `rowHeight / 4` (12px) the corridor used to assume, but
+  // still enough that the corridor should sit ON the row boundary, not
+  // merely somewhere clear of the bar.
   const rowHeight = 48;
   const barHeight = 41;
   const source = rect(1200, 243, 34, barHeight); // below and to the right
@@ -134,20 +136,31 @@ test('SVAR-M34: the reverse-bypass corridor stays outside the target bar even wh
   // the two verticals.
   const cy = route.points[2][1];
   assert.equal(route.points[3][1], cy, 'the corridor is a single flat run');
-  assert.ok(
-    cy <= target.y || cy >= target.y + target.h,
-    `corridor y=${cy} must stay outside the target bar's own vertical span [${target.y}, ${target.y + target.h}], not cut across it`,
-  );
 
-  // Still a small, real gap — pulled in as close to the row separator as
-  // `clearance` allows, not pushed arbitrarily far from the bar.
-  const gap = Math.min(
-    Math.abs(cy - target.y),
-    Math.abs(cy - (target.y + target.h)),
+  const rowBottom = target.y + target.h / 2 + rowHeight / 2;
+  assert.equal(
+    cy,
+    rowBottom,
+    'the corridor must sit exactly on the row separator (R1: the first cut of this fix pulled it back by up to clearance/2 even with room to spare, landing it a few px above the line instead of on it)',
   );
   assert.ok(
-    gap >= 1 && gap <= LINK_TOKENS.clearance / 2,
-    `gap=${gap} should be a small clearance-scaled margin, not zero and not an overshoot`,
+    cy >= target.y + target.h,
+    `corridor y=${cy} must still stay outside the target bar's own vertical span [${target.y}, ${target.y + target.h}]`,
+  );
+});
+
+test('SVAR-M34: a bar that leaves NO margin at all still gets pulled back by the smallest step that clears it', () => {
+  const rowHeight = 40;
+  const source = rect(1000, 200, 34); // below and to the right
+  const target = rect(100, 160, 34, rowHeight); // fills its own row exactly
+  const route = routeLink({ sourceRect: source, targetRect: target, rowHeight });
+  assert.equal(route.routeClass, 'reverseBypass');
+  const cy = route.points[2][1];
+  const rowBottom = target.y + target.h / 2 + rowHeight / 2;
+  assert.equal(
+    cy,
+    rowBottom - 1,
+    'with zero margin the exact boundary would touch the bar, so the fallback pulls back by 1px, the smallest step that clears it',
   );
 });
 
@@ -161,6 +174,24 @@ test('negative control: the retired rowHeight/4 gutter would have cut across a b
   assert.ok(
     oldCy > target.y && oldCy < target.y + target.h,
     'this control only proves something if the retired formula really did land inside the bar (SVAR-M34 kickoff-style red-before)',
+  );
+});
+
+test('negative control (R1): the first cut of this fix (clearance/2 pullback) would have missed the row separator by several px even with room to spare', () => {
+  const rowHeight = 48;
+  const target = rect(136, 195, 34, 41);
+  const rowCenter = target.y + target.h / 2;
+  const rowBottom = rowCenter + rowHeight / 2;
+  const bottomMargin = rowBottom - (target.y + target.h);
+  const firstCutInset = Math.max(
+    0,
+    Math.min(LINK_TOKENS.clearance / 2, bottomMargin - 1),
+  );
+  const firstCutCy = rowBottom - firstCutInset;
+  assert.notEqual(
+    firstCutCy,
+    rowBottom,
+    'this control only proves something if the first cut really did miss the exact separator',
   );
 });
 
