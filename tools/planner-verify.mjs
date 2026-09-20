@@ -115,8 +115,9 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M41 (the room a side entry needs before it may be emitted), ' +
     'SVAR-M43 (the overlay correction\'s own origin), ' +
     'SVAR-M44 (the closed-ancestor walk) and ' +
-    'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport) and ' +
-    'SVAR-M48 (the endpoint-symmetric chip over canonical and aggregate routes)',
+    'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport), ' +
+    'SVAR-M48 (the endpoint-symmetric chip over canonical and aggregate routes) and ' +
+    'SVAR-M49 (one chip per presentation endpoint)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':

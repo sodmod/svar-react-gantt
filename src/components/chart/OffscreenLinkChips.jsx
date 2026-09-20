@@ -55,9 +55,17 @@ import './OffscreenLinkChips.css';
  * gets none, however far its ends are. The R5 findings this closes are
  * recorded at the top of `offscreenChips.js`.
  *
+ * SVAR-M49 (Phase 4.1C R6, R6-1): the derivation then MERGES the candidates
+ * that name one presentation endpoint into one chip. Several routes to one
+ * offscreen task (four links into `Infra migration`, Pavel's screenshot)
+ * used to be several identical chips stacked at the edge; now they are one
+ * chip, on the representative route's exit, carrying every route and link
+ * it stands for and a small count. The click still reveals that one task.
+ * The R6 findings are recorded at the top of `offscreenChips.js`.
+ *
  * Every chip carries its provenance in the DOM (`data-route-id`,
- * `data-route-kind`, `data-endpoint-role`, `data-endpoint-id`,
- * `data-link-ids`, plus the R4 names `data-link-id`, `data-partner-id`,
+ * `data-route-ids`, `data-route-count`, `data-route-kind`,
+ * `data-endpoint-role`, `data-endpoint-id`, `data-link-ids`, plus the R4 names `data-link-id`, `data-partner-id`,
  * `data-local-id`, `data-direction`, `data-exit-edge`, `data-anchor-x/y`) so
  * the product's own evidence suite can build the endpoint/chip table R5 §12
  * asks for from real rendered geometry, rather than from a second copy of
@@ -96,6 +104,16 @@ function Chip({ chip, basePosition, onReveal }) {
   const { left, top } = basePosition;
   const arrow = ARROWS[chip.direction] ?? '›';
   const before = chip.direction === 'left' || chip.direction === 'top';
+  /*
+   * SVAR-M49 (R6-1): one chip per presentation endpoint. `data-route-id`,
+   * `data-endpoint-role`, `data-local-id`, `data-exit-edge` and the anchor
+   * are the REPRESENTATIVE route's (the one the chip sits on);
+   * `data-route-ids` and `data-link-ids` list every route and canonical
+   * link merged into it, and `data-route-count` how many. The count is
+   * shown only when it is more than one — a plain chip reads exactly as
+   * before.
+   */
+  const count = chip.routeCount ?? 1;
   return (
     <button
       type="button"
@@ -107,6 +125,8 @@ function Chip({ chip, basePosition, onReveal }) {
       }}
       data-chip-id={chip.key}
       data-route-id={setID(chip.routeId)}
+      data-route-ids={chip.routes.map((r) => setID(r.routeId)).join(',')}
+      data-route-count={count}
       data-route-kind={chip.kind}
       data-endpoint-role={chip.role}
       data-endpoint-id={setID(chip.partnerId)}
@@ -129,6 +149,14 @@ function Chip({ chip, basePosition, onReveal }) {
       <span className="wx-4kNpQzTa wx-offscreen-link-chip-label">
         {chip.partnerName}
       </span>
+      {count > 1 ? (
+        <span
+          className="wx-4kNpQzTa wx-offscreen-link-chip-count"
+          title={`${count} links`}
+        >
+          {count}
+        </span>
+      ) : null}
       {!before ? (
         <span className="wx-4kNpQzTa wx-offscreen-link-chip-arrow">
           {arrow}

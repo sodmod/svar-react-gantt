@@ -55,7 +55,8 @@ function Chart(props) {
     // renders <Links> — see Gantt.jsx.
     linkPresentation,
     // SVAR-M35 R2-5 (SVAR Production Planner): pass-through to
-    // OffscreenLinkChips, which is the only consumer — see Gantt.jsx.
+    // OffscreenLinkChips — and, since SVAR-M49 (R6-4), to Bars.jsx for the
+    // aggregate popover's own reveal — see Gantt.jsx.
     onRevealPartner,
   } = props;
 
@@ -303,7 +304,7 @@ function Chart(props) {
     };
   }, [onWheel]);
 
-  useRenderTime("chart");
+  useRenderTime('chart');
 
   return (
     <div
@@ -403,6 +404,7 @@ function Chart(props) {
           taskTemplate={taskTemplate}
           onDragPreview={onBarDragPreview}
           linkPresentation={linkPresentation}
+          onRevealPartner={onRevealPartner}
         />
 
         {/* SVAR-M35 (SVAR Production Planner): after Bars, so a chip paints

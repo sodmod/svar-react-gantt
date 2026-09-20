@@ -44,3 +44,20 @@
   flex: none;
   font-size: calc(var(--wx-font-size-sm) + 2px);
 }
+
+/* SVAR-M49 (R6-1): the number of routes one chip stands for, shown only when
+   it is more than one. Sized to read as a footnote to the label, never as a
+   second label. */
+.wx-offscreen-link-chip-count.wx-4kNpQzTa {
+  flex: none;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 4px;
+  box-sizing: border-box;
+  border-radius: 7px;
+  background-color: var(--wx-gantt-link-color);
+  color: var(--wx-background-alt, var(--wx-background));
+  font-size: calc(var(--wx-font-size-sm) - 3px);
+  line-height: 14px;
+  text-align: center;
+}

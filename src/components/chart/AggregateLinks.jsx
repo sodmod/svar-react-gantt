@@ -54,6 +54,12 @@ const POPOVER_FALLBACK_SIZE = { width: 220, height: 70 };
  * split `useRoutedLinks.js` already made for canonical links in R4.
  * Nothing about what is drawn changed; the visibility culling, the badge,
  * the popover and the reveal are still this component's own, below.
+ *
+ * SVAR-M49 (R6-4, R6-5): a popover row now reveals the hidden endpoint
+ * (the source when both are hidden) through the consumer's own reveal owner
+ * — `onRevealPartner`, the seam the offscreen chip already uses — opening
+ * only that endpoint's collapsed ancestors and selecting that task. See
+ * `onRevealMember` and `revealNow`.
  */
 
 export default function AggregateLinks({
@@ -61,6 +67,9 @@ export default function AggregateLinks({
   selectedLink,
   readonly,
   linkPresentation,
+  // SVAR-M49 (R6-4): the consumer's own reveal, the same `onRevealPartner`
+  // the offscreen chip hands its click to (SVAR-M40). See `onRevealMember`.
+  onRevealPartner,
 }) {
   const {
     api,
@@ -195,34 +204,52 @@ export default function AggregateLinks({
     [popoverBasePosition.left, popoverBasePosition.top, popoverSize],
   );
 
+  /*
+   * SVAR-M49 (R6-4, R6-5): the reveal of ONE task, by the consumer's own
+   * reveal owner when it supplies one (`onRevealPartner`, the same seam the
+   * offscreen chip uses — in the Planner that is `revealTask` with the
+   * accepted D-165 horizontal rule, the centred vertical landing and the
+   * selection, in one coherent navigation). Before R6 this scrolled the
+   * chart's own `scrollLeft` alone and selected the LINK: measured on the
+   * product stand with `Community` collapsed and the chart at `Age rating
+   * paperwork`, the row click moved the timeline to March and nothing else
+   * — the rows stayed where they were, the hidden task's row was never on
+   * screen, the previous task selection stayed — "экран смещается странно".
+   *
+   * The consumer-less fallback keeps the store's own commands: the task is
+   * selected (`select-task`) and both axes are scrolled so its row lands in
+   * the middle of the band and its bar start a third of the way in, the
+   * same shape the chip's own fallback uses (SVAR-M48).
+   */
   const revealNow = useCallback(
-    (taskId, linkId) => {
+    (taskId) => {
       const rect = taskRects.get(taskId);
       if (!rect) return false;
-      /*
-       * SVAR-M45 (R3-6): the USABLE chart width, the same one
-       * `OffscreenLinkChips.jsx` now decides its own geometry with
-       * (SVAR-M42's own note). `xArea.to - xArea.from` is the store's
-       * VIRTUALIZATION window — wider than the chart by its pre-render
-       * buffer on each side — so centring on it put the revealed task
-       * visibly left of the middle, by half that buffer, every time.
-       */
+      if (onRevealPartner) {
+        onRevealPartner(taskId);
+        return true;
+      }
       const viewportWidth = usableWidth;
       if (!(viewportWidth > 0)) return false;
-      const left = Math.max(0, rect.x + rect.w / 2 - viewportWidth / 2);
-      api.exec('scroll-chart', { left, top: scrollTop });
-      if (!readonly) onSelectLink(linkId);
+      const state = api.getState() || {};
+      const viewportHeight = state._chartHeight - (state._scrollSize || 0);
+      const left = Math.max(0, rect.x - viewportWidth / 3);
+      const top =
+        viewportHeight > 0
+          ? Math.max(0, Math.round(rect.y - (viewportHeight - rect.h) / 2))
+          : scrollTop;
+      api.exec('select-task', { id: taskId, show: false });
+      api.exec('scroll-chart', { left, top });
       return true;
     },
-    [taskRects, usableWidth, api, scrollTop, readonly, onSelectLink],
+    [taskRects, usableWidth, api, scrollTop, onRevealPartner],
   );
 
   useEffect(() => {
     const pending = pendingRevealRef.current;
     if (!pending) return;
-    if (revealNow(pending.taskId, pending.linkId)) {
+    if (revealNow(pending.taskId)) {
       pendingRevealRef.current = null;
-      setOpenAggregateId(null);
       return;
     }
     /*
@@ -242,51 +269,63 @@ export default function AggregateLinks({
   const onRevealMember = useCallback(
     (link) => {
       /*
-       * SVAR-M45 (R3-6): the endpoint this row is FOR. A row names a real
-       * canonical link whose own hidden side is what the aggregate stands
-       * in for, and scrolling to the side that was already on screen is not
-       * a reveal of anything. `taskRects` is the render truth here — a task
-       * hidden inside a collapsed ancestor is simply absent from `_tasks`
-       * (`aggregate.js`'s own opening note), so "not in `taskRects`" IS
-       * "hidden", with no second definition of hidden to drift from the
-       * first. Both hidden (a link between two collapsed groups) reveals
-       * the TARGET, the end the arrow points at; neither hidden keeps the
-       * previous behaviour exactly.
+       * SVAR-M49 (R6-4, R6-5): the endpoint this row is FOR, and the whole
+       * of what the click does, stated as the product decided it:
+       *
+       *   one end hidden     reveal THAT end — open only its own collapsed
+       *                      ancestors, land on it, select it
+       *   both ends hidden   reveal the SOURCE (R6-4 case B, R6-5) — open
+       *                      only the source's ancestors, never both chains:
+       *                      opening both and centring on the link's middle
+       *                      showed the person two groups unfolding and no
+       *                      task, which is what Pavel reproduced
+       *   neither hidden     (unreachable for an aggregate row, kept for
+       *                      completeness) land on the target
+       *
+       * `taskRects` is the render truth here — a task hidden inside a
+       * collapsed ancestor is simply absent from `_tasks` (`aggregate.js`'s
+       * own opening note), so "not in `taskRects`" IS "hidden", with no
+       * second definition of hidden to drift from the first (SVAR-M45).
+       *
+       * The canonical link stays selected (R3-5's accepted delete
+       * affordance for a link one can now see both ends of); the TASK
+       * selection is the reveal owner's, which replaces whatever was
+       * selected before. The popover closes at once: the click has been
+       * answered, whether the landing is immediate or waits one commit for
+       * the rows the `open-task` calls produce.
        */
-      const revealId = !taskRects.has(link.target)
-        ? link.target
-        : !taskRects.has(link.source)
-          ? link.source
+      const sourceHidden = !taskRects.has(link.source);
+      const targetHidden = !taskRects.has(link.target);
+      const revealId = sourceHidden
+        ? link.source
+        : targetHidden
+          ? link.target
           : link.target;
 
-      // Both chains, because a link between two collapsed groups hides both
-      // of its ends and showing only one of them is not showing the link.
-      const ancestors = [
-        ...collapsedAncestorsToOpen(link.source, getTask),
-        ...collapsedAncestorsToOpen(link.target, getTask),
-      ];
+      const ancestors = collapsedAncestorsToOpen(revealId, getTask);
       for (const id of ancestors) {
         api.exec('open-task', { id, mode: true });
       }
+      if (!readonly) onSelectLink(link.id);
+      setOpenAggregateId(null);
       if (ancestors.length === 0) {
-        if (revealNow(revealId, link.id)) setOpenAggregateId(null);
+        revealNow(revealId);
       } else {
         /*
          * SVAR-M45 (R3-6): the disclosure the `open-task` calls above just
-         * asked for has not produced new rows yet, so the scroll waits for
+         * asked for has not produced new rows yet, so the landing waits for
          * the `taskRects` that carries them (the effect right above). The
-         * generation counter is what stops a reveal that can never succeed
+         * attempt counter is what stops a reveal that can never succeed
          * from sitting in the ref and firing later, against an unrelated
          * `taskRects` change, as a scroll the person did not ask for.
          */
         pendingRevealRef.current = {
           taskId: revealId,
-          linkId: link.id,
           attemptsLeft: 4,
         };
       }
     },
-    [api, getTask, revealNow, taskRects],
+    [api, getTask, revealNow, taskRects, readonly, onSelectLink],
   );
 
   useLayoutEffect(() => {

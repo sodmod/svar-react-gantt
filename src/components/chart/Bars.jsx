@@ -38,6 +38,42 @@ function unitDiffFromPixels(dx, lengthUnitWidth) {
   return Math.round(dx / lengthUnitWidth);
 }
 
+/*
+ * SVAR-M49 (SVAR Production Planner, R6-7a): which end of the SELECTED link,
+ * if any, sits on the given edge of the given task's bar — `'target'`,
+ * `'source'` or `null`. Upstream drew the delete button on the target's bar
+ * edge alone (the end the arrow points at); the selected link's SOURCE end
+ * is the other bar's edge the link leaves from, and it gets the same
+ * button. Which edge each end uses follows the link type exactly as the
+ * arrow does: `type[0]` is the source's side (`s` start, `e` end),
+ * `type[2]` the target's. A link never has both ends on one task.
+ */
+function deleteEndAt(taskId, selectedLink, edge) {
+  if (!selectedLink || typeof selectedLink.type !== 'string') return null;
+  const side = edge === 'left' ? 's' : 'e';
+  if (taskId === selectedLink.target && selectedLink.type[2] === side)
+    return 'target';
+  if (taskId === selectedLink.source && selectedLink.type[0] === side)
+    return 'source';
+  return null;
+}
+
+/*
+ * SVAR-M49 (SVAR Production Planner, R6-7b): whether a key press belongs to
+ * a text-editing control, in which case Delete/Backspace edit text and must
+ * never delete a link. Read from the event's own target; nothing here
+ * knows the consumer's editors by name.
+ */
+function isEditableTarget(target) {
+  if (!target || typeof target.closest !== 'function') return false;
+  if (target.isContentEditable) return true;
+  return (
+    target.closest(
+      'input, textarea, select, [contenteditable=""], [contenteditable="true"], [role="textbox"]',
+    ) !== null
+  );
+}
+
 function Bars(props) {
   // SVAR-M5 (SVAR Production Planner): `onDragPreview` — see `Layout.jsx` and
   // `Gantt.jsx` (`onTimelineDragPreview`). A plain callback prop, null by
@@ -59,6 +95,10 @@ function Bars(props) {
     // SVAR-M32 (SVAR Production Planner): pass-through to <Links> — see
     // Gantt.jsx.
     linkPresentation,
+    // SVAR-M49 (SVAR Production Planner, R6-4): pass-through to
+    // <AggregateLinks>, whose popover rows reveal through the consumer's own
+    // reveal owner — the same prop the offscreen chip already consumes.
+    onRevealPartner,
   } = props;
 
   /*
@@ -713,6 +753,45 @@ function Bars(props) {
     };
   }, [linkFrom, selectedLinkId, removeLinkMarker]);
 
+  /*
+   * SVAR-M49 (SVAR Production Planner, R6-7b): `Delete` and `Backspace`
+   * delete the SELECTED canonical link — the same `delete-link` the
+   * bar-edge button and the collapsed-group delete button dispatch, through
+   * the same store, so the consumer's `delete-link` gateway sees one shape
+   * of request whichever affordance produced it.
+   *
+   * A separate listener from SVAR-M33's Escape one on purpose: that
+   * listener's provenance claim is "Escape, and nothing else", and it stays
+   * byte-for-byte what it was. This one is attached ONLY while a link is
+   * selected and the chart is not read-only, so a page with no selected link
+   * does not listen at all.
+   *
+   * Guards, in order: a key press inside a text control (input, textarea,
+   * contenteditable, role=textbox) is text editing and is left alone; a
+   * press somebody already handled (`defaultPrevented`) is left alone; an
+   * IME composition is left alone. `selectedLinkId` is by construction a
+   * canonical link id — a collapsed-group aggregate of more than one link
+   * never becomes the selected link (SVAR-M37/M45 select only a `count ===
+   * 1` aggregate's one real member) — so this can never delete a
+   * presentation line's members wholesale. `preventDefault` keeps Backspace
+   * from navigating.
+   */
+  useEffect(() => {
+    if (!selectedLinkId || readonly) return;
+    const onDeleteKey = (event) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') return;
+      if (event.defaultPrevented || event.isComposing) return;
+      if (isEditableTarget(event.target)) return;
+      event.preventDefault();
+      api.exec('delete-link', { id: selectedLinkId });
+      setSelectedLinkId(null);
+    };
+    window.addEventListener('keydown', onDeleteKey);
+    return () => {
+      window.removeEventListener('keydown', onDeleteKey);
+    };
+  }, [selectedLinkId, readonly, api]);
+
   const onClick = useCallback(
     (e) => {
       if (ignoreNextClickRef.current) {
@@ -921,9 +1000,15 @@ function Bars(props) {
         selectedLink={selectedLink}
         readonly={readonly}
         linkPresentation={linkPresentation}
+        onRevealPartner={onRevealPartner}
       />
       {tasks.map((task) => {
-        if (task.$skip && task.$skip_baseline && !(rollups && rRollups?.[task.id])) return null;
+        if (
+          task.$skip &&
+          task.$skip_baseline &&
+          !(rollups && rRollups?.[task.id])
+        )
+          return null;
         const barClass =
           `wx-bar wx-${taskTypeCss(task.type)}` +
           (touched && taskMove && task.id === taskMove.id ? ' wx-touch' : '') +
@@ -935,7 +1020,7 @@ function Bars(props) {
           'wx-link wx-left' +
           (linkFrom ? ' wx-visible' : '') +
           (!linkFrom ||
-            (!alreadyLinked(task.id, true) && isLinkMarkerVisible(task.id))
+          (!alreadyLinked(task.id, true) && isLinkMarkerVisible(task.id))
             ? ' wx-target'
             : '') +
           (linkFrom && linkFrom.id === task.id && linkFrom.start
@@ -946,7 +1031,7 @@ function Bars(props) {
           'wx-link wx-right' +
           (linkFrom ? ' wx-visible' : '') +
           (!linkFrom ||
-            (!alreadyLinked(task.id, false) && isLinkMarkerVisible(task.id))
+          (!alreadyLinked(task.id, false) && isLinkMarkerVisible(task.id))
             ? ' wx-target'
             : '') +
           (linkFrom && linkFrom.id === task.id && !linkFrom.start
@@ -966,11 +1051,10 @@ function Bars(props) {
                 {/* SVAR-M30: the link-creation handles are an affordance of
                     a withheld gesture, so they are not drawn either. */}
                 {barGesturesAllowed && !hasDuplicatedIds ? (
-                  task.id === selectedLink?.target &&
-                    selectedLink?.type[2] === 's' ? (
+                  deleteEndAt(task.id, selectedLink, 'left') ? (
                     <Button
                       type="danger"
-                      css="wx-left wx-delete-button wx-delete-link"
+                      css={`wx-left wx-delete-button wx-delete-link wx-delete-link-${deleteEndAt(task.id, selectedLink, 'left')}`}
                     >
                       <i className="wxi-close wx-delete-button-icon"></i>
                     </Button>
@@ -995,8 +1079,8 @@ function Bars(props) {
                         and goes; the progress FILL above is presentation and
                         stays, so a withheld mode still SHOWS progress. */}
                     {barGesturesAllowed &&
-                      !(splitTasks && task.segments) &&
-                      !(task.type === 'summary' && summary?.autoProgress) ? (
+                    !(splitTasks && task.segments) &&
+                    !(task.type === 'summary' && summary?.autoProgress) ? (
                       <div
                         className="wx-GKbcLEGA wx-progress-marker"
                         style={{ left: `calc(${task.progress}% - 10px)` }}
@@ -1027,11 +1111,10 @@ function Bars(props) {
 
                 {/* SVAR-M30: and the same on the other edge. */}
                 {barGesturesAllowed && !hasDuplicatedIds ? (
-                  task.id === selectedLink?.target &&
-                    selectedLink?.type[2] === 'e' ? (
+                  deleteEndAt(task.id, selectedLink, 'right') ? (
                     <Button
                       type="danger"
-                      css="wx-right wx-delete-button wx-delete-link"
+                      css={`wx-right wx-delete-button wx-delete-link wx-delete-link-${deleteEndAt(task.id, selectedLink, 'right')}`}
                     >
                       <i className="wxi-close wx-delete-button-icon"></i>
                     </Button>
