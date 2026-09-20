@@ -87,5 +87,16 @@ export function useRoutedLinks() {
     });
   }, [linksCounter, taskRects, obstacleRects, cellHeight]);
 
-  return { api, taskRects, routedLinks, tasksValue, tasksCounter, cellHeight };
+  // SVAR-M48: the link values travel too, so `useRoutedAggregates` groups
+  // the SAME `_links` this hook routed rather than reading them a second time.
+  return {
+    api,
+    taskRects,
+    routedLinks,
+    tasksValue,
+    tasksCounter,
+    linksValue,
+    linksCounter,
+    cellHeight,
+  };
 }

@@ -1,41 +1,46 @@
 /*
- * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47).
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47, SVAR-M48).
  * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
  *
- * The offscreen link partner chip, derived — every time, from nothing but the
- * CURRENT routed links and the CURRENT usable viewport (D-166 §M,
- * TECH_SPEC.md §6.10.1, Phase 4.1C R4).
+ * The offscreen ENDPOINT chip, derived — every time, from nothing but the
+ * CURRENT presentation routes and the CURRENT usable viewport (D-166 §M,
+ * TECH_SPEC.md §6.10.1, Phase 4.1C R4 and R5).
  *
- * R4 is the round in which the chip's own model was found wrong on the
- * product-scale stand, four ways at once ("Чипса оторвана от связи.jpg",
- * "Чипсы набор без связи.jpg", "Только одна.jpg", "Чипса без связи.jpg"):
+ * R4 (SVAR-M47) made the chip a function of the ROUTE rather than of the
+ * row: a chip exists only where a drawn route leaves the usable viewport on
+ * its way to a partner that is not on it. R5 (SVAR-M48) corrects what "not on
+ * it" meant and what a route is:
  *
- *   1. a chip existed whenever the LOCAL row was in the vertical band and the
- *      partner was horizontally past an edge — with no requirement that any
- *      part of the route be on screen. MEASURED on the product fixture: with
- *      the chart at scroll 0 and both `Detail foliage` and `Season one
- *      content plan` past the RIGHT edge, a chip naming the latter sat at the
- *      bottom-right corner while the route itself was not drawn at all;
- *      scrolled to April, seven such chips lined the left edge with no line
- *      anywhere near them;
- *   2. chips were keyed `(localRow, direction)`, so three links out of
- *      `Store page copy` to three offscreen partners produced ONE chip, and
- *      the two hidden ones had no representation at all;
- *   3. the anchor was "the Y of the horizontal segment crossing the edge", and
- *      when the only visible part of a route was its VERTICAL (partner far to
- *      the right AND far below, the horizontal to it off the bottom of the
- *      chart) the chip fell back to the local row and was then clamped into
- *      the corner — a chip several hundred pixels from its own line;
- *   4. the vertical bounds used were the RENDER window (`area`), one buffer
- *      row taller than the visible band, so a chip could sit in that hidden
- *      row and be clipped by the chart's own top edge (measured: a chip at
- *      y = -10..12 with the chart's box starting at 0).
+ *   1. R4 classified a partner as offscreen HORIZONTALLY only (its bar
+ *      entirely left or right of the viewport). MEASURED on the product
+ *      stand: `Concept sketches` (12..30 Jan) with the chart at 28 Jan..8 Feb
+ *      and its row scrolled above the band overlaps the viewport's x-range,
+ *      so R4 called it "inside" and gave its end no chip, while the LONGER
+ *      `Concept refinement -> Press kit assembly` route, whose source bar
+ *      lies entirely left of the same window, got both chips. Pavel read
+ *      that as "depends on the route's length" ("Две связи но одна чипса",
+ *      "Пример обе чипсы"); the actual discriminator was whether the bar's
+ *      x-range happened to overlap the window while its ROW was off it.
+ *      Now an endpoint is offscreen when its rectangle does not intersect
+ *      the usable viewport at all, in any of the four directions, and every
+ *      endpoint of every visible route is decided on its own (R5 §3.1, §5).
+ *   2. Only canonical links were routes. A collapsed group's aggregate
+ *      route (SVAR-M37) is drawn by the same router and can leave the
+ *      viewport exactly the same way, but had no chip at all (R5-4,
+ *      "group collapsed, external task offscreen => chip is missing").
+ *      Now a route is either kind; an aggregate's endpoints are its two
+ *      PRESENTATION endpoints — the visible representative of the collapsed
+ *      side and the real task (or other representative) of the other side —
+ *      never a hidden child (R5 §3.4).
  *
- * The model here is the one R4 §10 states: a chip is the continuation of ONE
- * presentation link past the point where that link's route LEAVES the usable
- * viewport on its way to a partner that is horizontally outside it. Nothing is
- * remembered between renders; a chip that cannot be attached to a visible run
- * of its own route is simply not produced.
+ * The model, stated once (R5 §3.1): for each route with a meaningful visible
+ * run, each endpoint that is off the usable viewport gets exactly one chip,
+ * anchored where that route leaves the viewport towards that endpoint. One
+ * offscreen end: one chip. Both offscreen with a visible run: two chips.
+ * Nothing visible: none. A target's chip never suppresses a source's, and
+ * nothing is deduplicated by task, by direction or by label — two routes
+ * that need a chip for the same task get two chips, and `layoutChips` stacks
+ * them (R5 §3.2).
  *
  * Pure geometry: canvas-space rectangles and polylines in, chip descriptors
  * out. Nothing here reads a date, a calendar, `mode`, or `DomainState`, and
@@ -51,6 +56,15 @@ export const CHIP_EDGE_INSET = 6;
 export const CHIP_GAP = 7;
 /** Space between two chips that had to be stacked on one anchor. */
 export const CHIP_STACK_GAP = 2;
+/**
+ * SVAR-M48 (R5 §3.1): the least visible run of a route that counts as "a
+ * meaningful segment of this route is visible". Below it a route is treated
+ * as not on screen at all, so neither of its ends gets a chip: a one-pixel
+ * sliver at an edge is not a line a person can follow to a chip. The
+ * product's evidence suite states the same bound when it decides, from the
+ * DOM, which endpoints EXPECT a chip.
+ */
+export const MIN_VISIBLE_RUN = 6;
 
 const EPSILON = 0.5;
 
@@ -126,16 +140,40 @@ function edgeOf(p, rect, along) {
 }
 
 /**
- * Where the polyline `points` (walked in order, i.e. from the LOCAL end
- * towards the partner) last leaves `rect` on its way out. `null` when no part
- * of the polyline is inside `rect` at all, or when it never leaves it again
- * after its last visible run (the far end is itself inside).
+ * How much of the polyline `points` lies inside `rect`, in pixels.
  *
- * "Last" run, not first: a route whose local end is off one side, that
- * crosses the whole viewport and leaves through the other side towards its
- * partner, has exactly one visible run and its exit is the far side. A route
- * that dips in and out more than once still attaches its chip to the run
- * nearest the partner, because that is the run the chip continues.
+ * SVAR-M48: the one definition of "a meaningful segment of this route is
+ * visible" (R5 §3.1). Summed over every segment's clipped part, so a route
+ * that dips in and out counts every visible piece, and a route whose only
+ * visible part is a vertical counts that vertical exactly as it would a
+ * horizontal (R5 §3.3).
+ */
+export function visibleRunLength(points, rect) {
+  let total = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    const a = points[i];
+    const b = points[i + 1];
+    const span = clipSegment(a, b, rect);
+    if (span === null) continue;
+    const [t0, t1] = span;
+    if (t1 <= t0) continue;
+    total += Math.hypot(b[0] - a[0], b[1] - a[1]) * (t1 - t0);
+  }
+  return total;
+}
+
+/**
+ * Where the polyline `points` (walked in order, i.e. from the far end
+ * towards the endpoint the chip is for) last leaves `rect` on its way out.
+ * `null` when no part of the polyline is inside `rect` at all, or when it
+ * never leaves it again after its last visible run (the walked-to end is
+ * itself inside).
+ *
+ * "Last" run, not first: a route whose far end is off one side, that
+ * crosses the whole viewport and leaves through the other side towards this
+ * endpoint, has exactly one visible run and its exit is the far side. A
+ * route that dips in and out more than once still attaches its chip to the
+ * run nearest the endpoint, because that is the run the chip continues.
  *
  * @returns {{ point: [number, number], edge: 'left'|'right'|'top'|'bottom', segmentIndex: number } | null}
  */
@@ -172,52 +210,83 @@ export function routeExitPoint(points, rect) {
 }
 
 /**
+ * Where an endpoint's rectangle is, relative to the usable viewport.
+ *
+ * SVAR-M48 (R5-1, R5-2): the one definition of "offscreen" for a
+ * presentation endpoint. An endpoint is VISIBLE as soon as any part of its
+ * rectangle lies inside the viewport; otherwise it is off to one side, and
+ * the horizontal sides are named first because a bar that is both past the
+ * right edge and below the bottom one is, to the person, "further along the
+ * timeline" before it is "further down the list". R4 named only the two
+ * horizontal sides and called every other rectangle visible — which is the
+ * whole of R5-1.
+ *
+ * @param {{ x: number, y: number, w: number, h: number }} rect
+ * @param {{ left: number, top: number, right: number, bottom: number }} viewport
+ * @returns {'visible' | 'left' | 'right' | 'top' | 'bottom'}
+ */
+export function classifyEndpoint(rect, viewport) {
+  if (rect.x + rect.w < viewport.left - EPSILON) return 'left';
+  if (rect.x > viewport.right + EPSILON) return 'right';
+  if (rect.y + rect.h < viewport.top - EPSILON) return 'top';
+  if (rect.y > viewport.bottom + EPSILON) return 'bottom';
+  return 'visible';
+}
+
+/**
  * The chip descriptors for one settled frame.
  *
- * @param {Array<{ link: { id: unknown, source: unknown, target: unknown }, route: { points: Array<[number, number]> } }>} routedLinks
- *   the SAME routed links `Links.jsx` draws (`useRoutedLinks`), never a
- *   second routing pass
- * @param {Map<unknown, { id: unknown, text?: string, $x: number, $y: number, $w: number, $h: number }>} taskById
- *   the store's own full `_tasks`, by id
+ * @param {Array<PresentationRoute>} routes
+ *   every presentation route the chart is routing — canonical links from
+ *   `useRoutedLinks` and collapsed-group aggregates from
+ *   `useRoutedAggregates` — with the SAME polylines they are drawn from,
+ *   never a second routing pass
  * @param {{ left: number, top: number, right: number, bottom: number }} viewport
  *   the USABLE viewport in canvas pixels: `[scrollLeft, scrollLeft +
- *   _chartWidth] x [scrollTop, scrollTop + _chartHeight]` — never `xArea` or
- *   `area`, which are render windows padded past the visible band
- * @returns {Array<ChipDescriptor>} one per (link, offscreen partner) that has
- *   a visible run to attach to; both ends of one link may qualify at once
- *   when the route crosses the viewport between two offscreen endpoints
+ *   _chartWidth] x [scrollTop, scrollTop + _chartHeight - _scrollSize]` —
+ *   never `xArea` or `area`, which are render windows padded past the
+ *   visible band
+ * @returns {Array<ChipDescriptor>} one per (route, offscreen endpoint) whose
+ *   route has a visible run of at least `MIN_VISIBLE_RUN`; both endpoints of
+ *   one route may qualify at once
  */
-export function deriveOffscreenChips(routedLinks, taskById, viewport) {
-  // SVAR-M47: one pass over the routed links, both ends of each considered.
+export function deriveEndpointChips(routes, viewport) {
+  // SVAR-M47 / SVAR-M48: one pass over the presentation routes, BOTH ends
+  // of each decided on their own.
   const chips = [];
-  for (const { link, route } of routedLinks) {
-    if (!route || !Array.isArray(route.points) || route.points.length < 2) {
-      continue;
-    }
-    const source = taskById.get(link.source);
-    const target = taskById.get(link.target);
-    if (!source || !target) continue;
-    consider(chips, link, route.points, source, target, viewport, false);
-    consider(chips, link, route.points, target, source, viewport, true);
+  for (const route of routes) {
+    const points = route.points;
+    if (!Array.isArray(points) || points.length < 2) continue;
+    if (!route.source?.rect || !route.target?.rect) continue;
+    if (visibleRunLength(points, viewport) < MIN_VISIBLE_RUN) continue;
+    considerEndpoint(chips, route, 'source', viewport);
+    considerEndpoint(chips, route, 'target', viewport);
   }
   return chips;
 }
 
-function consider(out, link, points, local, partner, viewport, reversed) {
-  if (typeof partner.$x !== 'number' || typeof partner.$w !== 'number') return;
-  const offLeft = partner.$x + partner.$w < viewport.left;
-  const offRight = partner.$x > viewport.right;
-  if (!offLeft && !offRight) return;
-  const walk = reversed ? [...points].reverse() : points;
+function considerEndpoint(out, route, role, viewport) {
+  const endpoint = role === 'source' ? route.source : route.target;
+  const other = role === 'source' ? route.target : route.source;
+  const direction = classifyEndpoint(endpoint.rect, viewport);
+  if (direction === 'visible') return;
+  // Walk the polyline TOWARDS this endpoint: the route's points run from
+  // its source to its target, so the source's chip walks them reversed.
+  const walk = role === 'target' ? route.points : [...route.points].reverse();
   const exit = routeExitPoint(walk, viewport);
   if (exit === null) return;
-  const direction = offLeft ? 'left' : 'right';
   out.push({
-    key: `${String(link.id)}:${String(partner.id)}`,
-    linkId: link.id,
-    localId: local.id,
-    partnerId: partner.id,
-    partnerName: partner.text,
+    key: `${String(route.routeId)}:${role}`,
+    routeId: route.routeId,
+    kind: route.kind,
+    role,
+    canonicalLinkIds: route.canonicalLinkIds,
+    // `partnerId`/`localId`/`partnerName` keep the R4 vocabulary the
+    // consumers and the product's own evidence read: the partner IS this
+    // endpoint, the local end is the other one.
+    partnerId: endpoint.id,
+    localId: other.id,
+    partnerName: endpoint.name,
     direction,
     exitEdge: exit.edge,
     anchor: exit.point,
@@ -243,11 +312,12 @@ function intersects(a, b) {
  * inside that edge, so the line runs straight into it (R4-3). Every chip is
  * then kept inside the viewport by `clampDelta`, exactly as before.
  *
- * Two chips that would overlap — two links sharing one final run, or a
- * fan-out whose verticals are a `channelStep` apart — are stacked away from
- * the edge they hug, in a deterministic order (anchor position, then link
- * id), so each stays readable and each stays on its own route's column or
- * row; nothing is merged or dropped (R4 §5: no consolidation).
+ * Two chips that would overlap — two links sharing one final run, a fan-out
+ * whose verticals are a `channelStep` apart, or two routes that both need a
+ * chip for one task — are stacked away from the edge they hug, in a
+ * deterministic order (edge, anchor position, then route id and role), so
+ * each stays readable and each stays on its own route's column or row;
+ * nothing is merged or dropped (R4 §5, R5 §3.2: no consolidation).
  *
  * @param {Array<ChipDescriptor>} chips
  * @param {{ left: number, top: number, right: number, bottom: number }} viewport
@@ -270,8 +340,8 @@ export function layoutChips(chips, viewport, deps) {
         ? b.anchor[0]
         : b.anchor[1];
     if (ka !== kb) return ka - kb;
-    const ia = String(a.linkId);
-    const ib = String(b.linkId);
+    const ia = String(a.key);
+    const ib = String(b.key);
     return ia < ib ? -1 : ia > ib ? 1 : 0;
   });
 
@@ -370,12 +440,30 @@ function clampRect(
 
 /**
  * @typedef {{
+ *   id: unknown,
+ *   rect: { x: number, y: number, w: number, h: number },
+ *   name: string | undefined,
+ * }} PresentationEndpoint
+ *
+ * @typedef {{
+ *   routeId: unknown,
+ *   kind: 'link' | 'aggregate',
+ *   points: Array<[number, number]>,
+ *   canonicalLinkIds: Array<unknown>,
+ *   source: PresentationEndpoint,
+ *   target: PresentationEndpoint,
+ * }} PresentationRoute
+ *
+ * @typedef {{
  *   key: string,
- *   linkId: unknown,
- *   localId: unknown,
+ *   routeId: unknown,
+ *   kind: 'link' | 'aggregate',
+ *   role: 'source' | 'target',
+ *   canonicalLinkIds: Array<unknown>,
  *   partnerId: unknown,
+ *   localId: unknown,
  *   partnerName: string | undefined,
- *   direction: 'left' | 'right',
+ *   direction: 'left' | 'right' | 'top' | 'bottom',
  *   exitEdge: 'left' | 'right' | 'top' | 'bottom',
  *   anchor: [number, number],
  * }} ChipDescriptor

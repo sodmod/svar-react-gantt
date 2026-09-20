@@ -115,7 +115,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M41 (the room a side entry needs before it may be emitted), ' +
     'SVAR-M43 (the overlay correction\'s own origin), ' +
     'SVAR-M44 (the closed-ancestor walk) and ' +
-    'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport)',
+    'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport) and ' +
+    'SVAR-M48 (the endpoint-symmetric chip over canonical and aggregate routes)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -278,6 +279,9 @@ const PROJECT_ADDED = [
 	'src/components/chart/useScreenViewportCorrection.js',
 	// SVAR-M47: the one routing hook Links.jsx and OffscreenLinkChips.jsx share.
 	'src/components/chart/useRoutedLinks.js',
+	// SVAR-M48: the one aggregate-routing hook AggregateLinks.jsx and
+	// OffscreenLinkChips.jsx share (the grouping, the ribbon read, the route).
+	'src/components/chart/useRoutedAggregates.js',
 ];
 
 /**

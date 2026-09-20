@@ -9,51 +9,59 @@ import {
 import {
   CHIP_SIZE,
   CHIP_EDGE_INSET,
-  deriveOffscreenChips,
+  deriveEndpointChips,
   layoutChips,
 } from '../../planner-router/offscreenChips.js';
-import { useRoutedLinks } from './useRoutedLinks.js';
+import { useRoutedAggregates } from './useRoutedAggregates.js';
 import './OffscreenLinkChips.css';
 
 /*
  * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M35).
  * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
  *
- * The offscreen link partner chip (D-166 §M, TECH_SPEC.md §6.10.1, Phase
- * 4.1C checkpoint C2): a small chip at the point where a link's route leaves
- * the usable chart viewport on its way to a partner task that is
- * horizontally outside it, naming that partner and, on click, revealing it.
- * Presentation only: this component reads the routes `Links.jsx` draws and
- * the store's own scroll/viewport state, and either hands the click to the
- * consumer's `onRevealPartner` (SVAR-M40) or dispatches the store's own
- * existing `scroll-chart` — it creates no link, no task, no history step and
- * reads no `mode`/canonical identity beyond a task's own `id`/`text`.
+ * The offscreen endpoint chip (D-166 §M, TECH_SPEC.md §6.10.1, Phase 4.1C
+ * checkpoint C2, R4, R5): a small chip at the point where a presentation
+ * route leaves the usable chart viewport on its way to an endpoint that is
+ * outside it, naming that endpoint and, on click, revealing it.
+ * Presentation only: this component reads the routes `Links.jsx` and
+ * `AggregateLinks.jsx` draw and the store's own scroll/viewport state, and
+ * either hands the click to the consumer's `onRevealPartner` (SVAR-M40) or
+ * dispatches the store's own existing `scroll-chart` — it creates no link,
+ * no task, no history step and reads no `mode`/canonical identity beyond a
+ * task's own `id`/`text`.
  *
- * SVAR-M47 (Phase 4.1C R4, product-scale stabilization). The chip is now
+ * SVAR-M47 (Phase 4.1C R4, product-scale stabilization). The chip is
  * DERIVED, each render, from three current things and nothing else:
  *
- *   the routed link         the SAME route `Links.jsx` draws, from
- *                           `useRoutedLinks` — obstacles, channels and all
- *   the usable viewport     `[scrollLeft, scrollLeft + _chartWidth]` by
- *                           `[scrollTop, scrollTop + _chartHeight]`, in the
- *                           canvas pixels `$x/$y` are in — never `xArea` or
- *                           `area`, the render windows that are padded past
- *                           the visible band on both axes
- *   the partner's own rect  which decides "horizontally outside"
+ *   the presentation routes  the SAME routes `Links.jsx` and
+ *                            `AggregateLinks.jsx` draw, from `useRoutedLinks`
+ *                            / `useRoutedAggregates` — obstacles, channels,
+ *                            ribbon endpoints and all
+ *   the usable viewport      `[scrollLeft, scrollLeft + _chartWidth]` by
+ *                            `[scrollTop, scrollTop + _chartHeight]`, in the
+ *                            canvas pixels `$x/$y` are in — never `xArea` or
+ *                            `area`, the render windows that are padded past
+ *                            the visible band on both axes
+ *   each endpoint's own rect which decides "offscreen", in any direction
  *
- * from which `offscreenChips.js` answers, per link and per end, whether
- * that link has a visible run at all and where that run leaves the viewport
- * towards the partner. One chip per (link, offscreen partner) — a fan-out
- * of three gets three, a link crossing the viewport between two offscreen
- * ends gets one at each side — and NO chip for a link with no visible run,
- * however far offscreen its partner is. The four R4 findings this closes
- * are recorded at the top of `offscreenChips.js`.
+ * SVAR-M48 (Phase 4.1C R5): the derivation is ENDPOINT-SYMMETRIC and covers
+ * aggregate routes. `offscreenChips.js` answers, per route and per END,
+ * whether that route has a meaningful visible run at all and where that run
+ * leaves the viewport towards that end. One chip per (route, offscreen
+ * endpoint): a route whose two ends are both off screen while its middle is
+ * visible gets two, one at each end; a collapsed group's aggregate route
+ * gets chips for its presentation endpoints (the representative, the outside
+ * task) exactly as a canonical link does; and a route with no visible run
+ * gets none, however far its ends are. The R5 findings this closes are
+ * recorded at the top of `offscreenChips.js`.
  *
- * Every chip carries its identity in the DOM (`data-link-id`,
- * `data-partner-id`, `data-local-id`, `data-direction`, `data-exit-edge`,
- * `data-anchor-x/y`) so the product's own evidence suite can build the
- * chip/link table R4 §12 asks for from real rendered geometry, rather than
- * from a second copy of this logic. Nothing here reads them back.
+ * Every chip carries its provenance in the DOM (`data-route-id`,
+ * `data-route-kind`, `data-endpoint-role`, `data-endpoint-id`,
+ * `data-link-ids`, plus the R4 names `data-link-id`, `data-partner-id`,
+ * `data-local-id`, `data-direction`, `data-exit-edge`, `data-anchor-x/y`) so
+ * the product's own evidence suite can build the endpoint/chip table R5 §12
+ * asks for from real rendered geometry, rather than from a second copy of
+ * this logic. Nothing here reads them back.
  */
 
 /*
@@ -82,8 +90,12 @@ import './OffscreenLinkChips.css';
  * edges are the same numbers by construction (`_chartWidth`/`_chartHeight`
  * are what `Layout.jsx` measures off the real DOM and hands the store).
  */
+const ARROWS = Object.freeze({ left: '‹', right: '›', top: '↑', bottom: '↓' });
+
 function Chip({ chip, basePosition, onReveal }) {
   const { left, top } = basePosition;
+  const arrow = ARROWS[chip.direction] ?? '›';
+  const before = chip.direction === 'left' || chip.direction === 'top';
   return (
     <button
       type="button"
@@ -93,7 +105,13 @@ function Chip({ chip, basePosition, onReveal }) {
         left: `${left}px`,
         width: `${CHIP_SIZE.width}px`,
       }}
-      data-link-id={setID(chip.linkId)}
+      data-chip-id={chip.key}
+      data-route-id={setID(chip.routeId)}
+      data-route-kind={chip.kind}
+      data-endpoint-role={chip.role}
+      data-endpoint-id={setID(chip.partnerId)}
+      data-link-ids={chip.canonicalLinkIds.map((id) => setID(id)).join(',')}
+      data-link-id={setID(chip.routeId)}
       data-partner-id={setID(chip.partnerId)}
       data-local-id={setID(chip.localId)}
       data-direction={chip.direction}
@@ -103,14 +121,18 @@ function Chip({ chip, basePosition, onReveal }) {
       onClick={() => onReveal(chip)}
       title={chip.partnerName}
     >
-      {chip.direction === 'left' ? (
-        <span className="wx-4kNpQzTa wx-offscreen-link-chip-arrow">‹</span>
+      {before ? (
+        <span className="wx-4kNpQzTa wx-offscreen-link-chip-arrow">
+          {arrow}
+        </span>
       ) : null}
       <span className="wx-4kNpQzTa wx-offscreen-link-chip-label">
         {chip.partnerName}
       </span>
-      {chip.direction === 'right' ? (
-        <span className="wx-4kNpQzTa wx-offscreen-link-chip-arrow">›</span>
+      {!before ? (
+        <span className="wx-4kNpQzTa wx-offscreen-link-chip-arrow">
+          {arrow}
+        </span>
       ) : null}
     </button>
   );
@@ -119,7 +141,8 @@ function Chip({ chip, basePosition, onReveal }) {
 export default function OffscreenLinkChips({ onRevealPartner } = {}) {
   const api = useContext(storeContext);
   // SVAR-M40 (R2-5): `onRevealPartner` is consumed by `onReveal` below.
-  const { routedLinks, tasksValue, tasksCounter } = useRoutedLinks();
+  const { routedLinks, routedAggregates, taskRects, tasksValue, tasksCounter } =
+    useRoutedAggregates();
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
   const scrollLeft = useStore(api, 'scrollLeft');
@@ -207,10 +230,69 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
     };
   }, [scrollLeft, chartWidth, scrollTop, chartHeight, scrollSize]);
 
+  /*
+   * SVAR-M48 (R5 §3.1, §3.4): the PRESENTATION routes, both kinds, in the
+   * one shape the derivation reads. A canonical link's endpoints are its
+   * two tasks with the renderer's own rectangles; an aggregate's endpoints
+   * are its two representatives with the rectangles the aggregate was
+   * routed AGAINST (the ribbon-adjusted ones for a container), and it
+   * carries every canonical link it stands for. Nothing is routed here.
+   */
+  const routes = useMemo(() => {
+    const nameOf = (id) => taskById.get(id)?.text;
+    const out = [];
+    for (const { link, route } of routedLinks) {
+      const sourceRect = taskRects.get(link.source);
+      const targetRect = taskRects.get(link.target);
+      if (!sourceRect || !targetRect || !route?.points) continue;
+      out.push({
+        routeId: link.id,
+        kind: 'link',
+        points: route.points,
+        canonicalLinkIds: [link.id],
+        source: {
+          id: link.source,
+          rect: sourceRect,
+          name: nameOf(link.source),
+        },
+        target: {
+          id: link.target,
+          rect: targetRect,
+          name: nameOf(link.target),
+        },
+      });
+    }
+    for (const {
+      aggregate,
+      route,
+      sourceRect,
+      targetRect,
+    } of routedAggregates) {
+      if (!sourceRect || !targetRect || !route?.points) continue;
+      out.push({
+        routeId: aggregate.id,
+        kind: 'aggregate',
+        points: route.points,
+        canonicalLinkIds: aggregate.memberLinkIds,
+        source: {
+          id: aggregate.source,
+          rect: sourceRect,
+          name: nameOf(aggregate.source),
+        },
+        target: {
+          id: aggregate.target,
+          rect: targetRect,
+          name: nameOf(aggregate.target),
+        },
+      });
+    }
+    return out;
+  }, [routedLinks, routedAggregates, taskRects, taskById]);
+
   const chips = useMemo(() => {
     if (!viewport || viewport.bottom <= viewport.top) return [];
-    return deriveOffscreenChips(routedLinks, taskById, viewport);
-  }, [routedLinks, taskById, viewport]);
+    return deriveEndpointChips(routes, viewport);
+  }, [routes, viewport]);
 
   const positions = useMemo(
     () =>
@@ -228,9 +310,9 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
    * reveal is its — no `scroll-chart` is dispatched here at all, so two
    * owners never answer "where should the chart end up" for one click. The
    * arithmetic below is the fallback for a consumer that supplies none, and
-   * since R4 it reveals BOTH axes (R4-5): a chip's partner may be far below
-   * or above as well as far to one side, and a horizontal-only fallback left
-   * exactly the row the chip named off screen.
+   * since R4 it reveals BOTH axes (R4-5); since R5 it lands the endpoint's
+   * row in the MIDDLE of the rows band (R5-6), the same policy the Planner
+   * asks its own reveal owner for.
    */
   const onReveal = useCallback(
     (chip) => {
@@ -245,18 +327,18 @@ export default function OffscreenLinkChips({ onRevealPartner } = {}) {
       const left =
         chip.direction === 'left'
           ? Math.max(0, partner.$x - CHIP_EDGE_INSET * 4)
-          : partner.$x + partner.$w - viewportWidth + CHIP_EDGE_INSET * 4;
+          : chip.direction === 'right'
+            ? partner.$x + partner.$w - viewportWidth + CHIP_EDGE_INSET * 4
+            : viewport.left;
       let top = viewport.top;
       const viewportHeight = viewport.bottom - viewport.top;
       if (typeof partner.$y === 'number' && viewportHeight > 0) {
-        const rowTop = partner.$y;
-        const rowBottom = partner.$y + (partner.$h || 0);
-        if (rowTop < viewport.top) top = rowTop;
-        else if (rowBottom > viewport.bottom) top = rowBottom - viewportHeight;
+        const rowHeight = partner.$h || 0;
+        top = partner.$y - (viewportHeight - rowHeight) / 2;
       }
       api.exec('scroll-chart', {
         left: Math.max(0, left),
-        top: Math.max(0, top),
+        top: Math.max(0, Math.round(top)),
       });
     },
     [onRevealPartner, taskById, viewport, api],
