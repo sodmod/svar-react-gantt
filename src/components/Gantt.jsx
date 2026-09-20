@@ -508,6 +508,12 @@ const Gantt = forwardRef(function Gantt(
       getReactiveState: dataStore.getReactive.bind(dataStore),
       getState: dataStore.getState.bind(dataStore),
       exec: firstInRoute.exec.bind(firstInRoute),
+      // SVAR-M47 (SVAR Production Planner): the same `on` the public API
+      // already exposes, so a chart component can hear a store action it
+      // depends on (`OffscreenLinkChips.jsx` mirrors `resize-chart`, whose
+      // three values are not published as reactive state). Additive; no
+      // existing component reads it.
+      on: firstInRoute.on.bind(firstInRoute),
       getTask: dataStore.getTask.bind(dataStore),
       getTaskCalendar: dataStore.getTaskCalendar.bind(dataStore),
       getResourceCalendar: dataStore.getResourceCalendar.bind(dataStore),

@@ -113,8 +113,9 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp), ' +
     'SVAR-M37 (collapsed-group link aggregation), ' +
     'SVAR-M41 (the room a side entry needs before it may be emitted), ' +
-    'SVAR-M43 (the overlay correction\'s own origin) and ' +
-    'SVAR-M44 (the closed-ancestor walk)',
+    'SVAR-M43 (the overlay correction\'s own origin), ' +
+    'SVAR-M44 (the closed-ancestor walk) and ' +
+    'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -140,7 +141,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M26 — new `columnMaxWidth` prop, threaded through to Layout.jsx; ' +
     'SVAR-M30 — new `barGesturesDisabled` prop, threaded through to Layout.jsx; ' +
     'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1); ' +
-    'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx',
+    'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx; ' +
+    'SVAR-M47 — the component-facing store API additionally exposes `on`, the public API\'s own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -274,6 +276,8 @@ const PROJECT_ADDED = [
 	// and left undeclared there, which made check 3 red from that commit
 	// onwards; found and declared in R3.
 	'src/components/chart/useScreenViewportCorrection.js',
+	// SVAR-M47: the one routing hook Links.jsx and OffscreenLinkChips.jsx share.
+	'src/components/chart/useRoutedLinks.js',
 ];
 
 /**
