@@ -98,9 +98,14 @@ export function parseUnifiedDiffAdditions(diffText) {
       }
       if (marker === ' ' || line === '') {
         // A context line (unified diffs with context > 0). An empty string
-        // here is a blank context line, not an empty marker.
+        // here is a blank context line, not an empty marker. It occupies a
+        // real line in the NEW file too, so `newLine` advances exactly as
+        // it does for an added line — only its own text is not reported.
         if (oldRemaining > 0) oldRemaining -= 1;
-        if (newRemaining > 0) newRemaining -= 1;
+        if (newRemaining > 0) {
+          newRemaining -= 1;
+          newLine += 1;
+        }
         continue;
       }
       if (marker === '\\') {

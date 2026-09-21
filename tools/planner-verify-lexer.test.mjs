@@ -40,6 +40,7 @@ import {
   containsClause,
   identifierHit,
   evaluateProOccurrence,
+  evaluateProOccurrences,
 } from './planner-verify-lexer.mjs';
 
 // A deliberately non-real PRO identifier and a deliberately non-real path,
@@ -275,4 +276,145 @@ test('tokenizer stays balanced on a realistic JSX conditional with nested templa
     (t) => t.type === 'punct' && (t.text === ')' || t.text === '}' || t.text === ']') && t.matchIndex !== undefined,
   ).length;
   assert.equal(openCount, matchedCloseCount);
+});
+
+/*
+ * Phase 4.1C R2: `evaluateProOccurrences` (plural) — occurrence COUNTING,
+ * not existence. Reviewer counterexample R4a: a genuinely new occurrence of
+ * a clause that already exists in the baseline elsewhere must fail, even
+ * though a pure "does this clause exist anywhere in the baseline" check
+ * (the R1 fix) would have passed it. See planner-verify-lexer.mjs's own
+ * header, "Occurrence counting, not existence", for the full account.
+ */
+
+test('batched form still passes a formatting-only reflow (evaluateProOccurrences, not just the single-line wrapper)', () => {
+  const oldSource = [
+    'function render(a, b) {',
+    "  if (a.ready && !(quantumForecast && b.value)) return null;",
+    '}',
+  ].join('\n');
+  const newSource = [
+    'function render(a, b) {',
+    '  if (',
+    '    a.ready &&',
+    '    !(quantumForecast && b.value)',
+    '  )',
+    '    return null;',
+    '}',
+  ].join('\n');
+  const results = evaluateProOccurrences({
+    oldSource,
+    newSource,
+    name: PRO_NAME,
+    lineNumbers: [4],
+  });
+  assert.equal(results.get(4).status, 'preexisting');
+});
+
+test('reviewer counterexample R4a: a NEW occurrence of an already-used clause is drift, even with the original left untouched', () => {
+  const oldSource = [
+    'function render(a, b) {',
+    '  if (a.ready && !(quantumForecast && b.value)) return null;',
+    '  return null;',
+    '}',
+  ].join('\n');
+  // The original guard is left completely untouched — same text, same
+  // line, not part of this diff at all. A SECOND, independent use of the
+  // exact same clause text is added elsewhere in the file. A pure
+  // existence check ("does this clause occur anywhere in the baseline?")
+  // would wrongly pass this; the baseline had exactly one occurrence, and
+  // that one occurrence is still fully spoken for by the untouched line.
+  const newSource = [
+    'function render(a, b) {',
+    '  if (a.ready && !(quantumForecast && b.value)) return null;',
+    '  if (!(quantumForecast && b.value)) probe();',
+    '  return null;',
+    '}',
+  ].join('\n');
+  const results = evaluateProOccurrences({
+    oldSource,
+    newSource,
+    name: PRO_NAME,
+    lineNumbers: [3], // only the new probe line is diff-added
+  });
+  assert.equal(results.get(3).status, 'drift');
+});
+
+test('a literal duplicate of an existing PRO-bearing statement, with the original left untouched, is drift', () => {
+  const oldSource = [
+    'function guard(x) {',
+    '  return !(quantumForecast && x.flag);',
+    '}',
+  ].join('\n');
+  const newSource = [
+    'function guard(x) {',
+    '  return !(quantumForecast && x.flag);',
+    '}',
+    'function guardAgain(x) {',
+    '  return !(quantumForecast && x.flag);',
+    '}',
+  ].join('\n');
+  const results = evaluateProOccurrences({
+    oldSource,
+    newSource,
+    name: PRO_NAME,
+    lineNumbers: [5],
+  });
+  assert.equal(results.get(5).status, 'drift');
+});
+
+test('two simultaneous candidate occurrences of one baseline clause: only as many pass as the baseline had', () => {
+  const oldSource = [
+    'function render(a, b) {',
+    '  if (a.ready && !(quantumForecast && b.value)) return null;',
+    '}',
+  ].join('\n');
+  // Both occurrences are reported as diff-added: one is the reflow of the
+  // baseline guard, the other is a genuinely new, independent use. The
+  // baseline only ever had ONE occurrence of this clause, so exactly one of
+  // the two candidates may pass — never both.
+  const newSource = [
+    'function render(a, b) {',
+    '  if (',
+    '    a.ready &&',
+    '    !(quantumForecast && b.value)',
+    '  )',
+    '    return null;',
+    '  if (!(quantumForecast && b.value)) probe();',
+    '}',
+  ].join('\n');
+  const results = evaluateProOccurrences({
+    oldSource,
+    newSource,
+    name: PRO_NAME,
+    lineNumbers: [4, 7],
+  });
+  const statuses = [results.get(4).status, results.get(7).status].sort();
+  assert.deepEqual(statuses, ['drift', 'preexisting']);
+});
+
+test('same clause at a different executable location is drift, not just formatting movement', () => {
+  const oldSource = [
+    'function onlyHere(x) {',
+    '  return !(quantumForecast && x.flag);',
+    '}',
+  ].join('\n');
+  // The clause text is byte-identical to the baseline's, but it now also
+  // executes from a wholly different function/call site — not the same
+  // occurrence reformatted, a second one.
+  const newSource = [
+    'function onlyHere(x) {',
+    '  return !(quantumForecast && x.flag);',
+    '}',
+    'function elsewhere(x) {',
+    '  if (!(quantumForecast && x.flag)) log(x);',
+    '}',
+  ].join('\n');
+  const results = evaluateProOccurrences({
+    oldSource,
+    newSource,
+    name: PRO_NAME,
+    lineNumbers: [5],
+  });
+  assert.equal(results.get(5).status, 'drift');
 });
