@@ -79,6 +79,41 @@
  * the check was re-run with a PRO use injected into ordinary code and went
  * red, twice, before this narrowing shipped.
  *
+ * ### Formatting-insensitive, not line-diff-sensitive (Phase 4.1C, finding
+ * ### M-4.1C-F-01)
+ *
+ * Even narrowed to executable, non-whole-line-comment lines, check 4 still
+ * asked `git diff` which lines were "added", and `git diff` classifies by
+ * LINE, not by token: reflow an existing expression across more lines —
+ * wrapping, reindenting, anything Prettier-equivalent — and every line of the
+ * new shape reads as "added", even though not one token changed. R6 did
+ * exactly that to three pre-existing, upstream-Community guards in Bars.jsx
+ * (`!(rollups && …)`, `!(splitTasks && …)`, `!(task.type === 'summary' && …)`
+ * — all three present, unchanged, in the recorded upstream base already), and
+ * check 4 read the rewrap as three new PRO dependencies.
+ *
+ * The fix does not touch WHICH lines are candidates — still executable
+ * source, still not a whole-line comment, exactly as R7 narrowed it above.
+ * It changes what happens once a candidate line mentions a PRO identifier:
+ * instead of failing immediately, `planner-verify-lexer.mjs` tokenizes the
+ * full file at HEAD and at the upstream base, finds the SMALLEST enclosing
+ * expression around the occurrence (by bracket depth, not by line), and asks
+ * whether that exact token sequence — whitespace and line breaks discarded —
+ * already exists anywhere in the base file. If it does, only formatting
+ * moved, and the check passes. If it does not — because the identifier is
+ * used somewhere it never was, or because the expression around an existing
+ * use changed — it still fails, with the specific clause quoted. An
+ * occurrence that exists only inside a trailing comment on an otherwise-code
+ * line (not a whole-line comment, which is already out of scope) still fails
+ * too, exactly as before: the tokenizer is fail-closed on anything it cannot
+ * place in real code.
+ *
+ * Still NOTHING is relaxed by this: no identifier left the list, no source
+ * directory or occurrence kind was excluded, a string or JSX prop is still in
+ * scope, and a check that cannot confidently prove "formatting only" still
+ * fails. See `planner-verify-lexer.mjs` for the tokenizer, the clause
+ * extraction and the exact decision each candidate gets.
+ *
  * Deliberately NOT checked here: that the built artefact matches a recorded
  * hash. That belongs to the consumer, which is the only place that knows which
  * commit it actually installed.
@@ -88,6 +123,8 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { evaluateProOccurrence, identifierHit } from './planner-verify-lexer.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -502,12 +539,6 @@ if (!upstreamBase) {
 
 /* 4 -- PRO DRIFT ---------------------------------------------------------- */
 
-const identifierHit = (line, name) =>
-  new RegExp(
-    `(?<![\\p{ID_Continue}$])${name}(?![\\p{ID_Continue}$])`,
-    'u',
-  ).test(line);
-
 /** Paths whose lines a JavaScript runtime can actually execute. */
 const EXECUTABLE_SOURCE = /\.(?:js|jsx|mjs|cjs|ts|tsx)$/;
 
@@ -526,12 +557,16 @@ const isWholeLineComment = (text) => {
 // in it. Excluding the definition keeps the check about uses. Every other path
 // this project adds or changes is still scanned.
 //
-// The diff is read WITH its file headers, because check 4's scope is per file
-// (see the header of this file): an added line is attributed to the path it
-// was added to, and only executable paths are scanned.
+// The diff is read WITH its file headers and hunk headers, because check 4's
+// scope is per file (see the header of this file) and, since R1 of the
+// Phase 4.1C remediation, per exact new-file line number: an added line is
+// attributed to the path AND the HEAD line it landed on, and only executable
+// paths are scanned. The line number is what lets the drift decision below
+// find the same occurrence again inside the fully tokenized file.
 const addedLines = [];
 if (upstreamBase) {
   let path = null;
+  let newLine = null;
   const diff = git(
     'diff',
     '--unified=0',
@@ -540,16 +575,29 @@ if (upstreamBase) {
     '.',
     ':(exclude)tools/planner-verify.mjs',
   );
+  const hunkHeader = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
   for (const line of diff.split('\n')) {
     if (line.startsWith('+++ b/')) {
       path = line.slice('+++ b/'.length);
+      newLine = null;
       continue;
     }
     if (line.startsWith('+++')) {
       path = null;
+      newLine = null;
       continue;
     }
-    if (line.startsWith('+')) addedLines.push({ path, text: line.slice(1) });
+    if (line.startsWith('@@')) {
+      const m = hunkHeader.exec(line);
+      newLine = m ? Number(m[1]) : null;
+      continue;
+    }
+    if (line.startsWith('+')) {
+      addedLines.push({ path, text: line.slice(1), line: newLine });
+      if (newLine !== null) newLine++;
+      continue;
+    }
+    // A '-' (removed) line does not advance the new-file line counter.
   }
 }
 
@@ -565,10 +613,59 @@ const executableLines = addedLines.filter(
     path !== null && EXECUTABLE_SOURCE.test(path) && !isWholeLineComment(text),
 );
 
-const drift = [];
-for (const { path, text } of executableLines) {
+// Candidate hits: (line, PRO identifier) pairs the OLD line-based check would
+// have failed on outright. Grouped so each (path, line) with more than one
+// matching identifier is still evaluated once per identifier.
+const candidates = [];
+for (const { path, text, line } of executableLines) {
   for (const name of PRO_TOKENS) {
-    if (identifierHit(text, name)) drift.push({ name, path, text });
+    if (identifierHit(text, name)) candidates.push({ name, path, text, line });
+  }
+}
+
+// Source cache: each path's full text at HEAD and at the upstream base is
+// fetched at most once, regardless of how many candidates it has.
+const sourceCache = new Map();
+const readSource = (rev, path) => {
+  const key = `${rev}:${path}`;
+  if (sourceCache.has(key)) return sourceCache.get(key);
+  let text = '';
+  try {
+    text = git('show', key);
+  } catch {
+    text = '';
+  }
+  sourceCache.set(key, text);
+  return text;
+};
+
+const drift = [];
+const commentOnly = [];
+let preexisting = 0;
+
+if (upstreamBase) {
+  for (const candidate of candidates) {
+    if (candidate.line === null) {
+      // No hunk header preceded this addition (should not happen with a
+      // well-formed unified diff) — fail closed rather than skip it.
+      drift.push({ ...candidate, clauses: [candidate.text.trim()] });
+      continue;
+    }
+    const newSource = readSource('HEAD', candidate.path);
+    const oldSource = readSource(UPSTREAM_COMMIT, candidate.path);
+    const result = evaluateProOccurrence({
+      oldSource,
+      newSource,
+      name: candidate.name,
+      lineNumber: candidate.line,
+    });
+    if (result.status === 'preexisting') {
+      preexisting++;
+    } else if (result.status === 'drift') {
+      drift.push({ ...candidate, clauses: result.clauses });
+    } else {
+      commentOnly.push(candidate);
+    }
   }
 }
 
@@ -578,17 +675,30 @@ if (!upstreamBase) {
       'resolvable in this clone (see check 1) — this is a prerequisite ' +
       'failure, not a pass',
   );
-} else if (drift.length > 0) {
+} else if (drift.length > 0 || commentOnly.length > 0) {
   for (const hit of drift) {
     fail(
       `added executable line in ${hit.path} mentions PRO identifier ` +
-        `"${hit.name}": ${hit.text.trim()}`,
+        `"${hit.name}": ${hit.text.trim()}\n         not present, as a ` +
+        `clause, in the upstream comparison baseline (${UPSTREAM_COMMIT}): ` +
+        hit.clauses.map((c) => `\`${c}\``).join(', '),
+    );
+  }
+  for (const hit of commentOnly) {
+    fail(
+      `added executable line in ${hit.path} mentions PRO identifier ` +
+        `"${hit.name}" only inside a trailing comment, not in code: ` +
+        `${hit.text.trim()}`,
     );
   }
 } else {
   note(
     `ok    none of the ${executableLines.length} added executable line(s) ` +
-      `mention any of the ${PRO_TOKENS.length} PRO identifiers`,
+      `introduce a new dependency on any of the ${PRO_TOKENS.length} PRO ` +
+      `identifiers (${preexisting} candidate occurrence(s) matched a ` +
+      `pre-existing clause in the upstream comparison baseline, formatting ` +
+      `aside — see this file's own header, "Formatting-insensitive, not ` +
+      `line-diff-sensitive")`,
   );
   note(
     `         out of scope by construction: ` +
