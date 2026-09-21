@@ -348,6 +348,26 @@ const PRO_TOKENS = PRO_DISABLE_SENTINEL.replace(/;\s*$/, '')
 const git = (...args) =>
   execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8' }).trimEnd();
 
+/**
+ * Like `git`, but for lookups where "the ref/path does not exist" is an
+ * ORDINARY outcome, not a fault: `git show <rev>:<path>` for a path this
+ * project added, which by definition has no upstream-base blob. Suppresses
+ * the child's stderr so a routine miss does not print a `fatal:` line that
+ * looks like a real error; a genuine failure still yields `''`, the same as
+ * every other prerequisite-missing case check 4 already handles.
+ */
+const gitOrEmpty = (...args) => {
+  try {
+    return execFileSync('git', args, {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trimEnd();
+  } catch {
+    return '';
+  }
+};
+
 const failures = [];
 const note = (line) => console.log(line);
 const fail = (line) => {
@@ -629,12 +649,7 @@ const sourceCache = new Map();
 const readSource = (rev, path) => {
   const key = `${rev}:${path}`;
   if (sourceCache.has(key)) return sourceCache.get(key);
-  let text = '';
-  try {
-    text = git('show', key);
-  } catch {
-    text = '';
-  }
+  const text = gitOrEmpty('show', key);
   sourceCache.set(key, text);
   return text;
 };
