@@ -114,6 +114,32 @@
  * fails. See `planner-verify-lexer.mjs` for the tokenizer, the clause
  * extraction and the exact decision each candidate gets.
  *
+ * ### Occurrence counting, and a diff-parser header confusion (Phase 4.1C R2,
+ * ### finding M-4.1C-F-01 reopened / reviewer counterexamples R4a, F-R4B)
+ *
+ * A focused re-review found the R1 fix above still too weak in one respect:
+ * "this clause already exists somewhere in the baseline" was decided by
+ * existence alone, so a genuinely NEW, additional executable occurrence of
+ * an already-known clause — reusing the exact token text of a pre-existing
+ * guard, at a wholly different call site — still read as "formatting only"
+ * and passed. `evaluateProOccurrences` (plural) in `planner-verify-lexer.mjs`
+ * closes this: every candidate line for one file and one identifier is
+ * judged together, against a shared multiset of how many times each clause
+ * occurs in the baseline, so a clause's Nth new occurrence can only pass if
+ * the baseline actually had N of them. See that module's header for the
+ * full account.
+ *
+ * The same review found a second, unrelated bug in this file's own diff
+ * parser: it recognized a `+++ b/<path>` file header by text prefix alone,
+ * anywhere in the stream, so an ADDED source line whose own text starts
+ * with `++` (`++counter;`) — rendered by `git diff` as a body line starting
+ * with `+++` — was misread as a new file header, corrupting path tracking
+ * for everything after it. The parser is now `planner-verify-diff.mjs`'s
+ * `parseUnifiedDiffAdditions`, which tracks each hunk's declared old/new
+ * line counts explicitly and only offers a line to header recognition once
+ * those counts are exhausted — never by prefix-matching hunk content. See
+ * that module's header for the full account.
+ *
  * Deliberately NOT checked here: that the built artefact matches a recorded
  * hash. That belongs to the consumer, which is the only place that knows which
  * commit it actually installed.
@@ -124,7 +150,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { evaluateProOccurrence, identifierHit } from './planner-verify-lexer.mjs';
+import { evaluateProOccurrences, identifierHit } from './planner-verify-lexer.mjs';
+import { parseUnifiedDiffAdditions } from './planner-verify-diff.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 
@@ -583,10 +610,8 @@ const isWholeLineComment = (text) => {
 // attributed to the path AND the HEAD line it landed on, and only executable
 // paths are scanned. The line number is what lets the drift decision below
 // find the same occurrence again inside the fully tokenized file.
-const addedLines = [];
+let addedLines = [];
 if (upstreamBase) {
-  let path = null;
-  let newLine = null;
   const diff = git(
     'diff',
     '--unified=0',
@@ -595,29 +620,13 @@ if (upstreamBase) {
     '.',
     ':(exclude)tools/planner-verify.mjs',
   );
-  const hunkHeader = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/;
-  for (const line of diff.split('\n')) {
-    if (line.startsWith('+++ b/')) {
-      path = line.slice('+++ b/'.length);
-      newLine = null;
-      continue;
-    }
-    if (line.startsWith('+++')) {
-      path = null;
-      newLine = null;
-      continue;
-    }
-    if (line.startsWith('@@')) {
-      const m = hunkHeader.exec(line);
-      newLine = m ? Number(m[1]) : null;
-      continue;
-    }
-    if (line.startsWith('+')) {
-      addedLines.push({ path, text: line.slice(1), line: newLine });
-      if (newLine !== null) newLine++;
-      continue;
-    }
-    // A '-' (removed) line does not advance the new-file line counter.
+  try {
+    addedLines = parseUnifiedDiffAdditions(diff);
+  } catch (err) {
+    fail(
+      `check 4 could not parse the diff against the upstream base: ` +
+        `${err.message}`,
+    );
   }
 }
 
@@ -658,7 +667,15 @@ const drift = [];
 const commentOnly = [];
 let preexisting = 0;
 
+// Candidates are grouped by (path, PRO identifier) and judged together, one
+// `evaluateProOccurrences` call per group, so every candidate line in the
+// same file that could match the same baseline occurrence shares ONE
+// baseline occurrence pool. Calling the single-line form once per candidate
+// independently — as an earlier version of this file did — reintroduces the
+// existence-only bug `evaluateProOccurrences` exists to close: see
+// `planner-verify-lexer.mjs`'s header, "Occurrence counting, not existence".
 if (upstreamBase) {
+  const groups = new Map();
   for (const candidate of candidates) {
     if (candidate.line === null) {
       // No hunk header preceded this addition (should not happen with a
@@ -666,20 +683,30 @@ if (upstreamBase) {
       drift.push({ ...candidate, clauses: [candidate.text.trim()] });
       continue;
     }
-    const newSource = readSource('HEAD', candidate.path);
-    const oldSource = readSource(UPSTREAM_COMMIT, candidate.path);
-    const result = evaluateProOccurrence({
+    const key = `${candidate.path}\u0000${candidate.name}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(candidate);
+  }
+
+  for (const groupCandidates of groups.values()) {
+    const { path, name } = groupCandidates[0];
+    const newSource = readSource('HEAD', path);
+    const oldSource = readSource(UPSTREAM_COMMIT, path);
+    const results = evaluateProOccurrences({
       oldSource,
       newSource,
-      name: candidate.name,
-      lineNumber: candidate.line,
+      name,
+      lineNumbers: groupCandidates.map((c) => c.line),
     });
-    if (result.status === 'preexisting') {
-      preexisting++;
-    } else if (result.status === 'drift') {
-      drift.push({ ...candidate, clauses: result.clauses });
-    } else {
-      commentOnly.push(candidate);
+    for (const candidate of groupCandidates) {
+      const result = results.get(candidate.line);
+      if (result.status === 'preexisting') {
+        preexisting++;
+      } else if (result.status === 'drift') {
+        drift.push({ ...candidate, clauses: result.clauses });
+      } else {
+        commentOnly.push(candidate);
+      }
     }
   }
 }

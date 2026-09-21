@@ -38,6 +38,46 @@
  * same as before this module existed — see planner-verify.mjs. Nothing here
  * ever turns a hit into a silent pass by giving up; every non-'preexisting'
  * status is a reason to keep failing.
+ *
+ * ### Occurrence counting, not existence (Phase 4.1C R2, finding M-4.1C-F-01
+ * ### reopened / reviewer counterexample R4a)
+ *
+ * The first fix asked, per occurrence, "does this exact clause exist
+ * SOMEWHERE in the baseline file?" — a boolean, file-wide existence check.
+ * That is too weak: it treats "this clause exists once in the baseline" as
+ * equivalent to "any number of new occurrences of this clause are fine",
+ * because existence does not remember how many times a clause was already
+ * spent. The reviewer's counterexample is exactly this — a genuinely NEW,
+ * additional executable use of `(splitTasks && task.segments)`, a clause
+ * that already exists in the baseline for an unrelated, pre-existing guard.
+ * A pure existence check passes it; it must fail.
+ *
+ * The fix is `evaluateProOccurrences` (plural): it is given every candidate
+ * line in ONE file for ONE identifier together, not one at a time, and
+ * spends a shared, per-file, per-identifier BASELINE POOL — a multiset of
+ * how many times each normalized clause text occurs in the baseline — as it
+ * walks the new file's matching occurrences in document order. The Nth new
+ * occurrence of a given clause text may only be called "preexisting" if the
+ * baseline had at least N occurrences of that same clause text, AFTER
+ * subtracting whatever the file's own UNTOUCHED (not diff-added) occurrences
+ * of that clause already spend — an occurrence this diff did not add is
+ * still a continuing use of the baseline's supply, and must not also be free
+ * to excuse a different, new occurrence elsewhere (see the function's own
+ * comment for why). Every occurrence beyond what is left is drift, even
+ * though its token text, read in isolation, is identical to a baseline
+ * clause.
+ *
+ * This still proves exactly what the file header above says — reflow only
+ * moves tokens, it never manufactures a clause the baseline lacks — but now
+ * "the baseline lacks it" is judged by REMAINING SUPPLY, not by existence:
+ * a formatting-only reflow of a baseline occurrence consumes one unit of
+ * that occurrence's own supply and nothing is left over to also excuse a
+ * second, independent occurrence elsewhere. `evaluateProOccurrence`
+ * (singular) is kept as a thin wrapper — a batch of exactly one line — so
+ * every pre-existing single-occurrence test of this module keeps meaning
+ * exactly what it always meant; the planner-verify.mjs caller uses the
+ * plural form so multiple candidate lines sharing a file and identifier
+ * share one pool, which is the only way occurrence counting can work.
  */
 
 /* ------------------------------------------------------------------------ *
@@ -416,25 +456,130 @@ const tokenMatchesIdentifier = (token, name) => {
  *     for that policy); this status covers a trailing comment on an added
  *     code line, which the pre-fix check always failed on, and still should.
  */
-export function evaluateProOccurrence({ oldSource, newSource, name, lineNumber }) {
+/**
+ * The batched form of `evaluateProOccurrence`: decides drift/preexisting/
+ * comment-only for EVERY candidate line in `lineNumbers`, for one file
+ * (`oldSource`/`newSource`) and one PRO identifier (`name`), sharing ONE
+ * baseline occurrence pool across all of them — see this file's header,
+ * "Occurrence counting, not existence".
+ *
+ * Returns a `Map<lineNumber, result>`, one entry per DISTINCT value in
+ * `lineNumbers`, each `result` shaped exactly like `evaluateProOccurrence`'s
+ * return value.
+ *
+ * Order of consumption is DOCUMENT order (source position), not the order
+ * `lineNumbers` was given in: the baseline pool is spent by whichever
+ * occurrence appears first in the file, which is a deterministic, arbitrary
+ * tie-break when more new occurrences of a clause exist than the baseline
+ * has — it does not change WHETHER the file as a whole has more occurrences
+ * than the baseline can account for, only which specific occurrence(s) get
+ * named in the failure.
+ */
+export function evaluateProOccurrences({ oldSource, newSource, name, lineNumbers }) {
+  const uniqueLines = [...new Set(lineNumbers)];
+  const lineSet = new Set(uniqueLines);
   const newCode = annotate(tokenize(newSource).filter((t) => t.type !== 'comment'));
-  const matches = [];
-  for (let idx = 0; idx < newCode.length; idx++) {
-    if (newCode[idx].line === lineNumber && tokenMatchesIdentifier(newCode[idx], name)) {
-      matches.push(idx);
-    }
-  }
-  if (matches.length === 0) return { status: 'comment-only' };
-
   const oldCode = annotate(tokenize(oldSource || '').filter((t) => t.type !== 'comment'));
-  const driftClauses = [];
-  for (const idx of matches) {
-    const { start, end } = extractClause(newCode, idx);
-    const needle = clauseText(newCode, start, end);
-    if (!containsClause(oldCode, needle)) {
-      driftClauses.push(needle.split(CLAUSE_SEP).join(' '));
+
+  // The baseline supply: how many times each normalized clause already
+  // occurs in the comparison baseline, for this identifier.
+  const baselinePool = new Map();
+  for (let idx = 0; idx < oldCode.length; idx++) {
+    if (tokenMatchesIdentifier(oldCode[idx], name)) {
+      const { start, end } = extractClause(oldCode, idx);
+      const clause = clauseText(oldCode, start, end);
+      baselinePool.set(clause, (baselinePool.get(clause) || 0) + 1);
     }
   }
-  if (driftClauses.length > 0) return { status: 'drift', clauses: driftClauses };
-  return { status: 'preexisting' };
+
+  // Every occurrence of `name` anywhere in the NEW file — not only the
+  // caller's candidate lines — split into CANDIDATE (on one of the caller's
+  // diff-added lines: something to judge) and UNTOUCHED (everywhere else:
+  // baseline text this diff did not add, i.e. text that survived exactly as
+  // it was). An untouched occurrence is not itself a candidate — it cannot
+  // fail check 4, since it was never added — but it is still a REAL,
+  // continuing use of one unit of the baseline's supply for its clause, and
+  // must not also be free to excuse a DIFFERENT, genuinely new candidate
+  // occurrence with the same clause text elsewhere in the file. Without this
+  // step, a baseline clause used twice already (both occurrences still
+  // present and unrelated to this diff) would look like "two units of spare
+  // supply" instead of zero, and let a brand-new third occurrence of that
+  // same clause text pass as "just more of the same" — the reviewer's R4a
+  // counterexample. Untouched occurrences are consumed from the pool FIRST,
+  // before any candidate gets a chance to claim from it.
+  const candidateMatchesByLine = new Map(uniqueLines.map((l) => [l, []]));
+  const untouchedMatches = [];
+  for (let idx = 0; idx < newCode.length; idx++) {
+    const tok = newCode[idx];
+    if (!tokenMatchesIdentifier(tok, name)) continue;
+    if (lineSet.has(tok.line)) {
+      candidateMatchesByLine.get(tok.line).push(idx);
+    } else {
+      untouchedMatches.push(idx);
+    }
+  }
+
+  for (const idx of untouchedMatches) {
+    const { start, end } = extractClause(newCode, idx);
+    const clause = clauseText(newCode, start, end);
+    const remaining = baselinePool.get(clause) || 0;
+    if (remaining > 0) baselinePool.set(clause, remaining - 1);
+    // An untouched occurrence whose clause has no baseline supply left over
+    // is not, itself, something this function can fail on: it is not a
+    // candidate (it is not on an added line), so it is outside this check's
+    // stated scope of "added executable lines". It is exactly the same
+    // bounded-tripwire limitation check 4 has always had for anything it
+    // was not asked to look at — see planner-verify.mjs's own header.
+  }
+
+  // Every candidate occurrence, in document order.
+  const allCandidateMatches = [];
+  for (const line of uniqueLines) {
+    for (const idx of candidateMatchesByLine.get(line)) allCandidateMatches.push({ line, idx });
+  }
+  allCandidateMatches.sort((a, b) => a.idx - b.idx);
+
+  const driftClausesByLine = new Map();
+  for (const { line, idx } of allCandidateMatches) {
+    const { start, end } = extractClause(newCode, idx);
+    const clause = clauseText(newCode, start, end);
+    const remaining = baselinePool.get(clause) || 0;
+    if (remaining > 0) {
+      baselinePool.set(clause, remaining - 1);
+    } else {
+      if (!driftClausesByLine.has(line)) driftClausesByLine.set(line, []);
+      driftClausesByLine.get(line).push(clause.split(CLAUSE_SEP).join(' '));
+    }
+  }
+
+  const results = new Map();
+  for (const line of uniqueLines) {
+    if (candidateMatchesByLine.get(line).length === 0) {
+      results.set(line, { status: 'comment-only' });
+    } else if (driftClausesByLine.has(line)) {
+      results.set(line, { status: 'drift', clauses: driftClausesByLine.get(line) });
+    } else {
+      results.set(line, { status: 'preexisting' });
+    }
+  }
+  return results;
+}
+
+/**
+ * Single-line convenience wrapper over `evaluateProOccurrences`: a batch of
+ * exactly one candidate line, so a caller with only one occurrence to judge
+ * (and every existing test of this module) does not need to build a `Map`.
+ * Since the baseline pool is rebuilt fresh per call, this is only correct
+ * when the caller truly has one isolated occurrence to judge — a caller
+ * with multiple candidate lines in the same file and identifier MUST use
+ * the plural form so they share one pool; calling this in a loop instead
+ * reintroduces the exact existence-only bug described above.
+ */
+export function evaluateProOccurrence({ oldSource, newSource, name, lineNumber }) {
+  return evaluateProOccurrences({
+    oldSource,
+    newSource,
+    name,
+    lineNumbers: [lineNumber],
+  }).get(lineNumber);
 }
