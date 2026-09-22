@@ -352,6 +352,11 @@ const PROJECT_ADDED = [
   // SVAR-M48: the one aggregate-routing hook AggregateLinks.jsx and
   // OffscreenLinkChips.jsx share (the grouping, the ribbon read, the route).
   'src/components/chart/useRoutedAggregates.js',
+  // SVAR-M53: the one owner of "open only this task's collapsed ancestors,
+  // then land on it" — the popover row (SVAR-M49 R6-4) and the offscreen
+  // chip both call it, so the renderer has one answer to "what does it take
+  // to show a hidden task" rather than two.
+  'src/components/chart/useCanonicalReveal.js',
 ];
 
 /**
