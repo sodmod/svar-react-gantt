@@ -55,17 +55,30 @@ import './OffscreenLinkChips.css';
  * gets none, however far its ends are. The R5 findings this closes are
  * recorded at the top of `offscreenChips.js`.
  *
- * SVAR-M49 (Phase 4.1C R6, R6-1): the derivation then MERGES the candidates
- * that name one presentation endpoint into one chip. Several routes to one
- * offscreen task (four links into `Infra migration`, Pavel's screenshot)
- * used to be several identical chips stacked at the edge; now they are one
- * chip, on the representative route's exit, carrying every route and link
- * it stands for and a small count. The click still reveals that one task.
- * The R6 findings are recorded at the top of `offscreenChips.js`.
+ * SVAR-M49 (Phase 4.1C R6, R6-1, RETIRED — see SVAR-M52 below): the
+ * derivation used to MERGE the candidates that name one presentation
+ * endpoint into one chip. Several routes to one offscreen task (four links
+ * into `Infra migration`, Pavel's screenshot) were several identical chips
+ * stacked at the edge; R6-1 made them one chip, on a representative route's
+ * exit, carrying every route and link it stood for and a small count. That
+ * was a genuine, explicitly requested product decision, not a defect, and
+ * it shipped as part of the accepted Phase 4.1C candidate. The R6 findings
+ * are recorded at the top of `offscreenChips.js`.
+ *
+ * SVAR-M52 (Phase 4.1G R3, D-168): Pavel's later manual acceptance of the
+ * Phase 4.1G R1/R2 candidate reversed R6-1 against a concrete case — two
+ * visually SEPARATE lines to the same offscreen task collapsing into one
+ * chip with a "2" badge. The chip is once again owned by the (route,
+ * offscreen end) pair, never by the endpoint alone: two distinct rendered
+ * routes to the same offscreen task get two distinct chips, and a chip's
+ * own count badge is the number of canonical links ITS OWN route stands
+ * for (`canonicalLinkIds.length`), never the number of other routes sharing
+ * its endpoint. Full mechanics and the historical comparison are recorded
+ * at the top of `offscreenChips.js`.
  *
  * Every chip carries its provenance in the DOM (`data-route-id`,
- * `data-route-ids`, `data-route-count`, `data-route-kind`,
- * `data-endpoint-role`, `data-endpoint-id`, `data-link-ids`, plus the R4 names `data-link-id`, `data-partner-id`,
+ * `data-route-kind`, `data-endpoint-role`, `data-endpoint-id`,
+ * `data-link-ids`, `data-link-count`, plus the R4 names `data-link-id`, `data-partner-id`,
  * `data-local-id`, `data-direction`, `data-exit-edge`, `data-anchor-x/y`) so
  * the product's own evidence suite can build the endpoint/chip table R5 §12
  * asks for from real rendered geometry, rather than from a second copy of
@@ -105,15 +118,16 @@ function Chip({ chip, basePosition, onReveal }) {
   const arrow = ARROWS[chip.direction] ?? '›';
   const before = chip.direction === 'left' || chip.direction === 'top';
   /*
-   * SVAR-M49 (R6-1): one chip per presentation endpoint. `data-route-id`,
+   * SVAR-M52 (D-168): one chip per (route, offscreen endpoint) — restored
+   * from R5, R6-1's endpoint-only merge retired. `data-route-id`,
    * `data-endpoint-role`, `data-local-id`, `data-exit-edge` and the anchor
-   * are the REPRESENTATIVE route's (the one the chip sits on);
-   * `data-route-ids` and `data-link-ids` list every route and canonical
-   * link merged into it, and `data-route-count` how many. The count is
-   * shown only when it is more than one — a plain chip reads exactly as
-   * before.
+   * are THIS chip's own single route's; `data-link-ids` lists the canonical
+   * links THIS route stands for (1 for an ordinary link, its membership for
+   * a legitimate collapsed-group aggregate, D-166 §K), and `data-link-count`
+   * how many. The count is shown only when it is more than one — a plain
+   * chip reads exactly as before.
    */
-  const count = chip.routeCount ?? 1;
+  const count = chip.canonicalLinkIds.length;
   return (
     <button
       type="button"
@@ -125,12 +139,11 @@ function Chip({ chip, basePosition, onReveal }) {
       }}
       data-chip-id={chip.key}
       data-route-id={setID(chip.routeId)}
-      data-route-ids={chip.routes.map((r) => setID(r.routeId)).join(',')}
-      data-route-count={count}
       data-route-kind={chip.kind}
       data-endpoint-role={chip.role}
       data-endpoint-id={setID(chip.partnerId)}
       data-link-ids={chip.canonicalLinkIds.map((id) => setID(id)).join(',')}
+      data-link-count={count}
       data-link-id={setID(chip.routeId)}
       data-partner-id={setID(chip.partnerId)}
       data-local-id={setID(chip.localId)}
