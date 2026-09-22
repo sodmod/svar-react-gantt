@@ -14,8 +14,35 @@
   fill: none;
 }
 
+/* SVAR-M51, first half (SVAR Production Planner, Pavel manual acceptance,
+   Phase 4.1G R2 Finding A): the dash PATTERN of every named `lineStyle`, for the
+   aggregate line — the same three `Links.css` already owns for a canonical
+   link, and for the same reason (SVAR-M32's own note above them): the
+   consumer maps its own meaning to `lineStyle` through the
+   `linkPresentation` prop and this stylesheet only draws the pattern that
+   style names.
+
+   Until now this file carried `dashed` alone. `dotted` was simply absent,
+   and CSS has no way to say so: an aggregate `<g>` whose presentation
+   resolved to `dotted` was given `wx-line-dotted` by `AggregateLinks.jsx`,
+   matched NO rule at all, and painted solid. Both stylesheets scope their
+   rules with their own component token (`wx-4kNpQzTa` here, `wx-dkx3NwEn`
+   there), so `Links.css`'s own `dotted` rule could never reach it either.
+
+   The gap was unreachable while the consuming project's projection emitted
+   only `solid` and `dashed`; once it began mapping its Informational links
+   to `dotted`, the SAME link read dotted with its group expanded and solid
+   with it collapsed — which is not a different geometry for a hidden end
+   (that is this component's whole job), it is a different LINK. The two
+   files are now pinned to each other by
+   `tools/planner-link-dash-styles.test.mjs`, so a future `lineStyle` cannot
+   be added to one and silently dropped by the other again. */
 .wx-aggregate-line.wx-line-dashed.wx-4kNpQzTa > .wx-line-draw {
   stroke-dasharray: 6 4;
+}
+
+.wx-aggregate-line.wx-line-dotted.wx-4kNpQzTa > .wx-line-draw {
+  stroke-dasharray: 1.5 3;
 }
 
 .wx-aggregate-line.wx-4kNpQzTa > .wx-line-arrow {

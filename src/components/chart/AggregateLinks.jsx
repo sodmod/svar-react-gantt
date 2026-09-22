@@ -423,6 +423,34 @@ export default function AggregateLinks({
       >
         {visibleRoutedAggregates.map(({ aggregate, route }) => {
           const presentation = presentationOf(aggregate);
+          /*
+           * SVAR-M51, second half (SVAR Production Planner, Pavel manual
+           * acceptance, Phase 4.1G R2): the REAL canonical link ids this
+           * one drawn line
+           * stands for, published in the same `data-link-ids` vocabulary the
+           * offscreen chip (SVAR-M49) already uses, for exactly the same
+           * reason — a consumer needs to know WHICH relationships a merged
+           * presentation represents before it may act on one of them.
+           *
+           * `data-aggregate-id` cannot answer that. It is a GROUPING key
+           * (representative source, representative target, mode bucket,
+           * presentation digest), so a consumer wanting member ids had to
+           * re-derive them by walking its own model back through the
+           * collapsed subtree and hoping the walk landed on the same set —
+           * verifiable only when the answer is a single link, and silently
+           * wrong if this id's internal shape ever changes (it already did
+           * once, when SVAR-M50 added the digest segment). The member ids are
+           * right here at render time, and the aggregate's whole contract
+           * (D-166 §K) is that it is NOT a link of its own but a presentation
+           * OF these links — this attribute states that contract in the DOM.
+           *
+           * Presentation only: nothing in this renderer reads it back, it
+           * carries no mode and no state, and it is the same array
+           * `data-aggregate-count` is already the length of.
+           */
+          const memberLinkIds = aggregate.memberLinkIds
+            .map((id) => setID(id))
+            .join(',');
           const dashClass =
             presentation.lineStyle && presentation.lineStyle !== 'solid'
               ? ` wx-line-${presentation.lineStyle}`
@@ -440,6 +468,7 @@ export default function AggregateLinks({
               data-aggregate-id={setID(aggregate.id)}
               data-route-class={route.routeClass}
               data-aggregate-count={aggregate.count}
+              data-link-ids={memberLinkIds}
               onClick={(event) => {
                 event.stopPropagation();
                 /*
