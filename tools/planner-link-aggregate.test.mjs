@@ -83,6 +83,30 @@ test('buildAggregates: a link with one hidden endpoint aggregates to its represe
   assert.deepEqual(aggregates[0].memberLinkIds, ['l1']);
 });
 
+test('SVAR-M53: an aggregate records the REAL tasks each representative stands for', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [{ id: 'l1', source: 'B', target: 'D', mode: 'soft' }];
+  const [aggregate] = buildAggregates(links, getTask, visible);
+  // The collapsed side names the hidden member, the visible side names
+  // itself — so a consumer never needs a "which side was collapsed" flag.
+  assert.deepEqual(aggregate.sourceCanonicalIds, ['B']);
+  assert.deepEqual(aggregate.targetCanonicalIds, ['D']);
+});
+
+test('SVAR-M53: two hidden members behind one representative are both recorded, once each', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [
+    { id: 'l1', source: 'B', target: 'D', mode: 'soft' },
+    { id: 'l2', source: 'C', target: 'D', mode: 'soft' },
+    // A second link out of the SAME hidden task must not name it twice.
+    { id: 'l3', source: 'B', target: 'D', mode: 'soft' },
+  ];
+  const [aggregate] = buildAggregates(links, getTask, visible);
+  assert.equal(aggregate.count, 3);
+  assert.deepEqual(aggregate.sourceCanonicalIds, ['B', 'C']);
+  assert.deepEqual(aggregate.targetCanonicalIds, ['D']);
+});
+
 test('buildAggregates: two links collapsing to the same representative/direction/mode merge into one aggregate, count 2', () => {
   const visible = new Set(['A', 'D']);
   const links = [

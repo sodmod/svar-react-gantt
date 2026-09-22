@@ -1,44 +1,21 @@
 /*
- * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47, SVAR-M48, SVAR-M49
- * [retired R3], SVAR-M52).
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47, SVAR-M48, SVAR-M49).
  * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
  *
  * Unit tests for the pure offscreen-endpoint-chip derivation
- * (`src/planner-router/offscreenChips.js`), Phase 4.1C R4/R5/R6 and Phase
- * 4.1G R3. Run: `npm run test:planner` (plain `node --test`).
+ * (`src/planner-router/offscreenChips.js`), Phase 4.1C R4 and R5. Run:
+ * `npm run test:planner` (plain `node --test`).
  *
  * WHAT THIS PROVES AND WHAT IT DOES NOT (project rule D-091 §1). Green here
- * proves the derivation answers the R4, R5 and R3 findings on stated
- * geometry: no chip without a visible run (R4-1), one chip per (route, end)
- * (R4-2, R5-2, restored by R3/D-168 after R6-1 temporarily merged it away),
- * a chip on a vertical run's exit (R4-3, R5 §3.3), identity that is the
- * route's own (R4-4, R5-3, D-168), an endpoint off the viewport in ANY
- * direction (R5-1), aggregate routes as chip sources with their OWN
- * membership as their own count (R5-4, D-168 §C), and two distinct routes to
- * one offscreen task never merging into one chip, however close their
- * anchors (D-168). It proves NOTHING about the real `<Gantt>` — the store's
- * viewport values, virtualization, the ribbon read — which is the Planner
- * product's real-Chromium product-scale suite's job.
- *
- * R6-1 HISTORY (project rule AGENTS.md §10.1/§13: not rewritten as a bug).
- * Phase 4.1C R6 explicitly asked `deriveEndpointChips` to fold every
- * (route, offscreen end) candidate naming one presentation endpoint into a
- * single chip (`mergeByEndpoint`, keyed `endpoint:<id>`), carrying every
- * route and canonical link folded into it and a count of how many. That was
- * a genuine, measured, explicitly requested product decision — not a defect
- * — and it shipped as part of the accepted Phase 4.1C candidate. Pavel's
- * later manual acceptance of the Phase 4.1G R1/R2 candidate reversed it
- * (D-168) against a concrete case a fold cannot represent: two visually
- * SEPARATE lines to one offscreen task read as one chip with a "2" badge,
- * which is indistinguishable on screen from one aggregate route legitimately
- * representing two canonical links (D-166 §K). `mergeByEndpoint` and its own
- * ordering helper are removed with this round — `deriveEndpointChips` once
- * again returns its candidates directly, exactly as R5 (SVAR-M48) computed
- * them. The R6-only tests below that asserted the fold itself (representative
- * selection, `chip.routes`/`chip.routeCount`, the endpoint-keyed `chip.key`)
- * are replaced by their D-168 equivalents in place, so every test that used
- * to exercise a named R6-1 fan-in/fan-out scenario still exists here, with
- * its new expected count of chips.
+ * proves the derivation answers the R4 and R5 findings on stated geometry:
+ * no chip without a visible run (R4-1), one chip per route and per end
+ * (R4-2, R5-2), a chip on a vertical run's exit (R4-3, R5 §3.3), identity
+ * that is the route's own (R4-4, R5-3), an endpoint off the viewport in ANY
+ * direction (R5-1), aggregate routes as chip sources (R5-4), and one chip per
+ * presentation endpoint however many routes name it (R6-1). It proves
+ * NOTHING about the real `<Gantt>` — the store's viewport values,
+ * virtualization, the ribbon read — which is the Planner product's
+ * real-Chromium product-scale suite's job.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -47,6 +24,7 @@ import {
   classifyEndpoint,
   deriveEndpointChips,
   layoutChips,
+  mergeByEndpoint,
   routeExitPoint,
   visibleRunLength,
   CHIP_SIZE,
@@ -87,10 +65,29 @@ function linkRoute(id, source, target, obstacles = []) {
   };
 }
 
-/** An aggregate presentation route between two representatives. */
-function aggregateRoute(id, source, target, memberLinkIds) {
+/**
+ * An aggregate presentation route between two representatives.
+ *
+ * SVAR-M53 (Phase 4.1G R4): `canonical` names the REAL tasks each side's
+ * representative stands in for, exactly as `aggregate.js` now records them.
+ * Omitted means "itself", which is what a representative that is its own
+ * endpoint honestly stands for.
+ */
+function aggregateRoute(id, source, target, memberLinkIds, canonical = {}) {
   const route = linkRoute(id, source, target);
-  return { ...route, kind: 'aggregate', canonicalLinkIds: memberLinkIds };
+  return {
+    ...route,
+    kind: 'aggregate',
+    canonicalLinkIds: memberLinkIds,
+    source: {
+      ...route.source,
+      canonicalIds: canonical.source ?? [source.id],
+    },
+    target: {
+      ...route.target,
+      canonicalIds: canonical.target ?? [target.id],
+    },
+  };
 }
 
 /* -- routeExitPoint -------------------------------------------------------- */
@@ -226,19 +223,97 @@ test('R4-4 / R5-3: a chip carries its route, role, endpoint and canonical identi
   const chips = deriveEndpointChips([linkRoute('l1', a, b)], VIEWPORT);
   assert.equal(chips.length, 1);
   const [chip] = chips;
-  // D-168 (SVAR-M52): the key is the ROUTE's own (route id, role) pair —
-  // never a shared endpoint key (R6-1's `endpoint:b`, retired).
-  assert.equal(chip.key, 'l1:target');
+  // R6-1: the key is the ENDPOINT's; the route is the representative one.
+  assert.equal(chip.key, 'endpoint:b');
   assert.equal(chip.routeId, 'l1');
   assert.equal(chip.kind, 'link');
   assert.equal(chip.role, 'target');
   assert.deepEqual(chip.canonicalLinkIds, ['l1']);
+  assert.equal(chip.routeCount, 1);
+  assert.deepEqual(
+    chip.routes.map((r) => r.routeId),
+    ['l1'],
+  );
   assert.equal(chip.partnerId, 'b');
   assert.equal(chip.localId, 'a');
   assert.equal(chip.partnerName, 'Partner');
   assert.equal(chip.direction, 'right');
   assert.equal(chip.exitEdge, 'right');
   assert.deepEqual(chip.anchor, [2000, 715]);
+});
+
+/* -- SVAR-M53: the canonical task behind the presentation endpoint --------- */
+
+test('SVAR-M53: a canonical link chip stands for its own endpoint task', () => {
+  const a = task('a', 1200, 700);
+  const b = task('b', 2600, 700, 60, 30, 'Partner');
+  const [chip] = deriveEndpointChips([linkRoute('l1', a, b)], VIEWPORT);
+  assert.deepEqual(chip.partnerCanonicalIds, ['b']);
+});
+
+test("SVAR-M53: an aggregate chip stands for the hidden member task, not the group's representative", () => {
+  const local = task('local', 1200, 700);
+  const group = task('group', 2600, 700, 60, 30, 'Quality Assurance');
+  const [chip] = deriveEndpointChips(
+    [
+      aggregateRoute('agg1', local, group, ['l1'], {
+        target: ['qa-child'],
+      }),
+    ],
+    VIEWPORT,
+  );
+  // The chip still NAMES the representative — that is the row the route
+  // is drawn to, and R5 §3.4 has not changed.
+  assert.equal(chip.partnerId, 'group');
+  assert.equal(chip.partnerName, 'Quality Assurance');
+  // ...but it knows the click belongs to the hidden task.
+  assert.deepEqual(chip.partnerCanonicalIds, ['qa-child']);
+});
+
+test('SVAR-M53: merging unions the canonical tasks, deduplicated, and keeps an ambiguous endpoint ambiguous', () => {
+  const localA = task('la', 1200, 620);
+  const localB = task('lb', 1200, 900);
+  const group = task('group', 2600, 700, 60, 30, 'Quality Assurance');
+  // Two aggregate routes into ONE collapsed representative, standing for
+  // two DIFFERENT hidden member tasks. R6-1 still gives one chip; SVAR-M53
+  // makes that chip say, from the DOM, that it covers two canonical tasks,
+  // which is the case `OffscreenLinkChips.onReveal` refuses to guess at.
+  const chips = deriveEndpointChips(
+    [
+      aggregateRoute('aggA', localA, group, ['l1'], { target: ['qa-1'] }),
+      aggregateRoute('aggB', localB, group, ['l2'], { target: ['qa-2'] }),
+    ],
+    VIEWPORT,
+  );
+  const naming = chips.filter((c) => c.partnerId === 'group');
+  assert.equal(naming.length, 1);
+  assert.equal(naming[0].routeCount, 2);
+  assert.deepEqual([...naming[0].partnerCanonicalIds].sort(), ['qa-1', 'qa-2']);
+
+  // Two routes standing for the SAME hidden task are one chip naming one
+  // canonical task — the unambiguous case the click DOES resolve.
+  const same = deriveEndpointChips(
+    [
+      aggregateRoute('aggA', localA, group, ['l1'], { target: ['qa-1'] }),
+      aggregateRoute('aggB', localB, group, ['l2'], { target: ['qa-1'] }),
+    ],
+    VIEWPORT,
+  ).filter((c) => c.partnerId === 'group');
+  assert.equal(same.length, 1);
+  assert.equal(same[0].routeCount, 2);
+  assert.deepEqual(same[0].partnerCanonicalIds, ['qa-1']);
+});
+
+test('SVAR-M53: an endpoint that carries no canonical ids stands for itself', () => {
+  // An upstream caller that never adopts the field must behave exactly as
+  // it did before SVAR-M53.
+  const a = task('a', 1200, 700);
+  const b = task('b', 2600, 700);
+  const bare = linkRoute('l1', a, b);
+  delete bare.source.canonicalIds;
+  delete bare.target.canonicalIds;
+  const [chip] = deriveEndpointChips([bare], VIEWPORT);
+  assert.deepEqual(chip.partnerCanonicalIds, ['b']);
 });
 
 test('R5-1: a source whose bar overlaps the window horizontally but whose row is ABOVE it gets its chip at the top exit', () => {
@@ -327,7 +402,7 @@ test('R5 §3.3: a route whose only visible part is a vertical still gets both en
   assert.equal(chips[0].anchor[0], chips[1].anchor[0]);
 });
 
-test('R4-2 / R5-2: three routes out of one row to three offscreen partners are three chips; D-168: a fan-in of two into ONE offscreen task is TWO chips, one per route', () => {
+test('R4-2 / R5-2 / R6-1: three routes out of one row to three offscreen partners are three chips; a fan-in of two into ONE offscreen task is ONE chip carrying both routes', () => {
   const s = task('s', 1200, 700);
   const t1 = task('t1', 2600, 800);
   const t2 = task('t2', 2700, 900);
@@ -344,30 +419,69 @@ test('R4-2 / R5-2: three routes out of one row to three offscreen partners are t
     [linkRoute('l4', a, far), linkRoute('l5', b, far)],
     VIEWPORT,
   );
-  // D-168 (was R6-1: ONE chip carrying both routes; retired, see file
-  // header): two DISTINCT rendered routes to one offscreen task are two
-  // distinct chips, each keyed and counted by its own route alone.
-  assert.equal(fanIn.length, 2);
-  assert.deepEqual(
-    fanIn.map((c) => c.partnerId),
-    ['far', 'far'],
-  );
-  assert.deepEqual(fanIn.map((c) => c.key).sort(), ['l4:target', 'l5:target']);
-  for (const chip of fanIn) {
-    assert.deepEqual(chip.canonicalLinkIds, [chip.routeId]);
-    assert.equal(chip.exitEdge, 'right');
-    assert.equal(chip.anchor[0], VIEWPORT.right);
-  }
+  // Two routes, same task: ONE chip (R6-1), every route and link kept.
+  assert.equal(fanIn.length, 1);
+  const [chip] = fanIn;
+  assert.equal(chip.partnerId, 'far');
+  assert.equal(chip.key, 'endpoint:far');
+  assert.equal(chip.routeCount, 2);
+  assert.deepEqual(chip.routes.map((r) => r.routeId).sort(), ['l4', 'l5']);
+  assert.deepEqual([...chip.canonicalLinkIds].sort(), ['l4', 'l5']);
+  // The chip sits on ONE of its routes' exits, at the right edge.
+  assert.ok(['l4', 'l5'].includes(chip.routeId));
+  assert.equal(chip.exitEdge, 'right');
+  assert.equal(chip.anchor[0], VIEWPORT.right);
 });
 
-test('D-168: two real routes to one offscreen task, from geometrically DIFFERENT source rows, are two chips, each keeping its own exit', () => {
-  // `a`'s row is inside the viewport; `above`'s is off the top. Both routes
-  // reach the same `far` task (off screen past the bottom), so both exit
-  // through the bottom edge here — the LOAD-BEARING claim is not that the
-  // edges differ (they need not: `chips for two DIFFERENT endpoints...`
-  // above already covers differing edges), it is that two geometrically
-  // DISTINCT routes to one offscreen task never fold into one chip (was
-  // R6-1: exactly this case gave ONE chip with `routeCount: 2`; retired).
+test('R6-1: the representative is the exit on the side the endpoint lies past, then the earliest along that edge, whatever the input order', () => {
+  const candidate = (routeId, exitEdge, anchor, role = 'target') => ({
+    routeId,
+    kind: 'link',
+    role,
+    canonicalLinkIds: [routeId],
+    partnerId: 'far',
+    localId: `local-${routeId}`,
+    partnerName: 'Far',
+    direction: 'right',
+    exitEdge,
+    anchor,
+  });
+  // One route leaves through the bottom edge on its way to a task that
+  // lies past the RIGHT edge (measured on the product stand: `Environment
+  // blockout pass -> Infra migration` exits at the bottom while the other
+  // routes into `Infra migration` exit at the right); the chip points
+  // right, so it sits on a right-edge exit — the lowest-y one.
+  const input = [
+    candidate('l3', 'bottom', [1500, 1100]),
+    candidate('l2', 'right', [2000, 900]),
+    candidate('l1', 'right', [2000, 700]),
+  ];
+  const [chip] = mergeByEndpoint(input);
+  assert.equal(chip.exitEdge, 'right');
+  assert.equal(chip.routeId, 'l1');
+  assert.deepEqual(chip.anchor, [2000, 700]);
+  assert.equal(chip.routeCount, 3);
+  assert.deepEqual(
+    chip.routes.map((r) => r.exitEdge),
+    ['right', 'right', 'bottom'],
+  );
+  const [reversed] = mergeByEndpoint([...input].reverse());
+  assert.deepEqual(reversed, chip);
+  // With no exit on the endpoint's own side, the edge name decides, then
+  // the position along it.
+  const [fallback] = mergeByEndpoint([
+    candidate('l5', 'top', [1400, 500]),
+    candidate('l4', 'bottom', [1300, 1100]),
+  ]);
+  assert.equal(fallback.exitEdge, 'bottom');
+  assert.equal(fallback.routeId, 'l4');
+});
+
+test('R6-1: two real routes to one offscreen task, leaving through DIFFERENT edges, are one chip', () => {
+  // `far` lies past the right edge and below the bottom one: horizontal
+  // first, so it is "right". `a`'s route leaves through the right edge on
+  // its own row; `above`'s route comes down from above the viewport and
+  // leaves through the bottom.
   const a = task('a', 1100, 700);
   const above = task('above', 1100, 200);
   const far = task('far', 2600, 1400);
@@ -376,16 +490,13 @@ test('D-168: two real routes to one offscreen task, from geometrically DIFFERENT
     VIEWPORT,
   );
   const naming = chips.filter((c) => c.partnerId === 'far');
-  assert.equal(naming.length, 2);
-  const byRoute = Object.fromEntries(naming.map((c) => [c.routeId, c]));
-  assert.equal(byRoute.l1.direction, 'right');
-  assert.equal(byRoute.l2.direction, 'right');
-  assert.deepEqual(byRoute.l1.canonicalLinkIds, ['l1']);
-  assert.deepEqual(byRoute.l2.canonicalLinkIds, ['l2']);
-  assert.notEqual(byRoute.l1.key, byRoute.l2.key);
+  assert.equal(naming.length, 1);
+  assert.equal(naming[0].direction, 'right');
+  assert.equal(naming[0].routeCount, 2);
+  assert.ok(new Set(naming[0].routes.map((r) => r.exitEdge)).size >= 1);
 });
 
-test('D-168: a task that is the SOURCE of one visible route and the TARGET of another gets two chips, one per role', () => {
+test('R6-1: a task that is the SOURCE of one visible route and the TARGET of another gets one chip', () => {
   const far = task('far', 2600, 750);
   const a = task('a', 1100, 600);
   const c = task('c', 3800, 900);
@@ -399,14 +510,16 @@ test('D-168: a task that is the SOURCE of one visible route and the TARGET of an
     VIEWPORT,
   );
   const naming = chips.filter((ch) => ch.partnerId === 'far');
-  // Was R6-1: ONE chip, `routes` covering both roles; retired.
-  assert.equal(naming.length, 2);
-  assert.deepEqual(naming.map((c) => c.role).sort(), ['source', 'target']);
-  assert.deepEqual(naming.map((c) => c.key).sort(), ['l1:target', 'l2:source']);
+  assert.equal(naming.length, 1);
+  assert.equal(naming[0].routeCount, 2);
+  assert.deepEqual(naming[0].routes.map((r) => r.role).sort(), [
+    'source',
+    'target',
+  ]);
   void c;
 });
 
-test('chips for two DIFFERENT endpoints are never merged, however close their anchors', () => {
+test('R6-1: chips for two DIFFERENT endpoints are never merged, however close their anchors', () => {
   const a = task('a', 1100, 700);
   const far1 = task('far1', 2600, 700);
   const far2 = task('far2', 2600, 740);
@@ -418,7 +531,7 @@ test('chips for two DIFFERENT endpoints are never merged, however close their an
   assert.deepEqual(chips.map((c) => c.partnerId).sort(), ['far1', 'far2']);
 });
 
-test('D-168 §C: a canonical link and an aggregate that both name one representative give TWO chips, each with its own membership', () => {
+test('R6-1: a canonical link and an aggregate that both name one representative give one chip with every member link', () => {
   const group = task('group', 2600, 700, 900, 12, 'Group');
   const a = task('a', 1100, 600);
   const b = task('b', 1100, 900);
@@ -427,32 +540,58 @@ test('D-168 §C: a canonical link and an aggregate that both name one representa
     VIEWPORT,
   );
   const naming = chips.filter((c) => c.partnerId === 'group');
-  // Was R6-1: ONE chip, canonicalLinkIds = ['l1','m1','m2'], routeCount 2;
-  // retired. D-168: the plain link and the aggregate stay two chips, and
-  // each chip's own count is its OWN route's membership — never the union.
-  assert.equal(naming.length, 2);
-  const byKind = Object.fromEntries(naming.map((c) => [c.kind, c]));
-  assert.deepEqual(byKind.link.canonicalLinkIds, ['l1']);
-  assert.deepEqual([...byKind.aggregate.canonicalLinkIds].sort(), [
-    'm1',
-    'm2',
+  assert.equal(naming.length, 1);
+  assert.deepEqual([...naming[0].canonicalLinkIds].sort(), ['l1', 'm1', 'm2']);
+  assert.equal(naming[0].routeCount, 2);
+  assert.deepEqual(naming[0].routes.map((r) => r.kind).sort(), [
+    'aggregate',
+    'link',
   ]);
 });
 
-test('D-168 negative control: a LEGITIMATE aggregate route still gets exactly one chip, with count == its own membership', () => {
-  // Guards against the opposite mistake: D-168 must not turn every
-  // aggregate into several chips just because it stands for several links.
-  // One rendered route (one aggregate), one offscreen end -> one chip, and
-  // its badge is the aggregate's own memberLinkIds.length (R5-4 below
-  // proves the same shape without this framing).
-  const group = task('group', 800, 700, 900, 12, 'Group');
-  const outside = task('out', 2600, 900, 60, 30, 'Outside');
+test('NEGATIVE-CONTROL SHAPE (documentary): keying by route (the R5 rule) gives duplicate labels; the R6 key is the endpoint', () => {
+  const a = task('a', 1100, 600);
+  const b = task('b', 1100, 900);
+  const far = task('far', 2600, 750);
   const chips = deriveEndpointChips(
-    [aggregateRoute('aggregate:group:out:soft', group, outside, ['m1', 'm2', 'm3'])],
+    [linkRoute('l4', a, far), linkRoute('l5', b, far)],
     VIEWPORT,
   );
   assert.equal(chips.length, 1);
-  assert.deepEqual([...chips[0].canonicalLinkIds].sort(), ['m1', 'm2', 'm3']);
+  // What R5 produced, from the same candidates, for comparison.
+  const perRoute = chips[0].routes.map((r) => `${r.routeId}:${r.role}`);
+  assert.equal(perRoute.length, 2);
+  assert.equal(new Set(perRoute).size, 2);
+  // The merge itself is a pure function of the candidates.
+  const merged = mergeByEndpoint([
+    {
+      routeId: 'x',
+      kind: 'link',
+      role: 'target',
+      canonicalLinkIds: ['x'],
+      partnerId: 'p',
+      localId: 'q',
+      partnerName: 'P',
+      direction: 'right',
+      exitEdge: 'right',
+      anchor: [2000, 700],
+    },
+    {
+      routeId: 'y',
+      kind: 'link',
+      role: 'target',
+      canonicalLinkIds: ['y'],
+      partnerId: 'p',
+      localId: 'r',
+      partnerName: 'P',
+      direction: 'right',
+      exitEdge: 'right',
+      anchor: [2000, 800],
+    },
+  ]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].routeId, 'x');
+  assert.deepEqual(merged[0].anchor, [2000, 700]);
 });
 
 test('R5-4: an aggregate route is a chip source like any other, with its representatives as endpoints', () => {

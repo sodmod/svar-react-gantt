@@ -11,11 +11,9 @@ import { setID } from '@svar-ui/lib-dom';
 import { LINK_TOKENS } from '../../planner-router/route.js';
 import { clampPopoverRect } from '../../planner-router/overlayViewport.js';
 import { useScreenViewportCorrection } from './useScreenViewportCorrection.js';
-import {
-  pickBadgeAnchor,
-  collapsedAncestorsToOpen,
-} from '../../planner-router/aggregate.js';
+import { pickBadgeAnchor } from '../../planner-router/aggregate.js';
 import { useRoutedAggregates } from './useRoutedAggregates.js';
+import { useCanonicalReveal } from './useCanonicalReveal.js';
 import './AggregateLinks.css';
 
 /*
@@ -103,7 +101,6 @@ export default function AggregateLinks({
   );
 
   const [openAggregateId, setOpenAggregateId] = useState(null);
-  const pendingRevealRef = useRef(null);
   const popoverRef = useRef(null);
   // R1-6: the popover's real rendered size, measured after it (re)paints —
   // its row count and task-name lengths make it genuinely variable, unlike
@@ -248,26 +245,20 @@ export default function AggregateLinks({
     [taskRects, usableWidth, api, scrollTop, onRevealPartner],
   );
 
-  useEffect(() => {
-    const pending = pendingRevealRef.current;
-    if (!pending) return;
-    if (revealNow(pending.taskId)) {
-      pendingRevealRef.current = null;
-      return;
-    }
-    /*
-     * SVAR-M45 (R3-6): a pending reveal that cannot resolve gives up
-     * instead of waiting forever. Before SVAR-M44 an unresolvable one was
-     * the NORMAL outcome for two rows out of three, and it stayed in the
-     * ref indefinitely — so the next unrelated `_tasks` change (another
-     * collapse, a drag, a new task) could fire that stale scroll long after
-     * the click, which is its own surprise. A small bounded number of
-     * attempts covers the legitimate case (one commit per `open-task`
-     * cascade) and nothing beyond it.
-     */
-    pending.attemptsLeft -= 1;
-    if (pending.attemptsLeft <= 0) pendingRevealRef.current = null;
-  }, [taskRects, revealNow]);
+  /*
+   * SVAR-M53 (Phase 4.1G R4): the ancestor cascade and the bounded pending
+   * landing (SVAR-M45 R3-6) moved to `useCanonicalReveal.js` unchanged, so
+   * the offscreen chip can ask the same question the same way instead of
+   * growing a second answer to it. `revealNow` — this component's own idea
+   * of WHERE a task should end up — stayed here, which is the half that
+   * genuinely differs between the two callers.
+   */
+  const { openCollapsedAncestors, landOnceVisible } = useCanonicalReveal({
+    api,
+    getTask,
+    taskRects,
+    land: revealNow,
+  });
 
   const onRevealMember = useCallback(
     (link) => {
@@ -305,30 +296,24 @@ export default function AggregateLinks({
           ? link.target
           : link.target;
 
-      const ancestors = collapsedAncestorsToOpen(revealId, getTask);
-      for (const id of ancestors) {
-        api.exec('open-task', { id, mode: true });
-      }
+      const ancestors = openCollapsedAncestors(revealId);
       if (!readonly) onSelectLink(link.id);
       setOpenAggregateId(null);
-      if (ancestors.length === 0) {
-        revealNow(revealId);
-      } else {
-        /*
-         * SVAR-M45 (R3-6): the disclosure the `open-task` calls above just
-         * asked for has not produced new rows yet, so the landing waits for
-         * the `taskRects` that carries them (the effect right above). The
-         * attempt counter is what stops a reveal that can never succeed
-         * from sitting in the ref and firing later, against an unrelated
-         * `taskRects` change, as a scroll the person did not ask for.
-         */
-        pendingRevealRef.current = {
-          taskId: revealId,
-          attemptsLeft: 4,
-        };
-      }
+      /*
+       * SVAR-M45 (R3-6): when something was opened, the disclosure those
+       * `open-task` calls asked for has not produced new rows yet, so the
+       * landing waits for the `taskRects` that carries them, a bounded
+       * number of attempts — see `useCanonicalReveal.js`.
+       */
+      landOnceVisible(revealId, ancestors.length > 0);
     },
-    [api, getTask, revealNow, taskRects, readonly, onSelectLink],
+    [
+      openCollapsedAncestors,
+      landOnceVisible,
+      taskRects,
+      readonly,
+      onSelectLink,
+    ],
   );
 
   useLayoutEffect(() => {

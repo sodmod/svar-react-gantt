@@ -180,7 +180,40 @@ export function buildAggregates(
     mode: group.mode,
     count: group.members.length,
     memberLinkIds: group.members.map((link) => link.id),
+    // SVAR-M53 (Phase 4.1G R4): which REAL tasks each of the two
+    // representatives is standing in for, in this bucket. Recorded here
+    // because this is the module that resolved the representatives in the
+    // first place — anyone else answering it would be walking `parent` a
+    // second time, with a second chance to disagree about what "hidden"
+    // means (the whole reason `findVisibleRepresentative` is one function).
+    //
+    // A side whose endpoints are already visible lists those endpoints, so
+    // the list is never empty and never needs a "was this side collapsed"
+    // flag: the caller compares it to the representative if it cares. Both
+    // are deduplicated and in first-seen member order, so the value is
+    // deterministic for a deterministic `links` order and two links from
+    // one hidden task do not name it twice.
+    sourceCanonicalIds: distinctIds(group.members.map((link) => link.source)),
+    targetCanonicalIds: distinctIds(group.members.map((link) => link.target)),
   }));
+}
+
+/*
+ * SVAR-M53: first-seen order, no duplicates, compared as strings for the
+ * same reason every other id comparison in this file is — a consumer's ids
+ * are opaque and may be numbers or strings, and the original values are
+ * what is answered, never the stringified key.
+ */
+function distinctIds(ids) {
+  const seen = new Set();
+  const out = [];
+  for (const id of ids) {
+    const key = String(id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(id);
+  }
+  return out;
 }
 
 /*
