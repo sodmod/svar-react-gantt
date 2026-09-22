@@ -80,7 +80,10 @@ export default function AggregateLinks({
     area,
     aggregates,
     routedAggregates,
-  } = useRoutedAggregates();
+    // SVAR-M50 (Pavel manual acceptance, Phase 4.1G R1 second follow-up):
+    // `linkPresentation` now reaches the grouping key too — see
+    // `useRoutedAggregates.js`'s own comment.
+  } = useRoutedAggregates(linkPresentation);
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
   const scrollLeft = useStore(api, 'scrollLeft');

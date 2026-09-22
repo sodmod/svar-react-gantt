@@ -56,12 +56,59 @@ export function findVisibleRepresentative(taskId, getTask, visibleIds) {
 }
 
 /*
+ * SVAR-M50 (SVAR Production Planner, Pavel manual acceptance, Phase 4.1G R1
+ * second follow-up): what a bucket may NOT mix.
+ *
+ * `presentationKeyOf`, when given, is a `(link) => string` the CALLER
+ * builds from its own `linkPresentation` prop — the same closed `{lineStyle,
+ * arrowhead}` dictionary `Links.jsx`/`AggregateLinks.jsx` already resolve a
+ * REAL link's presentation through. This module still touches nothing but
+ * that closed shape: it never reads `lineStyle`/`arrowhead` itself, never
+ * asks what `mode` means, and does not gain a second opinion about either —
+ * it is handed one opaque string per link and uses it exactly the way it
+ * already used the `mode ?? 'soft'` fallback below, as one more component of
+ * the grouping key.
+ *
+ * `presentationOf` below (this file's one caller inside `AggregateLinks.jsx`,
+ * `useRoutedAggregates.js`) already assumed every member of one aggregate
+ * "shares the same mode by construction" — true only when this module's own
+ * key genuinely could not mix two links a consumer means to tell apart. The
+ * ORIGINAL key could not deliver that promise for a consumer whose links
+ * never carry `.mode` at all (D-116, this project's own `TaskLink.mode`
+ * deliberately never crosses into the renderer's `ILink` vocabulary): EVERY
+ * link then fell back to the literal string `'soft'`, so two links with
+ * completely different real modes — and therefore different presentation —
+ * merged into one aggregate whenever their (representative source,
+ * representative target) pair matched. The shared line then drew whichever
+ * member `memberLinkIds[0]` happened to be, and the other member's own
+ * distinct chip and line silently vanished into the merged badge. MEASURED:
+ * a collapsed group with two children, one `soft`-moded and one
+ * `informational`-moded, both linking the same outside partner, aggregated
+ * into one `count: 2` badge instead of two separate `count: 1` aggregates.
+ *
+ * `presentationKeyOf` closes that gap without this module learning what
+ * `mode` is: two links the caller's OWN presentation resolver disagrees
+ * about can no longer land in the same bucket, however the mode fallback
+ * above reads. Two links that resolve to the SAME presentation (including
+ * two consumers that both leave `.mode` unset, or two links a consumer
+ * genuinely wants to read as visually identical) still aggregate exactly as
+ * before — this is strictly a widening of what counts as "the same group",
+ * never a narrowing that could split an already-correct aggregate. Omitting
+ * the argument keeps the original mode-only key, so an upstream consumer
+ * that never adopts this parameter is unaffected.
+ */
+function defaultPresentationKeyOf() {
+  return '';
+}
+
+/*
  * Groups links whose resolved endpoints are not both the link's own real
  * endpoints into aggregates, one per (representative source, representative
- * target, mode) — D-166 §K's "endpoint + direction + mode" key, where
- * direction is the ordered (source, target) pair itself: the store's own
- * links are already always forward (D-166 §A, FS only), so swapping the
- * pair is a genuinely different direction, never the same aggregate.
+ * target, mode, presentation) — D-166 §K's "endpoint + direction + mode" key
+ * plus the presentation signature above, where direction is the ordered
+ * (source, target) pair itself: the store's own links are already always
+ * forward (D-166 §A, FS only), so swapping the pair is a genuinely
+ * different direction, never the same aggregate.
  *
  * A link whose BOTH endpoints already resolve to themselves is a real,
  * fully visible link — D-166 §G already gives it its own channel and this
@@ -78,7 +125,12 @@ export function findVisibleRepresentative(taskId, getTask, visibleIds) {
  * internal relationship of content the person chose to hide, in full, and
  * this presentation owes it nothing to show: no loop, no badge, no chip.
  */
-export function buildAggregates(links, getTask, visibleIds) {
+export function buildAggregates(
+  links,
+  getTask,
+  visibleIds,
+  presentationKeyOf = defaultPresentationKeyOf,
+) {
   const groups = new Map();
   for (const link of links) {
     const repSource = findVisibleRepresentative(
@@ -96,23 +148,59 @@ export function buildAggregates(links, getTask, visibleIds) {
     if (repSource === repTarget) continue;
 
     const mode = link.mode ?? 'soft';
-    const key = `${repSource}\u0000${repTarget}\u0000${mode}`;
+    const presentationKey = presentationKeyOf(link) ?? '';
+    const key = `${repSource}\u0000${repTarget}\u0000${mode}\u0000${presentationKey}`;
     let group = groups.get(key);
     if (!group) {
-      group = { repSource, repTarget, mode, members: [] };
+      group = { repSource, repTarget, mode, presentationKey, members: [] };
       groups.set(key, group);
     }
     group.members.push(link);
   }
 
   return Array.from(groups.values()).map((group) => ({
-    id: `aggregate:${group.repSource}:${group.repTarget}:${group.mode}`,
+    // A DETERMINISTIC digest of `presentationKey`, not the group's position
+    // in this `Map` — position depends on `links`' own iteration order,
+    // which is not guaranteed stable across renders (a reorder that leaves
+    // every grouping decision unchanged would still shuffle `Array.from`'s
+    // output). This id is read back as REACT KEYS and as the identity a
+    // popover's own open/closed state is keyed on
+    // (`AggregateLinks.jsx`'s `openAggregateId`) — an id that could change
+    // for a bucket whose membership did not would silently close an open
+    // popover or misattribute one. Two groups whose (source, target, mode)
+    // already matched only split further when their presentation genuinely
+    // differs, so the id shape stays "aggregate:<source>:<target>:<mode>"
+    // plus this one deterministic suffix, never a third independent field —
+    // a caller (this project's own `resolveAggregateLinkId`) already treats
+    // everything past the third `:` as opaque, so widening the id this way
+    // changes nothing for it.
+    id: `aggregate:${group.repSource}:${group.repTarget}:${group.mode}:${presentationDigest(group.presentationKey)}`,
     source: group.repSource,
     target: group.repTarget,
     mode: group.mode,
     count: group.members.length,
     memberLinkIds: group.members.map((link) => link.id),
   }));
+}
+
+/*
+ * A short, stable, DOM-attribute-safe digest (FNV-1a, base36) — not
+ * cryptographic, just deterministic and collision-unlikely for the small
+ * number of distinct presentation dictionaries any one project actually has
+ * (a handful of `{lineStyle, arrowhead}` combinations). Every group fed the
+ * SAME `presentationKey` (including the empty string
+ * `defaultPresentationKeyOf` returns, for an upstream caller that never
+ * adopts this parameter) digests to the SAME suffix, which is the only
+ * property this id's callers (React's own key diffing, `AggregateLinks.jsx`'s
+ * `openAggregateId`) actually need.
+ */
+function presentationDigest(key) {
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < key.length; i += 1) {
+    hash ^= key.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 /*

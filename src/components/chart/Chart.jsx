@@ -408,8 +408,16 @@ function Chart(props) {
         />
 
         {/* SVAR-M35 (SVAR Production Planner): after Bars, so a chip paints
-            above every bar and link it names. */}
-        <OffscreenLinkChips onRevealPartner={onRevealPartner} />
+            above every bar and link it names. `linkPresentation`
+            (SVAR-M50, Pavel manual acceptance, Phase 4.1G R1 second
+            follow-up): the same prop `<Bars>` above already receives, so
+            this component's own `useRoutedAggregates` call groups
+            collapsed-group crossing links identically to
+            `AggregateLinks.jsx`'s. */}
+        <OffscreenLinkChips
+          onRevealPartner={onRevealPartner}
+          linkPresentation={linkPresentation}
+        />
       </div>
     </div>
   );

@@ -92,10 +92,7 @@ test('buildAggregates: two links collapsing to the same representative/direction
   const aggregates = buildAggregates(links, getTask, visible);
   assert.equal(aggregates.length, 1);
   assert.equal(aggregates[0].count, 2);
-  assert.deepEqual(
-    new Set(aggregates[0].memberLinkIds),
-    new Set(['l1', 'l2']),
-  );
+  assert.deepEqual(new Set(aggregates[0].memberLinkIds), new Set(['l1', 'l2']));
 });
 
 test('NEGATIVE CONTROL (D-166 §K, kickoff §17): mixed mode never aggregates into one badge', () => {
@@ -111,6 +108,161 @@ test('NEGATIVE CONTROL (D-166 §K, kickoff §17): mixed mode never aggregates in
     'different mode must never merge into one aggregate, even with the same representative endpoints',
   );
   for (const aggregate of aggregates) assert.equal(aggregate.count, 1);
+});
+
+/* ======================================================================== *
+ * SVAR Production Planner, Pavel manual acceptance, Phase 4.1G R1 second
+ * follow-up — `presentationKeyOf` (D-166 §K widened).
+ *
+ * The negative control just above sets `mode: 'soft'`/`mode: 'informational'`
+ * directly on its fixture links, so it already exercised the ORIGINAL
+ * `mode ?? 'soft'` key correctly and would keep passing even if this whole
+ * fix never existed. It does not reproduce the actual bug: the SVAR
+ * Production Planner's own `ILink` objects (`linkProjection.ts`) never carry
+ * `.mode` at all — D-116 keeps that word out of this renderer's vocabulary
+ * on purpose — so every real link fell back to the literal string `'soft'`
+ * and TWO REAL LINKS OF DIFFERENT MODE, ONCE THEIR OWN `.mode` FIELD IS
+ * ABSENT LIKE THE REAL APP LEAVES IT, merged anyway. These fixtures leave
+ * `.mode` unset (as production `ILink`s do) and separate purely through a
+ * synthetic `presentationKeyOf`, standing in for the app's real
+ * `linkPresentation` callback — the closed `{lineStyle, arrowhead}`
+ * dictionary this module is allowed to be handed a digest of, never `mode`
+ * itself.
+ */
+function presentationKeyOfById(map) {
+  return (link) => map.get(link.id) ?? '';
+}
+
+test('RED-BEFORE-THIS-FIX (D-166 §K widened): two links with NO `.mode` field (the real app shape) but genuinely different presentation must not merge', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [
+    { id: 'l1', source: 'B', target: 'D' }, // no .mode — real ILink shape
+    { id: 'l2', source: 'C', target: 'D' },
+  ];
+  const keyOf = presentationKeyOfById(
+    new Map([
+      ['l1', 'dashed\u0000true'], // stands for Soft
+      ['l2', 'dotted\u0000true'], // stands for Informational
+    ]),
+  );
+  const aggregates = buildAggregates(links, getTask, visible, keyOf);
+  assert.equal(
+    aggregates.length,
+    2,
+    'without presentationKeyOf these two would have merged into one count-2 aggregate — this is exactly what Pavel photographed',
+  );
+  for (const aggregate of aggregates) assert.equal(aggregate.count, 1);
+  const byMember = new Map(aggregates.map((a) => [a.memberLinkIds[0], a]));
+  assert.equal(byMember.get('l1').count, 1);
+  assert.equal(byMember.get('l2').count, 1);
+});
+
+test('the same discriminating case, repeated for Hard+Informational and Hard+Soft (Pavel manual acceptance)', () => {
+  const visible = new Set(['A', 'D']);
+  const cases = [
+    ['solid\u0000true', 'dotted\u0000true'], // Hard + Informational
+    ['solid\u0000true', 'dashed\u0000true'], // Hard + Soft
+  ];
+  for (const [keyA, keyB] of cases) {
+    const links = [
+      { id: 'l1', source: 'B', target: 'D' },
+      { id: 'l2', source: 'C', target: 'D' },
+    ];
+    const keyOf = presentationKeyOfById(
+      new Map([
+        ['l1', keyA],
+        ['l2', keyB],
+      ]),
+    );
+    const aggregates = buildAggregates(links, getTask, visible, keyOf);
+    assert.equal(aggregates.length, 2, `${keyA} vs ${keyB} must not merge`);
+    for (const aggregate of aggregates) assert.equal(aggregate.count, 1);
+  }
+});
+
+test('two links with the SAME presentation (both real modes mapping to the same {lineStyle, arrowhead}) still merge into one badge — this is a widening, not a narrowing', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [
+    { id: 'l1', source: 'B', target: 'D' },
+    { id: 'l2', source: 'C', target: 'D' },
+  ];
+  const keyOf = presentationKeyOfById(
+    new Map([
+      ['l1', 'dashed\u0000true'],
+      ['l2', 'dashed\u0000true'],
+    ]),
+  );
+  const aggregates = buildAggregates(links, getTask, visible, keyOf);
+  assert.equal(aggregates.length, 1);
+  assert.equal(aggregates[0].count, 2);
+});
+
+test('backward compatibility: omitting presentationKeyOf entirely groups exactly as before (mode-only key)', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [
+    { id: 'l1', source: 'B', target: 'D', mode: 'soft' },
+    { id: 'l2', source: 'C', target: 'D', mode: 'soft' },
+  ];
+  // No fourth argument at all — the pre-existing call shape.
+  const aggregates = buildAggregates(links, getTask, visible);
+  assert.equal(aggregates.length, 1);
+  assert.equal(aggregates[0].count, 2);
+});
+
+test('aggregate id stays stable across two builds of the SAME grouping decision, even when the input array order differs (React key / openAggregateId identity)', () => {
+  const visible = new Set(['A', 'D']);
+  const keyOf = presentationKeyOfById(
+    new Map([
+      ['l1', 'dashed\u0000true'],
+      ['l2', 'dotted\u0000true'],
+    ]),
+  );
+  const forward = buildAggregates(
+    [
+      { id: 'l1', source: 'B', target: 'D' },
+      { id: 'l2', source: 'C', target: 'D' },
+    ],
+    getTask,
+    visible,
+    keyOf,
+  );
+  const reversed = buildAggregates(
+    [
+      { id: 'l2', source: 'C', target: 'D' },
+      { id: 'l1', source: 'B', target: 'D' },
+    ],
+    getTask,
+    visible,
+    keyOf,
+  );
+  const idsOf = (aggregates) => new Set(aggregates.map((a) => a.id));
+  assert.deepEqual(idsOf(forward), idsOf(reversed));
+});
+
+test('expand/collapse round trip: rebuilding aggregates from the SAME links and visibility twice yields identical ids (nothing about presentation is lost)', () => {
+  const visible = new Set(['A', 'D']);
+  const links = [
+    { id: 'l1', source: 'B', target: 'D' },
+    { id: 'l2', source: 'C', target: 'D' },
+  ];
+  const keyOf = presentationKeyOfById(
+    new Map([
+      ['l1', 'dashed\u0000true'],
+      ['l2', 'dotted\u0000true'],
+    ]),
+  );
+  const before = buildAggregates(links, getTask, visible, keyOf);
+  // Simulates collapse -> expand -> collapse: the same pure inputs handed
+  // back to buildAggregates a second time, exactly as a re-render would.
+  const after = buildAggregates(links, getTask, visible, keyOf);
+  assert.deepEqual(
+    before.map((a) => a.id).sort(),
+    after.map((a) => a.id).sort(),
+  );
+  assert.deepEqual(
+    before.map((a) => a.count).sort(),
+    after.map((a) => a.count).sort(),
+  );
 });
 
 test('buildAggregates: opposite direction between the same two representatives never merges (D-166: direction is part of the key)', () => {

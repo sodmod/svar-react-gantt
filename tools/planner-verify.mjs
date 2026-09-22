@@ -150,7 +150,10 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { evaluateProOccurrences, identifierHit } from './planner-verify-lexer.mjs';
+import {
+  evaluateProOccurrences,
+  identifierHit,
+} from './planner-verify-lexer.mjs';
 import { parseUnifiedDiffAdditions } from './planner-verify-diff.mjs';
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -172,20 +175,21 @@ const OWNED_UPSTREAM_FILES = {
     '`prepare` builds the package: a git dependency has no publish step; ' +
     '`test:planner` runs the pure unit tests of SVAR-M4 (annotation layout), ' +
     'SVAR-M10 (ancestor bar geometry), SVAR-M11 (bar-drag preview gate), ' +
-    'SVAR-M31 (the chart axis\' date <-> pixel projection), ' +
+    "SVAR-M31 (the chart axis' date <-> pixel projection), " +
     'SVAR-M32 (the deterministic link router), ' +
-    'SVAR-M34 (the reverse-bypass corridor\'s own bar-margin clamp), ' +
+    "SVAR-M34 (the reverse-bypass corridor's own bar-margin clamp), " +
     'SVAR-M37 (collapsed-group link aggregation), ' +
     'SVAR-M41 (the room a side entry needs before it may be emitted), ' +
-    'SVAR-M43 (the overlay correction\'s own origin), ' +
+    "SVAR-M43 (the overlay correction's own origin), " +
     'SVAR-M44 (the closed-ancestor walk) and ' +
     'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport), ' +
     'SVAR-M48 (the endpoint-symmetric chip over canonical and aggregate routes) and ' +
-    'SVAR-M49 (one chip per presentation endpoint)',
+    'SVAR-M49 (one chip per presentation endpoint) and ' +
+    'SVAR-M50 (an aggregate never mixes two links whose resolved presentation differs)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
-    'SVAR-M19 — exports the ThemeScope component; the package\'s export list is where a new public component becomes public',
+    "SVAR-M19 — exports the ThemeScope component; the package's export list is where a new public component becomes public",
   'src/components/chart/Bars.jsx':
     'SVAR-M2 — the drag-activation pixel threshold; ' +
     'SVAR-M5 — reports each accepted step of a bar drag through the new onDragPreview callback; ' +
@@ -208,19 +212,19 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M30 — new `barGesturesDisabled` prop, threaded through to Layout.jsx; ' +
     'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1); ' +
     'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx; ' +
-    'SVAR-M47 — the component-facing store API additionally exposes `on`, the public API\'s own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`',
+    "SVAR-M47 — the component-facing store API additionally exposes `on`, the public API's own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`",
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
     'SVAR-M4 — owns the annotation layout (useTimelineAnnotationLayout + AnnotationMeasurer) and adds the lane height to the scroll/height math; ' +
     'SVAR-M5 — owns the transient bar-drag preview state; SVAR-M6 — hands the RESOLVED lane height to Grid.jsx; ' +
     'SVAR-M11 — asks barDragPreviewGate.js whether a given drag step has to be written into that state at all; ' +
-    'SVAR-M12 — carries the consumer\'s grid action slot to Grid.jsx and decides, for BOTH halves, whether the top scale row stays blank without a lane; ' +
-    'SVAR-M17 — resolves the slot\'s declared minimum ONCE (dropped unless a slot was passed), hands the same number to both halves, and adds the resulting reserve to the scroll travel and to the chart height published to the store; ' +
+    "SVAR-M12 — carries the consumer's grid action slot to Grid.jsx and decides, for BOTH halves, whether the top scale row stays blank without a lane; " +
+    "SVAR-M17 — resolves the slot's declared minimum ONCE (dropped unless a slot was passed), hands the same number to both halves, and adds the resulting reserve to the scroll travel and to the chart height published to the store; " +
     'SVAR-M18 — passes `consumerOwnsColumnWidths` through to the grid, unread; ' +
     'SVAR-M20 — passes `columnMinWidth` through to the grid, unread; ' +
     'SVAR-M22 — hands the theme value down so the lattice can be redrawn when it changes; ' +
-    'SVAR-M25 — owns the width limit this layout\'s own geometry allows (a different number once the chart has been hidden on purpose), reports it through `onGridWidthLimit`, and resolves the consumer\'s ceiling and floor against it for the splitter gesture; the floor is the one bound geometry may not narrow; ' +
+    "SVAR-M25 — owns the width limit this layout's own geometry allows (a different number once the chart has been hidden on purpose), reports it through `onGridWidthLimit`, and resolves the consumer's ceiling and floor against it for the splitter gesture; the floor is the one bound geometry may not narrow; " +
     'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread; ' +
     'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread; ' +
     'SVAR-M32 — passes `linkPresentation` through to the chart half only, unread',
@@ -233,9 +237,10 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M17 — carries the resolved gridActionSlotMinHeight down to TimeScale.jsx; ' +
     'SVAR-M30 — carries barGesturesDisabled down to Bars.jsx, unread; ' +
     'SVAR-M32 — carries linkPresentation down to Bars.jsx, unread; ' +
-    'SVAR-M35 — renders <OffscreenLinkChips> inside .wx-area, after <Bars>',
+    'SVAR-M35 — renders <OffscreenLinkChips> inside .wx-area, after <Bars>; ' +
+    "SVAR-M50 — also passes linkPresentation to <OffscreenLinkChips>, so its aggregate grouping matches <AggregateLinks>'s",
   'src/components/chart/TimeScale.jsx':
-    'SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell\'s aria-label; ' +
+    "SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell's aria-label; " +
     'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +
     'SVAR-M4 — renders <AnnotationLane> inside the sticky .wx-scale; ' +
     'SVAR-M8 — renders the lane BETWEEN the top scale row and the lower ones, and the lower-row band of the annotation lines; ' +
@@ -254,22 +259,22 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M18 — the `consumerOwnsColumnWidths` prop; ' +
     'SVAR-M19 — the `ThemeScope` component; ' +
     'SVAR-M20 — the `columnMinWidth` prop; ' +
-    'SVAR-M23 — `IHeaderCellConfig` and the header descriptor\'s `align`; ' +
+    "SVAR-M23 — `IHeaderCellConfig` and the header descriptor's `align`; " +
     'SVAR-M25 — the `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report; ' +
     'SVAR-M26 — the `columnMaxWidth` prop; ' +
     'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop',
   'src/components/chart/Links.jsx':
-    'SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store\'s OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop\'s `lineStyle` as a stroke-dasharray (never on the arrowhead); ' +
-    'SVAR-M34 — the router\'s reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar\'s own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; ' +
-    'SVAR-M36 — the same reverseBypassRoute\'s source-exit and target-entry runs (src/planner-router/route.js) are long enough for the corridor\'s corners there to get the router\'s full rounding radius, not half of it',
+    "SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store's OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop's `lineStyle` as a stroke-dasharray (never on the arrowhead); " +
+    "SVAR-M34 — the router's reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar's own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; " +
+    "SVAR-M36 — the same reverseBypassRoute's source-exit and target-entry runs (src/planner-router/route.js) are long enough for the corridor's corners there to get the router's full rounding radius, not half of it",
   'src/components/chart/Links.css':
-    'SVAR-M32 — draws the router\'s `<path>` output (was a `<polyline>`), the dash patterns `linkPresentation` selects, and the arrowhead polygon\'s fill, matching the line\'s own colour/hover/critical/selected states',
+    "SVAR-M32 — draws the router's `<path>` output (was a `<polyline>`), the dash patterns `linkPresentation` selects, and the arrowhead polygon's fill, matching the line's own colour/hover/critical/selected states",
   'src/themes/Willow.css':
-    'SVAR-M32 — a dedicated light-theme `--wx-gantt-link-color`, distinct from the dark theme\'s (D-166 §J): the pale grey shared between both themes read as barely visible against a light background',
+    "SVAR-M32 — a dedicated light-theme `--wx-gantt-link-color`, distinct from the dark theme's (D-166 §J): the pale grey shared between both themes read as barely visible against a light background",
   'src/themes/WillowDark.css':
-    'SVAR-M32 — a dedicated dark-theme `--wx-gantt-link-color`, distinct from the light theme\'s and kept clearly dimmer than task-title text (D-166 §J)',
+    "SVAR-M32 — a dedicated dark-theme `--wx-gantt-link-color`, distinct from the light theme's and kept clearly dimmer than task-title text (D-166 §J)",
   'src/components/Resizer.jsx':
-    'SVAR-M25 — the splitter gesture answers to the consumer\'s own range: `RESIZER_RIGHT_THRESHOLD` and `RESIZER_SIZE` become named exports so the layout can read the two numbers instead of spelling them again, `maxWidth`/`minWidth` clamp the ONE position the store write, the display-mode branch and the drawn splitter all read, and a consumer that declares a range also takes over which side is shown, so a drag can no longer collapse either half into a state where this component refuses the resize cursor and pointerdown',
+    "SVAR-M25 — the splitter gesture answers to the consumer's own range: `RESIZER_RIGHT_THRESHOLD` and `RESIZER_SIZE` become named exports so the layout can read the two numbers instead of spelling them again, `maxWidth`/`minWidth` clamp the ONE position the store write, the display-mode branch and the drawn splitter all read, and a consumer that declares a range also takes over which side is shown, so a drag can no longer collapse either half into a state where this component refuses the resize cursor and pointerdown",
   'src/components/chart/CellGrid.jsx':
     'SVAR-M22 — the working-area lattice follows the theme it is being shown in: the colour is read from the live `--wx-gantt-border` whenever the theme context changes, not once at mount, because the lattice is a canvas image and the colour is baked into it when it is drawn',
   'src/themes/ThemeScope.jsx':
@@ -285,32 +290,32 @@ const OWNED_UPSTREAM_FILES = {
     'ephemeral install-time clone directory path was otherwise leaking into them (SVAR-LOCAL-ASSETS)',
   'src/components/grid/Grid.jsx':
     'SVAR-M6 — reserves the RESOLVED annotation-lane height as a blank spacer, and shifts the grid body by the same amount, so grid and chart rows share one y; ' +
-    'SVAR-M8 — puts that reservation ABOVE the column-header block, whose own height becomes the lower scale rows\' band; ' +
-    'SVAR-M12 — renders the consumer\'s action slot in that same reserved band; ' +
+    "SVAR-M8 — puts that reservation ABOVE the column-header block, whose own height becomes the lower scale rows' band; " +
+    "SVAR-M12 — renders the consumer's action slot in that same reserved band; " +
     'SVAR-M13 — maps the reorder helper\'s new `child` zone onto move-task mode "child"; ' +
     'SVAR-M14 (R3) — the two adjacency corrections become `resolveDrop`, a pure resolution the reorder helper asks for BEFORE it marks anything, so the marker and the dispatched move-task are one descriptor; ' +
     'SVAR-M14 (R4) — `resolveDrop` becomes the cursor model\'s meaning layer: the open-container rewrite is unconditional, a hit ON a separator is re-expressed as "before the row below" so one boundary has one descriptor, and the direction-inverting adjacency correction is gone' +
     'SVAR-M15 (R5) — a dragged container keeps its expanded state: the unconditional collapse `startReorder` used to dispatch is removed and nothing replaces it, so a drag writes no presentation state of its own; ' +
-    'SVAR-M17 — the slot\'s reserve band enters the same header offset, and the lane spacer sits below it; ' +
-    'SVAR-M18 — with the consumer owning the widths, a column resize is reported at every accepted step and no column is handed another column\'s flexgrow; ' +
-    'SVAR-M20 — the resize gesture never proposes a width below the consumer\'s declared minimum, clamped before the store writes it; ' +
+    "SVAR-M17 — the slot's reserve band enters the same header offset, and the lane spacer sits below it; " +
+    "SVAR-M18 — with the consumer owning the widths, a column resize is reported at every accepted step and no column is handed another column's flexgrow; " +
+    "SVAR-M20 — the resize gesture never proposes a width below the consumer's declared minimum, clamped before the store writes it; " +
     'SVAR-M23 — a column may align its header label independently of its cells, through a header descriptor the store copies as it is; ' +
     'SVAR-M24 — a grid row carries `wx-row-<type>` from the kind the consumer put on it, so a stylesheet can reach what the diagram already says; ' +
-    'SVAR-M26 — and never above the consumer\'s declared maximum for one column, clamped at the same seam and for the same reason; ' +
-    'SVAR-M27 — the action slot renders one level deeper, inside a new sticky anchor wrapper, so its position resolves against the grid\'s own horizontal scrollport rather than the scrolled column content',
+    "SVAR-M26 — and never above the consumer's declared maximum for one column, clamped at the same seam and for the same reason; " +
+    "SVAR-M27 — the action slot renders one level deeper, inside a new sticky anchor wrapper, so its position resolves against the grid's own horizontal scrollport rather than the scrolled column content",
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +
     'SVAR-M14 (R3) — one live resolved drop descriptor is marked, dispatched and dropped, so the indicator cannot describe a different result from the drop; ' +
-    'SVAR-M14 (R4) — the hit test is FULLY CURSOR-BASED: `pointerZone` is a pure function of the pointer and the target box, the dragged row\'s own edges are gone, and a boundary magnet collapses each separator to one descriptor; ' +
+    "SVAR-M14 (R4) — the hit test is FULLY CURSOR-BASED: `pointerZone` is a pure function of the pointer and the target box, the dragged row's own edges are gone, and a boundary magnet collapses each separator to one descriptor; " +
     'SVAR-M14 (R6) — the gesture ALWAYS terminates: `pointerup`/`pointercancel`/`blur` join `mouseup` as terminators (Chromium does not always deliver the compatibility `mouseup`), and the listeners are removed from the target they were added to; ' +
-    'SVAR-M16 — `pointercancel` and `blur` terminate through a SEPARATE handler, `handleCancel`, which calls `up()` with no event at all, so a genuine `pointercancel`\'s own `clientX`/`clientY` — which real Chromium DOES populate, on the exact target a legitimate drop would land on — can never reach `releasedOnRows` and be misread as a release worth committing',
+    "SVAR-M16 — `pointercancel` and `blur` terminate through a SEPARATE handler, `handleCancel`, which calls `up()` with no event at all, so a genuine `pointercancel`'s own `clientX`/`clientY` — which real Chromium DOES populate, on the exact target a legitimate drop would land on — can never reach `releasedOnRows` and be misread as a release worth committing",
   'src/components/grid/Grid.css':
     'SVAR-M6 — the blank marker-lane spacer, and the containing block it is positioned against; ' +
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +
     'SVAR-M12 — the action slot inside that band, bottom-aligned and pointer-taking; ' +
-    'SVAR-M27 — the sticky anchor wrapper the action slot now resolves its position against, so it reads the grid\'s own viewport instead of its scrolled column content; ' +
-    'SVAR-M27 (R7.2) — that wrapper is the whole action band\'s outermost stacking context, so its layer is 11: above the chart timescale (5) and the splitter (10), not merely above the grid\'s own sticky header (3)',
+    "SVAR-M27 — the sticky anchor wrapper the action slot now resolves its position against, so it reads the grid's own viewport instead of its scrolled column content; " +
+    "SVAR-M27 (R7.2) — that wrapper is the whole action band's outermost stacking context, so its layer is 11: above the chart timescale (5) and the splitter (10), not merely above the grid's own sticky header (3)",
   'src/components/chart/TimeScale.css':
     'SVAR-M8 — the lower-scale-row band of the annotation lines, and the stacking rule that keeps every scale label above them',
   '.gitignore':
@@ -319,34 +324,34 @@ const OWNED_UPSTREAM_FILES = {
 
 /** Path prefixes of files this project ADDED (they have no upstream version). */
 const PROJECT_ADDED = [
-	'tools/planner-',
-	'planner-assets/',
-	'PLANNER_FORK.md',
-	'.gitattributes',
-	// SVAR-M4: the annotation components, their stylesheets and the pure layout owner.
-	'src/components/chart/annotations/',
-	// SVAR-M10: the pure summary-drag geometry owner.
-	'src/components/chart/summaryDragGeometry.js',
-	// SVAR-M31: the pure owner of the chart axis' date <-> pixel projection.
-	'src/components/chart/chartDateProjection.js',
-	// SVAR-M32: the deterministic link router.
-	'src/planner-router/',
-	// SVAR-M35: the offscreen link partner chip.
-	'src/components/chart/OffscreenLinkChips.jsx',
-	'src/components/chart/OffscreenLinkChips.css',
-	// SVAR-M37: collapsed-group link aggregation.
-	'src/components/chart/AggregateLinks.jsx',
-	'src/components/chart/AggregateLinks.css',
-	// SVAR-M38: the shared real-screen viewport correction pass both the
-	// offscreen chip and the aggregate popover render through. Added in R1
-	// and left undeclared there, which made check 3 red from that commit
-	// onwards; found and declared in R3.
-	'src/components/chart/useScreenViewportCorrection.js',
-	// SVAR-M47: the one routing hook Links.jsx and OffscreenLinkChips.jsx share.
-	'src/components/chart/useRoutedLinks.js',
-	// SVAR-M48: the one aggregate-routing hook AggregateLinks.jsx and
-	// OffscreenLinkChips.jsx share (the grouping, the ribbon read, the route).
-	'src/components/chart/useRoutedAggregates.js',
+  'tools/planner-',
+  'planner-assets/',
+  'PLANNER_FORK.md',
+  '.gitattributes',
+  // SVAR-M4: the annotation components, their stylesheets and the pure layout owner.
+  'src/components/chart/annotations/',
+  // SVAR-M10: the pure summary-drag geometry owner.
+  'src/components/chart/summaryDragGeometry.js',
+  // SVAR-M31: the pure owner of the chart axis' date <-> pixel projection.
+  'src/components/chart/chartDateProjection.js',
+  // SVAR-M32: the deterministic link router.
+  'src/planner-router/',
+  // SVAR-M35: the offscreen link partner chip.
+  'src/components/chart/OffscreenLinkChips.jsx',
+  'src/components/chart/OffscreenLinkChips.css',
+  // SVAR-M37: collapsed-group link aggregation.
+  'src/components/chart/AggregateLinks.jsx',
+  'src/components/chart/AggregateLinks.css',
+  // SVAR-M38: the shared real-screen viewport correction pass both the
+  // offscreen chip and the aggregate popover render through. Added in R1
+  // and left undeclared there, which made check 3 red from that commit
+  // onwards; found and declared in R3.
+  'src/components/chart/useScreenViewportCorrection.js',
+  // SVAR-M47: the one routing hook Links.jsx and OffscreenLinkChips.jsx share.
+  'src/components/chart/useRoutedLinks.js',
+  // SVAR-M48: the one aggregate-routing hook AggregateLinks.jsx and
+  // OffscreenLinkChips.jsx share (the grouping, the ribbon read, the route).
+  'src/components/chart/useRoutedAggregates.js',
 ];
 
 /**
@@ -534,7 +539,10 @@ if (!existsSync(licensePath)) {
 
   if (identityOk && !dirty) {
     const committedContent = git('show', `HEAD:${LICENSE_PATH}`);
-    if (!/MIT/.test(committedContent) || !/XB Software/.test(committedContent)) {
+    if (
+      !/MIT/.test(committedContent) ||
+      !/XB Software/.test(committedContent)
+    ) {
       fail(
         `${LICENSE_PATH} no longer carries the upstream MIT notice and copyright`,
       );

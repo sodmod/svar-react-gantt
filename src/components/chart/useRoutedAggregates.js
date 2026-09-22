@@ -149,11 +149,43 @@ function readVisualBand(taskId) {
   return { bottom, height };
 }
 
-export function useRoutedAggregates() {
+/*
+ * SVAR-M50 (Pavel manual acceptance, Phase 4.1G R1 second follow-up):
+ * `linkPresentation`, threaded here from the SAME prop
+ * `Links.jsx`/`AggregateLinks.jsx` already read a real link's presentation
+ * through — never a new concept, the existing one reaching one hook further
+ * up, so `aggregate.js`'s own grouping key can stop conflating two links a
+ * consumer's presentation genuinely tells apart (see `aggregate.js`'s own
+ * comment on `buildAggregates`'s `presentationKeyOf` for the bug this
+ * closes). `presentationKeyOf` below is deliberately the SAME shape
+ * `Links.jsx`'s `presentationOf` already builds — `{id, source, target,
+ * type}` in, `{lineStyle, arrowhead}` out, `DEFAULT_PRESENTATION` when the
+ * consumer supplies no callback at all — so a link with no `linkPresentation`
+ * prop in scope groups exactly as it always did (every link keys the same
+ * default, which is indistinguishable from the pre-fix `''` default).
+ */
+const DEFAULT_PRESENTATION = { lineStyle: 'solid', arrowhead: true };
+
+export function useRoutedAggregates(linkPresentation) {
   const routed = useRoutedLinks();
   const { api, taskRects, linksValue, linksCounter, cellHeight } = routed;
   const getTask = useCallback((id) => api.getTask(id), [api]);
   const area = useStore(api, 'area');
+
+  const presentationKeyOf = useCallback(
+    (link) => {
+      if (!linkPresentation) return '';
+      const resolved =
+        linkPresentation({
+          id: link.id,
+          source: link.source,
+          target: link.target,
+          type: link.type,
+        }) || DEFAULT_PRESENTATION;
+      return `${resolved.lineStyle}\u0000${resolved.arrowhead}`;
+    },
+    [linkPresentation],
+  );
 
   const [bandInfo, setBandInfo] = useState(new Map());
 
@@ -194,11 +226,12 @@ export function useRoutedAggregates() {
       linksValue,
       getTask,
       new Set(taskRects.keys()),
+      presentationKeyOf,
     ).filter(
       (aggregate) =>
         taskRects.has(aggregate.source) && taskRects.has(aggregate.target),
     );
-  }, [linksCounter, getTask, taskRects]);
+  }, [linksCounter, getTask, taskRects, presentationKeyOf]);
 
   const routedAggregates = useMemo(() => {
     const obstacles = Array.from(taskRects.values());

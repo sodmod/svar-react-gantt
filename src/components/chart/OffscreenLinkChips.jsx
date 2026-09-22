@@ -166,11 +166,21 @@ function Chip({ chip, basePosition, onReveal }) {
   );
 }
 
-export default function OffscreenLinkChips({ onRevealPartner } = {}) {
+export default function OffscreenLinkChips({
+  onRevealPartner,
+  // SVAR-M50 (Pavel manual acceptance, Phase 4.1G R1 second follow-up):
+  // threaded straight to `useRoutedAggregates` (see that hook's
+  // own comment) so this component groups a collapsed group's crossing
+  // links into the SAME aggregates `AggregateLinks.jsx` draws — the two
+  // consumers of `useRoutedAggregates` must read identical grouping, since
+  // this one's own chip is "the continuation of a route on screen" for the
+  // aggregate the other one drew (see this file's own module comment).
+  linkPresentation,
+} = {}) {
   const api = useContext(storeContext);
   // SVAR-M40 (R2-5): `onRevealPartner` is consumed by `onReveal` below.
   const { routedLinks, routedAggregates, taskRects, tasksValue, tasksCounter } =
-    useRoutedAggregates();
+    useRoutedAggregates(linkPresentation);
   const xArea = useStore(api, 'xArea');
   const scrollTop = useStore(api, 'scrollTop');
   const scrollLeft = useStore(api, 'scrollLeft');
