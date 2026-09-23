@@ -1,6 +1,6 @@
 /*
- * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47, SVAR-M48, SVAR-M49,
- * SVAR-M53).
+ * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47, SVAR-M48, SVAR-M49
+ * [retired again, see SVAR-M54 below], SVAR-M53, SVAR-M54).
  * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
  *
  * The offscreen ENDPOINT chip, derived — every time, from nothing but the
@@ -63,28 +63,56 @@
  * Two chips for two DIFFERENT endpoints are never merged, however close
  * their anchors — `layoutChips` stacks them (R5 §3.2).
  *
- * R6-1 IS the accepted Phase 4.1C contract. Phase 4.1G R3 (SVAR-M52, the
- * retired D-168) removed `mergeByEndpoint` and gave every (route, offscreen
- * end) candidate its own chip again, on the reading that R6-1 was a defect.
- * It was not: R6-1 was Pavel's own explicitly requested decision and it
- * shipped inside the accepted, manually passed, independently reviewed
- * Phase 4.1C candidate. R3's reading came from its own task artifact, which
- * named R5 as the reference and never established that a LATER accepted
- * checkpoint had superseded it. Pavel re-confirmed R6-1 at Phase 4.1G R4 —
- * two links to one offscreen task are ONE chip reading `2`, not two
- * identical chips side by side — so this file is R6's again, restored
- * commit-for-commit rather than rewritten, and the D-168 shape is gone.
- * The history is kept here on purpose: the next reader has to be able to
- * see that the endpoint fold was reversed once and reinstated, and why.
+ * R6-1 was the accepted Phase 4.1C contract for one cycle. Phase 4.1G R3
+ * (SVAR-M52, D-168) removed `mergeByEndpoint` and gave every (route,
+ * offscreen end) candidate its own chip again, on the reading that R6-1 was
+ * a defect. R4 (SVAR-M49 restored) read that as a mistake — R6-1 was
+ * Pavel's own explicitly requested decision, shipped inside the accepted,
+ * manually passed, independently reviewed Phase 4.1C candidate — and put the
+ * endpoint fold back.
  *
- * SVAR-M53 (Phase 4.1G R4): one field added to R6's own descriptor,
+ * SVAR-M54 (Phase 4.1G R5, D-170): Pavel's manual acceptance of the R4
+ * candidate reversed R6-1 a second time, against the SAME concrete case R3
+ * was originally reacting to: two rendered routes to one offscreen task,
+ * drawn as two visually SEPARATE lines, must be TWO chips, not one chip
+ * reading `2`. D-170 states the rule precisely: chip cardinality follows the
+ * VISIBLE RENDERED LINE, not the endpoint alone. `mergeByEndpoint` and its
+ * ordering helper are removed a second time; `deriveEndpointChips` answers
+ * its candidates directly, one chip per (route, offscreen end), exactly as
+ * R5/SVAR-M48 computed them and exactly as SVAR-M52 first implemented before
+ * R4 undid it. The difference from a bare revert to SVAR-M52 is what SVAR-M53
+ * added in between (see below): `partnerCanonicalIds` and the canonical-task
+ * click landing are UNCHANGED by this file, because they were already
+ * computed per candidate, never by the merge step — removing the merge does
+ * not touch them.
+ *
+ * A chip's own count badge (D-170 §B) is its own route's canonical-link
+ * membership, `canonicalLinkIds.length` — 1 for an ordinary link, a
+ * legitimate collapsed-group aggregate's own `memberLinkIds.length` for an
+ * aggregate route (D-166 §K unaffected). This was already true of every
+ * candidate before SVAR-M49 ever merged anything: an aggregate route's
+ * `canonicalLinkIds` already lists every member link it stands for, so a
+ * single un-merged aggregate chip shows its real count with no special
+ * casing. What R6-1's merge actually contributed was a DIFFERENT number —
+ * how many OTHER routes happened to share this endpoint — which is exactly
+ * the number D-170 says a chip must never show again.
+ *
+ * The full three-cycle history (R6-1 -> D-168 -> D-169 -> D-170) is kept
+ * here on purpose, not compressed: the next reader has to be able to see
+ * that this fold was tried, reversed, reinstated, and reversed again, each
+ * time against a specific measured case, and why the CURRENT state is what
+ * it is rather than assume either direction is final.
+ *
+ * SVAR-M53 (Phase 4.1G R4): one field added to each chip's own descriptor,
  * `partnerCanonicalIds` — the REAL task ids the chip's presentation
  * endpoint stands for. For a canonical link route that is the endpoint
  * itself; for a collapsed group's aggregate route it is the hidden
  * member task (or tasks) the visible representative is standing in for.
  * Nothing here computes it: the endpoint arrives carrying it, exactly as
- * it arrives carrying its rectangle and its name, and the merge simply
- * unions it like `canonicalLinkIds`. It exists because the chip's CLICK
+ * it arrives carrying its rectangle and its name, and (SVAR-M54: since
+ * there is no merge any more) it reaches the chip unchanged, one candidate
+ * at a time, exactly as `canonicalLinkIds` does. It exists because the
+ * chip's CLICK
  * has to be able to land on the task the person is looking at the name of,
  * rather than on the group that happens to represent it — see
  * `OffscreenLinkChips.jsx`'s own `onReveal` for what the consumer does
@@ -295,26 +323,27 @@ export function classifyEndpoint(rect, viewport) {
  *   _chartWidth] x [scrollTop, scrollTop + _chartHeight - _scrollSize]` —
  *   never `xArea` or `area`, which are render windows padded past the
  *   visible band
- * @returns {Array<ChipDescriptor>} one per DISTINCT offscreen presentation
- *   endpoint named by at least one (route, offscreen end) candidate whose
+ * @returns {Array<ChipDescriptor>} one per (route, offscreen endpoint) whose
  *   route has a visible run of at least `MIN_VISIBLE_RUN`; both endpoints of
- *   one route may qualify at once, and several routes to one endpoint give
- *   one chip (R6-1)
+ *   one route may qualify at once, and two DIFFERENT routes to the same
+ *   offscreen task each get their own chip (SVAR-M54, D-170) — the chip's own
+ *   `canonicalLinkIds.length` is its own route's member count, never the
+ *   number of OTHER routes sharing that task
  */
 export function deriveEndpointChips(routes, viewport) {
-  // SVAR-M47 / SVAR-M48: one pass over the presentation routes, BOTH ends
-  // of each decided on their own.
-  const candidates = [];
+  // SVAR-M47 / SVAR-M48 / SVAR-M54: one pass over the presentation routes,
+  // BOTH ends of each decided on their own. Since SVAR-M54 a candidate IS
+  // the chip — nothing folds two candidates that name the same endpoint.
+  const chips = [];
   for (const route of routes) {
     const points = route.points;
     if (!Array.isArray(points) || points.length < 2) continue;
     if (!route.source?.rect || !route.target?.rect) continue;
     if (visibleRunLength(points, viewport) < MIN_VISIBLE_RUN) continue;
-    considerEndpoint(candidates, route, 'source', viewport);
-    considerEndpoint(candidates, route, 'target', viewport);
+    considerEndpoint(chips, route, 'source', viewport);
+    considerEndpoint(chips, route, 'target', viewport);
   }
-  // SVAR-M49 (R6-1): one chip per presentation endpoint.
-  return mergeByEndpoint(candidates);
+  return chips;
 }
 
 function considerEndpoint(out, route, role, viewport) {
@@ -328,18 +357,26 @@ function considerEndpoint(out, route, role, viewport) {
   const exit = routeExitPoint(walk, viewport);
   if (exit === null) return;
   out.push({
+    // SVAR-M54 (D-170): the chip's identity is its OWN (route, end) pair —
+    // never a shared endpoint key. Two routes to the same partner get two
+    // distinct keys and therefore two distinct chips.
+    key: `${String(route.routeId)}:${role}`,
     routeId: route.routeId,
     kind: route.kind,
     role,
+    // The count this chip's own badge shows (D-170 §B): the number of
+    // canonical links THIS route stands for — 1 for an ordinary link, the
+    // aggregate's own membership for a legitimate collapsed-group aggregate
+    // (D-166 §K) — never the number of other routes sharing this endpoint.
     canonicalLinkIds: route.canonicalLinkIds,
     // `partnerId`/`localId`/`partnerName` keep the R4 vocabulary the
     // consumers and the product's own evidence read: the partner IS this
     // endpoint, the local end is the other one.
     partnerId: endpoint.id,
-    // SVAR-M53 (Phase 4.1G R4): the REAL tasks behind this presentation
-    // endpoint, handed in by the caller. `[endpoint.id]` is the honest
-    // default: for a canonical link route the presentation endpoint IS the
-    // task, so it stands for exactly itself.
+    // SVAR-M53 (Phase 4.1G R4), unaffected by SVAR-M54: the REAL tasks
+    // behind this presentation endpoint, handed in by the caller.
+    // `[endpoint.id]` is the honest default: for a canonical link route the
+    // presentation endpoint IS the task, so it stands for exactly itself.
     partnerCanonicalIds: endpoint.canonicalIds ?? [endpoint.id],
     localId: other.id,
     partnerName: endpoint.name,
@@ -347,110 +384,6 @@ function considerEndpoint(out, route, role, viewport) {
     exitEdge: exit.edge,
     anchor: exit.point,
   });
-}
-
-/*
- * SVAR-M49 (R6-1): the candidates of one endpoint, in the order the chip's
- * representative is chosen in. The one whose exit edge IS the side the
- * endpoint lies past comes first (a chip pointing right sits on the right
- * edge whenever any route to that task leaves there), then the edge name,
- * then the position along that edge, then the route id and role — a total
- * order over distinct candidates, so the choice is deterministic.
- */
-function compareCandidates(a, b) {
-  const am = a.exitEdge === a.direction ? 0 : 1;
-  const bm = b.exitEdge === b.direction ? 0 : 1;
-  if (am !== bm) return am - bm;
-  if (a.exitEdge !== b.exitEdge) return a.exitEdge < b.exitEdge ? -1 : 1;
-  const ka =
-    a.exitEdge === 'top' || a.exitEdge === 'bottom' ? a.anchor[0] : a.anchor[1];
-  const kb =
-    b.exitEdge === 'top' || b.exitEdge === 'bottom' ? b.anchor[0] : b.anchor[1];
-  if (ka !== kb) return ka - kb;
-  const ra = String(a.routeId);
-  const rb = String(b.routeId);
-  if (ra !== rb) return ra < rb ? -1 : 1;
-  return a.role < b.role ? -1 : a.role > b.role ? 1 : 0;
-}
-
-/**
- * SVAR-M49 (R6-1): groups chip candidates by the presentation endpoint they
- * name and answers one descriptor per group, placed on the group's
- * representative candidate and carrying every route and canonical link of
- * the group. Exported for the unit tests; `deriveEndpointChips` is the only
- * production caller.
- *
- * @param {Array<ChipCandidate>} candidates
- * @returns {Array<ChipDescriptor>}
- */
-export function mergeByEndpoint(candidates) {
-  const groups = new Map();
-  for (const candidate of candidates) {
-    const key = String(candidate.partnerId);
-    let group = groups.get(key);
-    if (!group) {
-      group = [];
-      groups.set(key, group);
-    }
-    group.push(candidate);
-  }
-  const chips = [];
-  for (const [key, group] of groups) {
-    const ordered = [...group].sort(compareCandidates);
-    const head = ordered[0];
-    const canonicalLinkIds = [];
-    const seenLinks = new Set();
-    // SVAR-M53: the union over every candidate merged here, deduplicated and
-    // in first-seen order. Two routes that both end at one collapsed group
-    // can stand for two DIFFERENT hidden tasks, and the consumer has to be
-    // able to tell that case from the ordinary one, so the merge widens this
-    // set exactly the way it widens `canonicalLinkIds` and never collapses
-    // it to the representative.
-    const partnerCanonicalIds = [];
-    const seenPartners = new Set();
-    const routes = [];
-    for (const candidate of ordered) {
-      routes.push({
-        routeId: candidate.routeId,
-        kind: candidate.kind,
-        role: candidate.role,
-        localId: candidate.localId,
-        exitEdge: candidate.exitEdge,
-        anchor: candidate.anchor,
-      });
-      for (const id of candidate.canonicalLinkIds) {
-        const linkKey = String(id);
-        if (seenLinks.has(linkKey)) continue;
-        seenLinks.add(linkKey);
-        canonicalLinkIds.push(id);
-      }
-      // The same honest default `considerEndpoint` applies: a candidate that
-      // names no canonical tasks stands for its own presentation endpoint.
-      for (const id of candidate.partnerCanonicalIds ?? [candidate.partnerId]) {
-        const partnerKey = String(id);
-        if (seenPartners.has(partnerKey)) continue;
-        seenPartners.add(partnerKey);
-        partnerCanonicalIds.push(id);
-      }
-    }
-    chips.push({
-      key: `endpoint:${key}`,
-      routeId: head.routeId,
-      kind: head.kind,
-      role: head.role,
-      canonicalLinkIds,
-      routes,
-      routeCount: routes.length,
-      partnerId: head.partnerId,
-      partnerCanonicalIds,
-      localId: head.localId,
-      partnerName: head.partnerName,
-      direction: head.direction,
-      exitEdge: head.exitEdge,
-      anchor: head.anchor,
-    });
-  }
-  return chips;
 }
 
 function intersects(a, b) {
@@ -473,12 +406,13 @@ function intersects(a, b) {
  * then kept inside the viewport by `clampDelta`, exactly as before.
  *
  * Two chips that would overlap — two links sharing one final run, a fan-out
- * whose verticals are a `channelStep` apart, or two routes that both need a
- * chip for two DIFFERENT tasks — are stacked away from the edge they hug,
- * in a deterministic order (edge, anchor position, then chip key), so each
- * stays readable and each stays on its own route's column or row; nothing
- * is dropped here (R4 §5). Chips naming the SAME endpoint never reach this
- * function twice: `deriveEndpointChips` already merged them (R6-1).
+ * whose verticals are a `channelStep` apart, two DIFFERENT routes that both
+ * need a chip for the SAME offscreen task (SVAR-M54, D-170: no longer
+ * merged away), or two routes that both need a chip for two different
+ * tasks — are stacked away from the edge they hug, in a deterministic order
+ * (edge, anchor position, then chip key), so each stays readable and each
+ * stays on its own route's column or row; nothing is merged or dropped here
+ * (R4 §5, R5 §3.2).
  *
  * @param {Array<ChipDescriptor>} chips
  * @param {{ left: number, top: number, right: number, bottom: number }} viewport
@@ -622,28 +556,11 @@ function clampRect(
  * }} PresentationRoute
  *
  * @typedef {{
- *   routeId: unknown,
- *   kind: 'link' | 'aggregate',
- *   role: 'source' | 'target',
- *   canonicalLinkIds: Array<unknown>,
- *   partnerId: unknown,
- *   partnerCanonicalIds?: Array<unknown>,
- *   localId: unknown,
- *   partnerName: string | undefined,
- *   direction: 'left' | 'right' | 'top' | 'bottom',
- *   exitEdge: 'left' | 'right' | 'top' | 'bottom',
- *   anchor: [number, number],
- * }} ChipCandidate
- *   one (route, offscreen endpoint) pair, before merging (R6-1)
- *
- * @typedef {{
  *   key: string,
  *   routeId: unknown,
  *   kind: 'link' | 'aggregate',
  *   role: 'source' | 'target',
  *   canonicalLinkIds: Array<unknown>,
- *   routes: Array<{ routeId: unknown, kind: 'link' | 'aggregate', role: 'source' | 'target', localId: unknown, exitEdge: string, anchor: [number, number] }>,
- *   routeCount: number,
  *   partnerId: unknown,
  *   partnerCanonicalIds: Array<unknown>,
  *   localId: unknown,
@@ -652,9 +569,8 @@ function clampRect(
  *   exitEdge: 'left' | 'right' | 'top' | 'bottom',
  *   anchor: [number, number],
  * }} ChipDescriptor
- *   one chip: `key` is `endpoint:<presentation endpoint id>`; `routeId`,
- *   `role`, `localId`, `exitEdge` and `anchor` are the representative
- *   candidate's (the route the chip sits on); `routes`,
- *   `canonicalLinkIds` and `partnerCanonicalIds` cover every candidate
- *   merged into it
+ *   one chip: one (route, offscreen endpoint) pair (SVAR-M54, D-170). `key`
+ *   is `<routeId>:<role>` — the route's own identity, never a shared
+ *   endpoint key; `canonicalLinkIds` is THIS route's own membership (its
+ *   badge count), never merged with any other route's
  */

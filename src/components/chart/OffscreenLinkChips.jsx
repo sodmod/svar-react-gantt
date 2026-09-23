@@ -57,33 +57,45 @@ import './OffscreenLinkChips.css';
  * gets none, however far its ends are. The R5 findings this closes are
  * recorded at the top of `offscreenChips.js`.
  *
- * SVAR-M49 (Phase 4.1C R6, R6-1): the derivation then MERGES the candidates
- * that name one presentation endpoint into one chip. Several routes to one
- * offscreen task (four links into `Infra migration`, Pavel's screenshot)
- * used to be several identical chips stacked at the edge; now they are one
- * chip, on the representative route's exit, carrying every route and link
- * it stands for and a small count. The click still reveals that one task.
- * The R6 findings are recorded at the top of `offscreenChips.js`.
+ * SVAR-M49 (Phase 4.1C R6, R6-1; retired again, see SVAR-M54 below): the
+ * derivation used to MERGE the candidates that name one presentation
+ * endpoint into one chip. Several routes to one offscreen task (four links
+ * into `Infra migration`, Pavel's screenshot) were several identical chips
+ * stacked at the edge; R6-1 made them one chip, on a representative route's
+ * exit, carrying every route and link it stood for and a small count. That
+ * was a genuine, explicitly requested product decision, not a defect, and
+ * it shipped as part of the accepted Phase 4.1C candidate. The R6 findings
+ * are recorded at the top of `offscreenChips.js`.
  *
- * Phase 4.1G R3 removed that merge (SVAR-M52, the retired D-168) and R4 put
- * it back, unchanged, on Pavel's re-confirmation — the history, and why an
- * accepted decision was reversed by mistake, is at the top of
- * `offscreenChips.js`. `data-link-count`, which existed only to carry
- * D-168's replacement count, is gone with it.
+ * Phase 4.1G R3 removed that merge (SVAR-M52, D-168) and R4 put it back
+ * (SVAR-M49 restored) on Pavel's re-confirmation. Phase 4.1G R5 (SVAR-M54,
+ * D-170) removed it a SECOND time, against the same concrete case R3 first
+ * measured: two visually separate rendered routes to one offscreen task
+ * must be two chips, not one chip reading a count. The full history is at
+ * the top of `offscreenChips.js`; it is kept there rather than compressed
+ * because this specific rule has now reversed three times and the next
+ * reader needs to see the pattern, not just the current state.
  *
- * SVAR-M53 (Phase 4.1G R4): a chip's CLICK resolves the presentation
- * endpoint to the canonical task behind it and opens that task's own
- * collapsed ancestors before landing — see `onReveal` below for the
- * finding and for the one case it deliberately leaves to the product.
+ * SVAR-M53 (Phase 4.1G R4), unaffected by SVAR-M54: a chip's CLICK resolves
+ * the presentation endpoint to the canonical task behind it and opens that
+ * task's own collapsed ancestors before landing — see `onReveal` below for
+ * the finding and for the one case it deliberately leaves to the product.
+ * This was already computed per (route, endpoint) candidate before SVAR-M54
+ * removed the merge, so removing the merge does not change it.
  *
  * Every chip carries its provenance in the DOM (`data-route-id`,
- * `data-route-ids`, `data-route-count`, `data-route-kind`,
- * `data-endpoint-role`, `data-endpoint-id`, `data-endpoint-canonical-ids`,
- * `data-link-ids`, plus the R4 names `data-link-id`, `data-partner-id`,
- * `data-local-id`, `data-direction`, `data-exit-edge`, `data-anchor-x/y`) so
- * the product's own evidence suite can build the endpoint/chip table R5 §12
- * asks for from real rendered geometry, rather than from a second copy of
- * this logic. Nothing here reads them back.
+ * `data-route-kind`, `data-endpoint-role`, `data-endpoint-id`,
+ * `data-endpoint-canonical-ids`, `data-link-ids`, `data-link-count`, plus
+ * the R4 names `data-link-id`, `data-partner-id`, `data-local-id`,
+ * `data-direction`, `data-exit-edge`, `data-anchor-x/y`) so the product's
+ * own evidence suite can build the endpoint/chip table R5 §12 asks for from
+ * real rendered geometry, rather than from a second copy of this logic.
+ * Nothing here reads them back. `data-route-ids`/`data-route-count`, which
+ * existed only to carry R6-1's merged count, are gone with the merge —
+ * `data-link-count` is the one count attribute on a chip, exactly the
+ * lesson recorded when D-169 first retired `data-link-count`: two count
+ * attributes on one chip is the ambiguity that let an accepted assertion be
+ * re-pointed at a different number unnoticed, so there is only ever one.
  */
 
 /*
@@ -119,21 +131,17 @@ function Chip({ chip, basePosition, onReveal }) {
   const arrow = ARROWS[chip.direction] ?? '›';
   const before = chip.direction === 'left' || chip.direction === 'top';
   /*
-   * SVAR-M49 (R6-1): one chip per presentation endpoint. `data-route-id`,
-   * `data-endpoint-role`, `data-local-id`, `data-exit-edge` and the anchor
-   * are the REPRESENTATIVE route's (the one the chip sits on);
-   * `data-route-ids` and `data-link-ids` list every route and canonical
-   * link merged into it, and `data-route-count` how many. The count is
-   * shown only when it is more than one — a plain chip reads exactly as
-   * before.
-   *
-   * Phase 4.1G R4: `data-link-count`, R3's replacement for
-   * `data-route-count` under the retired D-168, is gone with the rest of
-   * D-168. It is not kept "as extra evidence": two count attributes on one
-   * chip is precisely the ambiguity that let an accepted assertion be
-   * re-pointed at a different number without anyone noticing.
+   * SVAR-M54 (Phase 4.1G R5, D-170): one chip per (route, offscreen
+   * endpoint) — restored from R5/SVAR-M52, R6-1's endpoint-only merge
+   * retired a second time. `data-route-id`, `data-endpoint-role`,
+   * `data-local-id`, `data-exit-edge` and the anchor are THIS chip's own
+   * single route's; `data-link-ids` lists the canonical links THIS route
+   * stands for (1 for an ordinary link, its own membership for a legitimate
+   * collapsed-group aggregate, D-166 §K), and `data-link-count` how many.
+   * The count is shown only when it is more than one — a plain chip reads
+   * exactly as before.
    */
-  const count = chip.routeCount ?? 1;
+  const count = chip.canonicalLinkIds.length;
   return (
     <button
       type="button"
@@ -145,12 +153,11 @@ function Chip({ chip, basePosition, onReveal }) {
       }}
       data-chip-id={chip.key}
       data-route-id={setID(chip.routeId)}
-      data-route-ids={chip.routes.map((r) => setID(r.routeId)).join(',')}
-      data-route-count={count}
       data-route-kind={chip.kind}
       data-endpoint-role={chip.role}
       data-endpoint-id={setID(chip.partnerId)}
       data-link-ids={chip.canonicalLinkIds.map((id) => setID(id)).join(',')}
+      data-link-count={count}
       /* SVAR-M53 (Phase 4.1G R4): the REAL task(s) behind the presentation
          endpoint, and therefore what a click actually lands on. One id for
          every chip the product has measured; more than one only for a
