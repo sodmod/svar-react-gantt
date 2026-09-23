@@ -163,7 +163,7 @@ function Chip({ chip, basePosition, onReveal }) {
       data-exit-group={chip.exitGroup}
       data-route-id={setID(chip.routeId)}
       data-route-ids={chip.routes.map((r) => setID(r.routeId)).join(',')}
-      data-route-count={count}
+      data-route-count={chip.routeCount ?? chip.routes.length}
       data-route-kind={chip.kind}
       data-endpoint-role={chip.role}
       data-endpoint-id={setID(chip.partnerId)}
