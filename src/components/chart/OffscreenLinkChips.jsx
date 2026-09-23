@@ -76,6 +76,12 @@ import './OffscreenLinkChips.css';
  * collapsed ancestors before landing — see `onReveal` below for the
  * finding and for the one case it deliberately leaves to the product.
  *
+ * SVAR-M54 (Phase 4.1G R8, D-170, D-171): one chip per VISUAL EXIT GROUP
+ * of an endpoint rather than per endpoint — routes to one task leaving on
+ * one router line or channel bundle share a chip, routes leaving on
+ * different lines get one each; the badge counts canonical links. The rule
+ * and its measurement are at the top of `offscreenChips.js`.
+ *
  * Every chip carries its provenance in the DOM (`data-route-id`,
  * `data-route-ids`, `data-route-count`, `data-route-kind`,
  * `data-endpoint-role`, `data-endpoint-id`, `data-endpoint-canonical-ids`,
@@ -133,7 +139,14 @@ function Chip({ chip, basePosition, onReveal }) {
    * chip is precisely the ambiguity that let an accepted assertion be
    * re-pointed at a different number without anyone noticing.
    */
-  const count = chip.routeCount ?? 1;
+  /*
+   * SVAR-M54 (Phase 4.1G R8, D-171): the badge counts the CANONICAL LINKS
+   * this chip stands for, not its routes. The two differ only for a
+   * collapsed group's aggregate route, one drawn line standing for N links,
+   * which must read N (R8 case D). `data-route-count` keeps counting routes
+   * as evidence; there is still exactly one number a person sees.
+   */
+  const count = chip.canonicalLinkIds.length;
   return (
     <button
       type="button"
@@ -144,6 +157,10 @@ function Chip({ chip, basePosition, onReveal }) {
         width: `${CHIP_SIZE.width}px`,
       }}
       data-chip-id={chip.key}
+      /* SVAR-M54 (D-171): the router bundle of the line this chip's group
+         leaves on — a port line or a channel base — or `route:` when the
+         router named none. Evidence only; nothing reads it back. */
+      data-exit-group={chip.exitGroup}
       data-route-id={setID(chip.routeId)}
       data-route-ids={chip.routes.map((r) => setID(r.routeId)).join(',')}
       data-route-count={count}
@@ -322,6 +339,9 @@ export default function OffscreenLinkChips({
         routeId: link.id,
         kind: 'link',
         points: route.points,
+        // SVAR-M54: the router's own bundle per segment, read by the
+        // derivation's grouping and never recomputed there.
+        segmentBundles: route.segmentBundles,
         canonicalLinkIds: [link.id],
         source: {
           id: link.source,
@@ -349,6 +369,7 @@ export default function OffscreenLinkChips({
         routeId: aggregate.id,
         kind: 'aggregate',
         points: route.points,
+        segmentBundles: route.segmentBundles,
         canonicalLinkIds: aggregate.memberLinkIds,
         source: {
           id: aggregate.source,

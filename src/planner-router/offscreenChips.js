@@ -1,6 +1,6 @@
 /*
  * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M47, SVAR-M48, SVAR-M49,
- * SVAR-M53).
+ * SVAR-M53, SVAR-M54).
  * NOT part of the upstream SVAR sources and not code of XB Software Sp. z o.o.
  *
  * The offscreen ENDPOINT chip, derived — every time, from nothing but the
@@ -90,6 +90,34 @@
  * `OffscreenLinkChips.jsx`'s own `onReveal` for what the consumer does
  * with it. This file still reads no date, no calendar, no `mode` and no
  * `DomainState`, and still decides nothing about disclosure.
+ *
+ * SVAR-M54 (Phase 4.1G R8, D-170, D-171): the group is no longer "every
+ * candidate of one endpoint". Pavel's R8 decision: a chip belongs to a
+ * VISUAL EXIT GROUP of lines to one canonical endpoint. MEASURED on the
+ * product stand (DEVLOG 2026-09-23, R8 proof gate): two links from
+ * `Enemy AI pass` to two visible tasks entered the band from the left edge
+ * 336px apart — two plainly separate lines — and still read as one chip
+ * "Enemy AI pass 2", on the upper line only. So the key is now
+ *
+ *     (presentation endpoint, exit edge, the bundle of the exit segment)
+ *
+ * where the bundle is the ROUTER's own statement of which line that segment
+ * is (`segmentBundles`, `route.js`'s `lineKey`): a port line fixed by one
+ * endpoint's rectangle, or a channel base that `assignChannels` separated
+ * routes around by `channelStep`. Routes to one endpoint that leave through
+ * the same port line or the same channel bundle are one chip; routes that
+ * leave through different lines are one chip EACH, each on its own line. A
+ * route whose router supplied no bundle is its own group. Different
+ * endpoints are never merged, whatever their lines (they differ in the
+ * first element of the key). No pixel distance is compared anywhere here:
+ * the grouping is exactly as fine as the router's own channel allocation,
+ * and it follows that allocation when the timeline scale changes it — the
+ * same links can be three chips on one scale and one on another (D-171).
+ *
+ * The count follows the group: the number of CANONICAL LINKS the chip
+ * stands for (`canonicalLinkIds`), so a collapsed group's aggregate route of
+ * N members is one chip reading N, and a chip is never counted by links it
+ * does not stand for.
  *
  * Pure geometry: canvas-space rectangles and polylines in, chip descriptors
  * out. Nothing here reads a date, a calendar, `mode`, or `DomainState`, and
@@ -295,11 +323,12 @@ export function classifyEndpoint(rect, viewport) {
  *   _chartWidth] x [scrollTop, scrollTop + _chartHeight - _scrollSize]` —
  *   never `xArea` or `area`, which are render windows padded past the
  *   visible band
- * @returns {Array<ChipDescriptor>} one per DISTINCT offscreen presentation
- *   endpoint named by at least one (route, offscreen end) candidate whose
- *   route has a visible run of at least `MIN_VISIBLE_RUN`; both endpoints of
- *   one route may qualify at once, and several routes to one endpoint give
- *   one chip (R6-1)
+ * @returns {Array<ChipDescriptor>} one per DISTINCT (offscreen
+ *   presentation endpoint, exit edge, exit bundle) named by at least one
+ *   (route, offscreen end) candidate whose route has a visible run of at
+ *   least `MIN_VISIBLE_RUN`; both endpoints of one route may qualify at
+ *   once, and several routes to one endpoint through one line or channel
+ *   bundle give one chip (SVAR-M54, D-171)
  */
 export function deriveEndpointChips(routes, viewport) {
   // SVAR-M47 / SVAR-M48: one pass over the presentation routes, BOTH ends
@@ -313,8 +342,8 @@ export function deriveEndpointChips(routes, viewport) {
     considerEndpoint(candidates, route, 'source', viewport);
     considerEndpoint(candidates, route, 'target', viewport);
   }
-  // SVAR-M49 (R6-1): one chip per presentation endpoint.
-  return mergeByEndpoint(candidates);
+  // SVAR-M54 (D-171): one chip per visual exit group of one endpoint.
+  return mergeByExitGroup(candidates);
 }
 
 function considerEndpoint(out, route, role, viewport) {
@@ -327,6 +356,14 @@ function considerEndpoint(out, route, role, viewport) {
   const walk = role === 'target' ? route.points : [...route.points].reverse();
   const exit = routeExitPoint(walk, viewport);
   if (exit === null) return;
+  // SVAR-M54: the router's bundle for the segment the route leaves on. The
+  // walk runs the points backwards for a source, so its segment `i` is the
+  // route's own segment `n - 2 - i`.
+  const segment =
+    role === 'target'
+      ? exit.segmentIndex
+      : route.points.length - 2 - exit.segmentIndex;
+  const bundle = route.segmentBundles?.[segment] ?? null;
   out.push({
     routeId: route.routeId,
     kind: route.kind,
@@ -346,6 +383,8 @@ function considerEndpoint(out, route, role, viewport) {
     direction,
     exitEdge: exit.edge,
     anchor: exit.point,
+    // A route the router gave no bundle is a group of its own.
+    exitGroup: bundle ?? `route:${String(route.routeId)}:${role}`,
   });
 }
 
@@ -374,19 +413,25 @@ function compareCandidates(a, b) {
 }
 
 /**
- * SVAR-M49 (R6-1): groups chip candidates by the presentation endpoint they
- * name and answers one descriptor per group, placed on the group's
- * representative candidate and carrying every route and canonical link of
- * the group. Exported for the unit tests; `deriveEndpointChips` is the only
- * production caller.
+ * SVAR-M54 (D-171), on SVAR-M49's merge: groups chip candidates by the
+ * presentation endpoint they name, the edge they leave through and the
+ * router bundle of the line they leave on, and answers one descriptor per
+ * group, placed on the group's representative candidate and carrying every
+ * route and canonical link of the group. Exported for the unit tests;
+ * `deriveEndpointChips` is the only production caller.
  *
  * @param {Array<ChipCandidate>} candidates
  * @returns {Array<ChipDescriptor>}
  */
-export function mergeByEndpoint(candidates) {
+export function mergeByExitGroup(candidates) {
   const groups = new Map();
   for (const candidate of candidates) {
-    const key = String(candidate.partnerId);
+    const key = [
+      String(candidate.partnerId),
+      candidate.exitEdge,
+      candidate.exitGroup ??
+        `route:${String(candidate.routeId)}:${candidate.role}`,
+    ].join('|');
     let group = groups.get(key);
     if (!group) {
       group = [];
@@ -435,6 +480,7 @@ export function mergeByEndpoint(candidates) {
     }
     chips.push({
       key: `endpoint:${key}`,
+      exitGroup: head.exitGroup ?? `route:${String(head.routeId)}:${head.role}`,
       routeId: head.routeId,
       kind: head.kind,
       role: head.role,
@@ -477,8 +523,9 @@ function intersects(a, b) {
  * chip for two DIFFERENT tasks — are stacked away from the edge they hug,
  * in a deterministic order (edge, anchor position, then chip key), so each
  * stays readable and each stays on its own route's column or row; nothing
- * is dropped here (R4 §5). Chips naming the SAME endpoint never reach this
- * function twice: `deriveEndpointChips` already merged them (R6-1).
+ * is dropped here (R4 §5). Chips naming the SAME endpoint reach this
+ * function once per visual exit group (SVAR-M54): two such chips sit on two
+ * different lines, and are stacked like any other pair if their boxes meet.
  *
  * @param {Array<ChipDescriptor>} chips
  * @param {{ left: number, top: number, right: number, bottom: number }} viewport
@@ -616,6 +663,7 @@ function clampRect(
  *   routeId: unknown,
  *   kind: 'link' | 'aggregate',
  *   points: Array<[number, number]>,
+ *   segmentBundles?: Array<string>,
  *   canonicalLinkIds: Array<unknown>,
  *   source: PresentationEndpoint,
  *   target: PresentationEndpoint,
@@ -633,11 +681,14 @@ function clampRect(
  *   direction: 'left' | 'right' | 'top' | 'bottom',
  *   exitEdge: 'left' | 'right' | 'top' | 'bottom',
  *   anchor: [number, number],
+ *   exitGroup?: string,
  * }} ChipCandidate
- *   one (route, offscreen endpoint) pair, before merging (R6-1)
+ *   one (route, offscreen endpoint) pair, before merging (R6-1); `exitGroup`
+ *   (SVAR-M54) is the router bundle of the segment it leaves on
  *
  * @typedef {{
  *   key: string,
+ *   exitGroup: string,
  *   routeId: unknown,
  *   kind: 'link' | 'aggregate',
  *   role: 'source' | 'target',
@@ -652,7 +703,8 @@ function clampRect(
  *   exitEdge: 'left' | 'right' | 'top' | 'bottom',
  *   anchor: [number, number],
  * }} ChipDescriptor
- *   one chip: `key` is `endpoint:<presentation endpoint id>`; `routeId`,
+ *   one chip: `key` is `endpoint:<presentation endpoint id>|<exit edge>|<exit
+ *   group>` (SVAR-M54); `routeId`,
  *   `role`, `localId`, `exitEdge` and `anchor` are the representative
  *   candidate's (the route the chip sits on); `routes`,
  *   `canonicalLinkIds` and `partnerCanonicalIds` cover every candidate

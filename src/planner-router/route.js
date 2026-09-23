@@ -107,6 +107,41 @@ function midY(rect) {
   return rect.y + rect.h / 2;
 }
 
+/*
+ * SVAR-M54 (Phase 4.1G R8, D-171): the visual bundle each raw segment of a
+ * route belongs to, stated by the router that built it.
+ *
+ * Two kinds of line exist in every route class below, and the router is the
+ * only place that knows which is which:
+ *
+ *   a PORT line   a run whose position is fixed by ONE endpoint's own
+ *                 rectangle alone — the horizontal leaving a source at its
+ *                 mid-row, the final approach into a target at its mid-row,
+ *                 a reverse bypass's corridor on the target's row boundary
+ *                 and its return vertical. Every route through that port is
+ *                 drawn on the SAME line there: it is one line on screen.
+ *   a CHANNEL     the principal vertical, placed at a base coordinate plus
+ *                 `channelOffset * channelStep` (`assignChannels`, D-166
+ *                 §G). Routes the channel allocation deliberately separated
+ *                 around one base are one bundle of parallel lines exactly
+ *                 `channelStep` apart; the base, not the drawn x, is what
+ *                 they share.
+ *
+ * The key is the line's own axis and coordinate — the base BEFORE the
+ * channel offset for a channel — normalised to a thousandth of a pixel so
+ * two equal coordinates computed along two different float paths compare
+ * equal. That normalisation is float hygiene, not a visual tolerance: it
+ * is three orders of magnitude below a device pixel, and nothing here ever
+ * treats two DIFFERENT lines as one because they are close.
+ *
+ * The router does not decide what a key MEANS for a chip; it only says
+ * which line a segment is. `offscreenChips.js` groups the candidates of one
+ * endpoint by it (D-171).
+ */
+function lineKey(axis, coordinate) {
+  return `${axis}@${Math.round(coordinate * 1000) / 1000}`;
+}
+
 function distance(a, b) {
   return Math.hypot(b[0] - a[0], b[1] - a[1]);
 }
@@ -156,6 +191,8 @@ function tightEntryRoute({ sourceRect, targetRect, channelOffset, tokens }) {
   const inset = Math.min(tokens.minRun, targetRect.w / 2);
   let ex = Math.max(sx + tokens.clearance, targetRect.x + inset);
   ex = Math.min(ex, targetRect.x + Math.max(targetRect.w - inset, inset));
+  // SVAR-M54: the channel's base, before this link's own offset.
+  const base = ex;
   ex += channelOffset * tokens.channelStep;
 
   return {
@@ -165,6 +202,7 @@ function tightEntryRoute({ sourceRect, targetRect, channelOffset, tokens }) {
       [ex, sy],
       [ex, entryY],
     ],
+    segmentBundles: [lineKey('h', sy), lineKey('v', base)],
     arrowDir: below ? 'down' : 'up',
   };
 }
@@ -181,7 +219,11 @@ function standardRoute({
   const tx = targetRect.x;
   const ty = midY(targetRect);
 
-  let vx = sx + tokens.clearance + channelOffset * tokens.channelStep;
+  // SVAR-M54: `base` follows `vx` through every rule below as the channel's
+  // coordinate BEFORE this link's own offset, so routes the channel
+  // allocation separated around one base can be told to share it.
+  let base = sx + tokens.clearance;
+  let vx = base + channelOffset * tokens.channelStep;
 
   // Blocking-bar corridor (D-166 §C "blocking-bar corridor" / TECH_SPEC
   // §6.10.1): a bar strictly between the source and target rows that the
@@ -199,8 +241,8 @@ function standardRoute({
       o.x + o.w + tokens.clearance > vx,
   );
   if (blockers.length) {
-    vx = Math.max(...blockers.map((o) => o.x + o.w)) + tokens.clearance;
-    vx += channelOffset * tokens.channelStep;
+    base = Math.max(...blockers.map((o) => o.x + o.w)) + tokens.clearance;
+    vx = base + channelOffset * tokens.channelStep;
   }
 
   /*
@@ -234,11 +276,18 @@ function standardRoute({
    * is always at least `sideEntryRun` — with a channel offset it is the gap
    * minus the clearance, which is larger still.
    */
-  vx = Math.min(
-    vx,
-    tx - sideEntryRun(tokens) - channelOffset * tokens.channelStep,
-  );
-  vx = Math.max(vx, sx + tokens.clearance);
+  const cap = tx - sideEntryRun(tokens) - channelOffset * tokens.channelStep;
+  if (vx > cap) {
+    vx = cap;
+    base = tx - sideEntryRun(tokens);
+  }
+  const floor = sx + tokens.clearance;
+  if (vx < floor) {
+    // The floor carries no channel offset at all: the vertical IS the
+    // floor line, so that is its bundle.
+    vx = floor;
+    base = floor;
+  }
 
   return {
     routeClass: 'standard',
@@ -248,6 +297,7 @@ function standardRoute({
       [vx, ty],
       [tx, ty],
     ],
+    segmentBundles: [lineKey('h', sy), lineKey('v', base), lineKey('h', ty)],
     arrowDir: 'right',
   };
 }
@@ -364,6 +414,16 @@ function reverseBypassRoute({
       [returnX, ty],
       [tx, ty],
     ],
+    // SVAR-M54: the swing-out vertical is the one channel here (its base is
+    // `sx + entryRun`); the corridor at `cy`, the return vertical and the
+    // final run are all fixed by the target's own row, with no offset.
+    segmentBundles: [
+      lineKey('h', sy),
+      lineKey('v', sx + entryRun),
+      lineKey('h', cy),
+      lineKey('v', returnX),
+      lineKey('h', ty),
+    ],
     arrowDir: 'right',
   };
 }
@@ -385,6 +445,14 @@ function genericRoute({ sourceRect, targetRect, type, tokens }) {
       [vx, ty],
       [approachX, ty],
       [tx, ty],
+    ],
+    // SVAR-M54: no channel is ever assigned to this shape's vertical, so
+    // every segment is a plain line fixed by one end.
+    segmentBundles: [
+      lineKey('h', sy),
+      lineKey('v', vx),
+      lineKey('h', ty),
+      lineKey('h', ty),
     ],
     arrowDir: entryDir > 0 ? 'left' : 'right',
   };
@@ -661,7 +729,7 @@ export function buildLink({
   rowHeight,
   tokens = LINK_TOKENS,
 }) {
-  const { points, arrowDir, routeClass } = routeLink({
+  const { points, arrowDir, routeClass, segmentBundles } = routeLink({
     sourceRect,
     targetRect,
     type,
@@ -685,5 +753,9 @@ export function buildLink({
     // viewport-aware badge anchor, D-166 §L) — Links.jsx itself never
     // reads it, only `d`/`arrow`/`bbox`.
     points,
+    // SVAR-M54 (D-171): one bundle key per segment of `points`, for the
+    // offscreen chip's grouping — see `lineKey` above. Links.jsx never
+    // reads it either.
+    segmentBundles,
   };
 }

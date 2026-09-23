@@ -151,7 +151,11 @@ test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source do
   // its horizontal span, exactly AggregateLinks.jsx's own real geometry.
   const source = rect(1350, 500, 30);
   const target = rect(0, 0, 1900, 30);
-  const route = routeLink({ sourceRect: source, targetRect: target, rowHeight: 30 });
+  const route = routeLink({
+    sourceRect: source,
+    targetRect: target,
+    rowHeight: 30,
+  });
   assert.equal(route.routeClass, 'reverseBypass');
 
   const entryRun = reverseEntryRun(LINK_TOKENS);
@@ -168,7 +172,7 @@ test('R2-2/R2-8: a reverse-bypass target far WIDER than the gap to the source do
   );
 });
 
-test('negative control: clearing the target\'s far edge (the retired formula) really did send the corridor hundreds of px past where it needed to turn', () => {
+test("negative control: clearing the target's far edge (the retired formula) really did send the corridor hundreds of px past where it needed to turn", () => {
   const source = rect(1350, 500, 30);
   const target = rect(0, 0, 1900, 30);
   const entryRun = reverseEntryRun(LINK_TOKENS);
@@ -227,7 +231,11 @@ test('SVAR-M34: the reverse-bypass corridor runs exactly on the row separator, n
   const barHeight = 41;
   const source = rect(1200, 243, 34, barHeight); // below and to the right
   const target = rect(136, 195, 34, barHeight); // above and to the left
-  const route = routeLink({ sourceRect: source, targetRect: target, rowHeight });
+  const route = routeLink({
+    sourceRect: source,
+    targetRect: target,
+    rowHeight,
+  });
   assert.equal(route.routeClass, 'reverseBypass');
 
   // points[2] -> points[3] is the corridor's own horizontal run, between
@@ -251,7 +259,11 @@ test('SVAR-M34: a bar that leaves NO margin at all still gets pulled back by the
   const rowHeight = 40;
   const source = rect(1000, 200, 34); // below and to the right
   const target = rect(100, 160, 34, rowHeight); // fills its own row exactly
-  const route = routeLink({ sourceRect: source, targetRect: target, rowHeight });
+  const route = routeLink({
+    sourceRect: source,
+    targetRect: target,
+    rowHeight,
+  });
   assert.equal(route.routeClass, 'reverseBypass');
   const cy = route.points[2][1];
   const rowBottom = target.y + target.h / 2 + rowHeight / 2;
@@ -637,7 +649,7 @@ test('R3-1: a side entry is never EMITTED without room for corner + run + arrowh
   assert.equal(
     route.points[route.points.length - 1][1],
     40,
-    'it enters at the target bar\'s TOP edge, the accepted tight-entry family (D-166 §E)',
+    "it enters at the target bar's TOP edge, the accepted tight-entry family (D-166 §E)",
   );
 });
 
@@ -698,4 +710,109 @@ test('R3-1: an unsupported link type is left alone — the guard does not rewrit
     rowHeight: 40,
   });
   assert.equal(route.routeClass, 'generic');
+});
+
+/* -- SVAR-M54 (Phase 4.1G R8, D-171): the router names each segment's bundle -- */
+
+test('SVAR-M54: every route class names one bundle per segment of its raw polyline', () => {
+  const cases = [
+    routeLink({
+      sourceRect: rect(0, 0, 100),
+      targetRect: rect(300, ROW_HEIGHT, 100),
+      rowHeight: ROW_HEIGHT,
+    }),
+    routeLink({
+      sourceRect: rect(0, 0, 100),
+      targetRect: rect(120, ROW_HEIGHT, 100),
+      rowHeight: ROW_HEIGHT,
+    }),
+    routeLink({
+      sourceRect: rect(300, 0, 100),
+      targetRect: rect(100, ROW_HEIGHT * 2, 100),
+      rowHeight: ROW_HEIGHT,
+    }),
+    routeLink({
+      sourceRect: rect(0, 0, 100),
+      targetRect: rect(300, ROW_HEIGHT, 100),
+      type: 's2e',
+      rowHeight: ROW_HEIGHT,
+    }),
+  ];
+  assert.deepEqual(
+    cases.map((r) => r.routeClass),
+    ['standard', 'tightEntry', 'reverseBypass', 'generic'],
+  );
+  for (const route of cases) {
+    assert.equal(route.segmentBundles.length, route.points.length - 1);
+    for (const key of route.segmentBundles) assert.match(key, /^[hv]@-?\d/);
+  }
+  // buildLink passes the router's answer through untouched.
+  const built = buildLink({
+    sourceRect: rect(0, 0, 100),
+    targetRect: rect(300, ROW_HEIGHT, 100),
+    rowHeight: ROW_HEIGHT,
+  });
+  assert.deepEqual(built.segmentBundles, cases[0].segmentBundles);
+});
+
+test('SVAR-M54: a fan-out separated by channelStep keeps ONE channel base; its port runs are one line each', () => {
+  const source = rect(0, 0, 100);
+  const routes = [0, 1, 2].map((channelOffset, i) =>
+    routeLink({
+      sourceRect: source,
+      targetRect: rect(400, ROW_HEIGHT * (2 + i * 3), 100),
+      channelOffset,
+      rowHeight: ROW_HEIGHT,
+    }),
+  );
+  const verticals = routes.map((r) => r.points[1][0]);
+  assert.deepEqual(
+    verticals.map((x) => x - verticals[0]),
+    [0, LINK_TOKENS.channelStep, 2 * LINK_TOKENS.channelStep],
+  );
+  // One base for all three verticals, one line for the shared source run,
+  // three different lines for the three targets' approach runs.
+  assert.equal(new Set(routes.map((r) => r.segmentBundles[1])).size, 1);
+  assert.equal(new Set(routes.map((r) => r.segmentBundles[0])).size, 1);
+  assert.equal(new Set(routes.map((r) => r.segmentBundles[2])).size, 3);
+});
+
+test('SVAR-M54: a capped fan-in keeps ONE channel base at the target even though its offsets are subtracted', () => {
+  const target = rect(200, ROW_HEIGHT * 4, 100);
+  const blocker = rect(0, ROW_HEIGHT * 2, 400);
+  const routes = [0, 1].map((channelOffset) =>
+    routeLink({
+      sourceRect: rect(0, ROW_HEIGHT * channelOffset * 0.5, 100),
+      targetRect: target,
+      channelOffset,
+      obstacles: [blocker],
+      rowHeight: ROW_HEIGHT,
+    }),
+  );
+  const [a, b] = routes.map((r) => r.points[1][0]);
+  assert.equal(a - b, LINK_TOKENS.channelStep);
+  assert.equal(routes[0].segmentBundles[1], routes[1].segmentBundles[1]);
+  assert.equal(
+    routes[0].segmentBundles[1],
+    `v@${200 - sideEntryRun(LINK_TOKENS)}`,
+  );
+});
+
+test('SVAR-M54: verticals of two different corridors are two bundles, however close they are drawn', () => {
+  // Two sources whose own clearance bases differ by exactly one channelStep:
+  // drawn 7px apart, but the router placed them around two different bases,
+  // so they are not one bundle and nothing here pretends otherwise.
+  const target = rect(400, ROW_HEIGHT * 6, 100);
+  const one = routeLink({
+    sourceRect: rect(0, 0, 100),
+    targetRect: target,
+    rowHeight: ROW_HEIGHT,
+  });
+  const two = routeLink({
+    sourceRect: rect(0, ROW_HEIGHT, 100 + LINK_TOKENS.channelStep),
+    targetRect: target,
+    rowHeight: ROW_HEIGHT,
+  });
+  assert.equal(two.points[1][0] - one.points[1][0], LINK_TOKENS.channelStep);
+  assert.notEqual(one.segmentBundles[1], two.segmentBundles[1]);
 });
