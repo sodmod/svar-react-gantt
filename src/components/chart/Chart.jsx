@@ -35,6 +35,9 @@ function Chart(props) {
     // `Bars.jsx` acts on it, because only the bars have the gestures it
     // withholds.
     barGesturesDisabled,
+    // SVAR-M55 (SVAR Production Planner): pass-through, unread here; only
+    // `Bars.jsx` starts a bar gesture.
+    barGestureCompanions,
     fullWidth,
     fullHeight,
     taskTemplate,
@@ -401,6 +404,7 @@ function Chart(props) {
         <Bars
           readonly={readonly}
           barGesturesDisabled={barGesturesDisabled}
+          barGestureCompanions={barGestureCompanions}
           taskTemplate={taskTemplate}
           onDragPreview={onBarDragPreview}
           linkPresentation={linkPresentation}

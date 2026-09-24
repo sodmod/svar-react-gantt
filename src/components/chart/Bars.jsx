@@ -20,6 +20,11 @@ import {
   resolveCollapsedSummaryGeometry,
 } from './summaryDragGeometry.js';
 import BarSegments from './BarSegments.jsx';
+import {
+  collectCompanionBases,
+  companionReset,
+  companionStep,
+} from './barGestureCompanions.js';
 import Rollups from './Rollups.jsx';
 import './Bars.css';
 
@@ -99,6 +104,10 @@ function Bars(props) {
     // <AggregateLinks>, whose popover rows reveal through the consumer's own
     // reveal owner — the same prop the offscreen chip already consumes.
     onRevealPartner,
+    // SVAR-M55 (SVAR Production Planner): which other bars a bar gesture
+    // carries — see `barGestureCompanions.js` and `Gantt.jsx`. Null by
+    // default; nothing below changes for a consumer that does not pass it.
+    barGestureCompanions,
   } = props;
 
   /*
@@ -217,6 +226,17 @@ function Bars(props) {
    * and `dx` is then `0` — which draws the bar exactly where it began.
    */
   const ancestorGeometryRef = useRef(null);
+
+  /*
+   * SVAR-M55 (SVAR Production Planner): the companions of the gesture in
+   * flight — their pre-gesture geometry, keyed by id — or `null`.
+   *
+   * A ref, like the one above and for the same reason: it never decides WHEN
+   * to render, only which extra `drag-task` steps an accepted pointer step
+   * issues. Filled exactly once per gesture, on the step that activates it,
+   * and emptied by whatever ends the gesture.
+   */
+  const companionsRef = useRef(null);
 
   const [selectedLinkId, setSelectedLinkId] = useState(null);
 
@@ -444,6 +464,9 @@ function Bars(props) {
     } else if (taskMove) {
       const { id, mode, dx, l, w, start, segment, index } = taskMove;
       setTaskMove(null);
+      // SVAR-M55: the gesture's companions end with it, whichever way it ends.
+      const companions = companionsRef.current;
+      companionsRef.current = null;
       if (start) {
         const diff = unitDiffFromPixels(dx, lengthUnitWidth);
 
@@ -455,6 +478,18 @@ function Bars(props) {
             inProgress: false,
             ...(segment && { segmentIndex: index }),
           });
+          // SVAR-M55: no whole-unit change — the companions go back to where
+          // they started, exactly like the grabbed bar above. On a committing
+          // drop they are left in place: the consumer that asked for them
+          // owns the drop and re-seeds the chart (barGestureCompanions.js).
+          for (const step of companionReset(companions)) {
+            api.exec('drag-task', {
+              id: step.id,
+              width: step.width,
+              left: step.left,
+              inProgress: false,
+            });
+          }
         } else {
           let update = {};
           let task = api.getTask(id);
@@ -546,6 +581,23 @@ function Bars(props) {
 
           const nextTaskMove = { ...taskMove, dx };
 
+          /*
+           * SVAR-M55 (SVAR Production Planner): the gesture ACTIVATES on this
+           * step — the first one past every guard above — so this is where
+           * the consumer is asked, once, which other bars travel with it:
+           * before anything has been drawn moved, and never again for this
+           * gesture. A consumer that passes nothing gets nothing.
+           */
+          if (!start) {
+            companionsRef.current = barGestureCompanions
+              ? collectCompanionBases(
+                  barGestureCompanions({ id, mode }),
+                  id,
+                  (companionId) => api.getTask(companionId),
+                )
+              : null;
+          }
+
           let left, width;
           if (mode === 'start') {
             left = l + dx;
@@ -591,6 +643,22 @@ function Bars(props) {
             up();
             return;
           }
+
+          /*
+           * SVAR-M55: every companion by the same pixel `dx` the grabbed
+           * bar's moving edge travelled on this step, through the grabbed
+           * bar's own transient action (barGestureCompanions.js). In the same
+           * event, so they paint in the same frame as the bar.
+           */
+          for (const step of companionStep(companionsRef.current, dx)) {
+            api.exec('drag-task', {
+              id: step.id,
+              width: step.width,
+              left: step.left,
+              inProgress: true,
+            });
+          }
+
           nextTaskMove.start = true;
           setTaskMove(nextTaskMove);
         } else {
@@ -626,8 +694,75 @@ function Bars(props) {
       onSelectLink,
       reportDragPreview,
       up,
+      barGestureCompanions,
     ],
   );
+
+  /*
+   * SVAR-M55 (SVAR Production Planner): a bar MOVE/RESIZE can be CANCELLED.
+   *
+   * Upstream's bar gesture ended only on `mouseup`: `Esc` did nothing, and
+   * after the window lost focus the next `mouseup` anywhere still committed.
+   * A gesture that now carries other bars needs a way back that leaves
+   * nothing behind, so three events end it WITHOUT a drop: `Esc`, `blur` and
+   * `pointercancel` — the same three SVAR-M16 made terminate a row drag.
+   *
+   * Cancelling puts the grabbed bar and every companion back where they
+   * started (`drag-task` with `inProgress: false`, the same action a no-change
+   * drop uses) and emits no `update-task`, so the consumer is told nothing
+   * happened because nothing did. The `mouseup` that follows finds no gesture
+   * and does nothing; the click that follows it is swallowed like the one
+   * after any real drag.
+   *
+   * Attached only while a gesture is in flight. `Esc` is consumed in the
+   * capture phase then, so the one key press cannot also close something
+   * else behind the gesture it cancelled.
+   */
+  const cancelTaskMove = useCallback(() => {
+    if (!taskMove) return;
+    const { id, l, w, start, segment, index } = taskMove;
+    setTaskMove(null);
+    const companions = companionsRef.current;
+    companionsRef.current = null;
+    if (start) {
+      api.exec('drag-task', {
+        id,
+        width: w,
+        left: l,
+        inProgress: false,
+        ...(segment && { segmentIndex: index }),
+      });
+      for (const step of companionReset(companions)) {
+        api.exec('drag-task', {
+          id: step.id,
+          width: step.width,
+          left: step.left,
+          inProgress: false,
+        });
+      }
+      ignoreNextClickRef.current = true;
+    }
+    reportDragPreview(null);
+    endDrag();
+  }, [api, taskMove, reportDragPreview, endDrag]);
+
+  useEffect(() => {
+    if (!taskMove) return;
+    const onKeyDown = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancelTaskMove();
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('blur', cancelTaskMove);
+    window.addEventListener('pointercancel', cancelTaskMove);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('blur', cancelTaskMove);
+      window.removeEventListener('pointercancel', cancelTaskMove);
+    };
+  }, [taskMove, cancelTaskMove]);
 
   const mousemove = useCallback(
     (e) => {

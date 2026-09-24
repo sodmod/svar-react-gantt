@@ -185,7 +185,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M47 (the offscreen chip derived from the routed link and the usable viewport), ' +
     'SVAR-M48 (the endpoint-symmetric chip over canonical and aggregate routes) and ' +
     'SVAR-M49 (one chip per presentation endpoint) and ' +
-    'SVAR-M50 (an aggregate never mixes two links whose resolved presentation differs)',
+    'SVAR-M50 (an aggregate never mixes two links whose resolved presentation differs) and ' +
+    'SVAR-M55 (the gesture companions carried by a bar gesture)',
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -197,7 +198,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M30 — the new barGesturesDisabled prop withholds every direct bar gesture and the affordances that advertise them, and nothing else, and the bars wearing the resize cursor give it back on the render that withholds them (R2, B-1); ' +
     'SVAR-M32 — renders <Links> with the linkPresentation pass-through; ' +
     'SVAR-M33 — Esc cancels a pending link-create draft: a keydown listener attached only while one is pending, calling the existing removeLinkMarker and nothing else; ' +
-    'SVAR-M37 — renders <AggregateLinks> right after <Links>, with the same onSelectLink/readonly/linkPresentation pass-through',
+    'SVAR-M37 — renders <AggregateLinks> right after <Links>, with the same onSelectLink/readonly/linkPresentation pass-through; ' +
+    "SVAR-M55 — asks the new barGestureCompanions prop ONCE per bar gesture, on the step that activates it, carries each returned bar by the same pixel dx through the grabbed bar's own drag-task, resets them on a no-change drop, and lets Esc/blur/pointercancel cancel a bar move/resize with no update-task",
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -212,7 +214,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M30 — new `barGesturesDisabled` prop, threaded through to Layout.jsx; ' +
     'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1); ' +
     'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx; ' +
-    "SVAR-M47 — the component-facing store API additionally exposes `on`, the public API's own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`",
+    "SVAR-M47 — the component-facing store API additionally exposes `on`, the public API's own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`; " +
+    'SVAR-M55 — new `barGestureCompanions` prop, threaded through to Layout.jsx',
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -227,7 +230,8 @@ const OWNED_UPSTREAM_FILES = {
     "SVAR-M25 — owns the width limit this layout's own geometry allows (a different number once the chart has been hidden on purpose), reports it through `onGridWidthLimit`, and resolves the consumer's ceiling and floor against it for the splitter gesture; the floor is the one bound geometry may not narrow; " +
     'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread; ' +
     'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread; ' +
-    'SVAR-M32 — passes `linkPresentation` through to the chart half only, unread',
+    'SVAR-M32 — passes `linkPresentation` through to the chart half only, unread; ' +
+    'SVAR-M55 — passes `barGestureCompanions` through to the chart half only, unread',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through; ' +
@@ -238,7 +242,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M30 — carries barGesturesDisabled down to Bars.jsx, unread; ' +
     'SVAR-M32 — carries linkPresentation down to Bars.jsx, unread; ' +
     'SVAR-M35 — renders <OffscreenLinkChips> inside .wx-area, after <Bars>; ' +
-    "SVAR-M50 — also passes linkPresentation to <OffscreenLinkChips>, so its aggregate grouping matches <AggregateLinks>'s",
+    "SVAR-M50 — also passes linkPresentation to <OffscreenLinkChips>, so its aggregate grouping matches <AggregateLinks>'s; " +
+    'SVAR-M55 — carries barGestureCompanions down to Bars.jsx, unread',
   'src/components/chart/TimeScale.jsx':
     "SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell's aria-label; " +
     'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +
@@ -262,7 +267,8 @@ const OWNED_UPSTREAM_FILES = {
     "SVAR-M23 — `IHeaderCellConfig` and the header descriptor's `align`; " +
     'SVAR-M25 — the `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report; ' +
     'SVAR-M26 — the `columnMaxWidth` prop; ' +
-    'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop',
+    'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop; ' +
+    'SVAR-M55 — `IBarGesture` and the `barGestureCompanions` prop',
   'src/components/chart/Links.jsx':
     "SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store's OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop's `lineStyle` as a stroke-dasharray (never on the arrowhead); " +
     "SVAR-M34 — the router's reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar's own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; " +
@@ -357,6 +363,9 @@ const PROJECT_ADDED = [
   // chip both call it, so the renderer has one answer to "what does it take
   // to show a hidden task" rather than two.
   'src/components/chart/useCanonicalReveal.js',
+  // SVAR-M55: the pure owner of the gesture companions' base geometry, step
+  // and reset — see the file header.
+  'src/components/chart/barGestureCompanions.js',
 ];
 
 /**

@@ -126,6 +126,29 @@ const Gantt = forwardRef(function Gantt(
      * `false` by default: without it every gesture behaves exactly as before.
      */
     barGesturesDisabled = false,
+    /*
+     * SVAR-M55 (SVAR Production Planner): which OTHER bars a bar gesture
+     * carries with it.
+     *
+     * `barGestureCompanions({ id, mode })`, where `mode` is `'move'`,
+     * `'start'` (the left edge) or `'end'` (the right edge), returns the ids
+     * of the bars that travel with the grabbed one. It is called ONCE per
+     * gesture, on the pointer step that activates it and before anything is
+     * drawn moved; every later step translates each returned bar by the same
+     * pixel `dx` the grabbed bar's moving edge travels, through the grabbed
+     * bar's own `drag-task` (chart/barGestureCompanions.js).
+     *
+     * A consumer that passes it owns the drop of a gesture that carried
+     * companions: after the committing `update-task` it re-seeds the chart
+     * from its own state, exactly as it already does for the grabbed bar. A
+     * gesture with no whole-unit change, and a cancelled one, put every
+     * companion back by themselves.
+     *
+     * This package is told ids and nothing else — not why those bars travel,
+     * not what a date or a working day is. `null` by default: nothing moves
+     * that did not move before.
+     */
+    barGestureCompanions = null,
     cellBorders = 'full',
     zoom = false,
     baselines = false,
@@ -721,6 +744,7 @@ const Gantt = forwardRef(function Gantt(
           onRevealPartner={onRevealPartner}
           readonly={readonly}
           barGesturesDisabled={barGesturesDisabled}
+          barGestureCompanions={barGestureCompanions}
           onTableAPIChange={setTableAPI}
           onGanttWidthChange={onGanttWidthChange}
         />

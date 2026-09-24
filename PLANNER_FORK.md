@@ -789,6 +789,23 @@ Two kinds of change, deliberately kept in separate commits:
      clamping, its `_scaleDate` and its contract, and `@svar-ui/gantt-store` is
      neither forked nor changed. A consumer still asks to reveal a DATE.
 
+   - **`SVAR-M55` — gesture companions.** A bar move or resize can carry OTHER
+     bars with it. `barGestureCompanions({ id, mode })` (new prop,
+     `Gantt.jsx -> Layout.jsx -> Chart.jsx -> Bars.jsx`) is asked ONCE per
+     gesture, on the pointer step that activates it and before anything is
+     drawn moved; every later step translates each returned bar by the same
+     pixel `dx` the grabbed bar's moving edge travels, through the grabbed
+     bar's own `drag-task` — so the routed links, the offscreen chips, the
+     aggregates and an ancestor summary's span follow a companion by the path
+     they already follow the grabbed bar. A no-change drop puts the companions
+     back; a committing drop leaves them for the consumer, which owns the drop
+     and re-seeds the chart. A bar gesture can now also be CANCELLED — `Esc`,
+     `blur` and `pointercancel` put the grabbed bar and every companion back
+     and emit no `update-task`, the three terminators SVAR-M16 gave the row
+     drag. The pure half (`src/components/chart/barGestureCompanions.js`) is
+     unit-tested by `npm run test:planner`. The package is told ids and pixels
+     only: not why those bars travel, not what a date or a working day is.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

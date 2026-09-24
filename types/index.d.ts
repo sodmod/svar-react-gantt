@@ -128,6 +128,16 @@ export interface ITimelineDragPreview {
 }
 
 /**
+ * SVAR-M55: the one question a bar gesture asks its consumer, once, when it
+ * activates — which OTHER bars travel with it. `mode` is which part of the
+ * bar the gesture holds: the whole bar, its left edge or its right edge.
+ */
+export interface IBarGesture {
+  id: string | number;
+  mode: 'move' | 'start' | 'end';
+}
+
+/**
  * SVAR-M28: a right click that reached one rendered scale cell.
  *
  * `event` is the `contextmenu` event exactly as the cell received it — the
@@ -202,6 +212,15 @@ export declare const Gantt: ForwardRefExoticComponent<
     // consumer that wants an overview it can still read, select and edit
     // through its own editor. This package is told nothing about why.
     barGesturesDisabled?: boolean;
+    // SVAR-M55 (SVAR Production Planner): the ids of the bars a bar gesture
+    // carries, asked ONCE per gesture when it activates; each is translated
+    // by the grabbed edge's own pixel `dx` on every step. A consumer that
+    // passes it re-seeds the chart after a committing drop; a no-change drop
+    // and a cancel (`Esc`, `blur`, `pointercancel`) put the companions back
+    // by themselves. Told ids only — never why those bars travel.
+    barGestureCompanions?: (
+      gesture: IBarGesture,
+    ) => readonly (string | number)[] | null | undefined;
     cellBorders?: 'column' | 'full';
     highlightTime?: (date: Date, unit: 'day' | 'hour') => string;
     // SVAR-M3 (SVAR Production Planner): a generic accessible-name seam for

@@ -81,6 +81,9 @@ function Layout(props) {
     // unread here. The grid half is deliberately NOT given it: what it
     // withholds are bar gestures, and the grid has none.
     barGesturesDisabled,
+    // SVAR-M55 (SVAR Production Planner): pass-through to the chart half,
+    // unread here, for the same reason as the prop above.
+    barGestureCompanions,
     onTableAPIChange,
     onGanttWidthChange,
   } = props;
@@ -512,6 +515,7 @@ function Layout(props) {
               <Chart
                 readonly={readonly}
                 barGesturesDisabled={barGesturesDisabled}
+                barGestureCompanions={barGestureCompanions}
                 fullWidth={fullWidth}
                 fullHeight={fullHeight}
                 taskTemplate={taskTemplate}
