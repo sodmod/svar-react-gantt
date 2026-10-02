@@ -88,6 +88,20 @@
  * its own layout effect, before paint — exactly when upstream's React path
  * wrote it.
  *
+ * ## A native scroll keeps its own scroller
+ *
+ * A native scroll (a wheel, a trackpad, a scrollbar) is handed to the store
+ * judged on its own axis against what this module wrote, so two scrollers
+ * moving in one task can never cancel each other's update the way upstream's
+ * one shared `isUserScrollRef` did (research §7.1). While that hand-over runs,
+ * the scroller that originated it is not written back: the browser has
+ * already put it where the user scrolled, and the store may accept a slightly
+ * different value — it clamps against its own `_chartWidth` / `_chartHeight`,
+ * which can differ from the element's client size by a pixel at the far edge.
+ * Upstream never wrote that clamp back into the originating scroller either;
+ * every other target follows the store as usual, and the next camera write
+ * reconciles the originating one, as upstream's next render did.
+ *
  * ## What this module does NOT own
  *
  * It owns no position: the store stays the only canonical viewport state
@@ -192,6 +206,9 @@ export function createCameraPath(api) {
 
   let applying = false;
   let dirty = false;
+  // The scroller whose native scroll is being handed to the store right now
+  // ('chartLeft' or 'outerTop'), which the camera does not write back.
+  let nativeOrigin = null;
 
   function extentCommitted(state) {
     return (
@@ -214,7 +231,11 @@ export function createCameraPath(api) {
   function writeCamera(left, top) {
     const chart = dom.chart;
     if (chart) {
-      if (Number.isFinite(left) && left !== written.chartLeft) {
+      if (
+        nativeOrigin !== 'chartLeft' &&
+        Number.isFinite(left) &&
+        left !== written.chartLeft
+      ) {
         written.chartLeft = left;
         chart.scrollLeft = left;
       }
@@ -224,7 +245,12 @@ export function createCameraPath(api) {
       }
     }
     const outer = dom.outer;
-    if (outer && Number.isFinite(top) && top !== written.outerTop) {
+    if (
+      outer &&
+      nativeOrigin !== 'outerTop' &&
+      Number.isFinite(top) &&
+      top !== written.outerTop
+    ) {
       written.outerTop = top;
       outer.scrollTop = top;
     }
@@ -262,6 +288,15 @@ export function createCameraPath(api) {
     }
     // 3-4. the row window, from the same position
     requestRowWindow(state);
+  }
+
+  function handOver(origin, change) {
+    nativeOrigin = origin;
+    try {
+      api.exec('scroll-chart', change);
+    } finally {
+      nativeOrigin = null;
+    }
   }
 
   function apply() {
@@ -353,11 +388,10 @@ export function createCameraPath(api) {
 
     /**
      * A native scroll of `.wx-chart` (a horizontal wheel, a trackpad, the
-     * scrollbar). Each axis is judged on its own against what this module
-     * wrote, so two scrollers moving in one frame can never cancel each
-     * other's update (upstream's shared `isUserScrollRef` did, research §7.1).
-     * The vertical axis of `.wx-chart` is `overflow-y: hidden` and only ever
-     * moved by this module, exactly as upstream treated it.
+     * scrollbar), handed to the store on its own axis (see "A native scroll
+     * keeps its own scroller" above). The vertical axis of `.wx-chart` is
+     * `overflow-y: hidden` and only ever moved by this module, exactly as
+     * upstream treated it.
      */
     onChartScroll() {
       const chart = dom.chart;
@@ -365,7 +399,7 @@ export function createCameraPath(api) {
       const left = chart.scrollLeft;
       if (left === written.chartLeft) return;
       written.chartLeft = left;
-      api.exec('scroll-chart', { left });
+      handOver('chartLeft', { left });
     },
 
     /** A native scroll of the outer pseudo-scroller (the vertical wheel). */
@@ -375,7 +409,7 @@ export function createCameraPath(api) {
       const top = outer.scrollTop;
       if (top === written.outerTop) return;
       written.outerTop = top;
-      api.exec('scroll-chart', { top });
+      handOver('outerTop', { top });
     },
 
     /** The `.wx-chart` element, for reads scoped to this chart. */

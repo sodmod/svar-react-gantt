@@ -851,7 +851,11 @@ Two kinds of change, deliberately kept in separate commits:
      never clamps it. Each native scroll — the horizontal one of `.wx-chart`,
      the vertical one of the pseudo-scroller — is judged on its own axis
      against what the camera wrote; upstream's shared `isUserScrollRef`, which
-     let one scroller's echo swallow the other axis' update, is gone.
+     let one scroller's echo swallow the other axis' update, is gone. While a
+     native scroll is handed to the store, the scroller that originated it is
+     not written back, so the store's clamp — a pixel short of the browser's
+     own maximum when `_chartWidth` exceeds the element's client width — does
+     not pull it, exactly as upstream; every other target follows the store.
 
      Around it, no camera step re-renders what it does not change:
      `Grid.jsx` hands react-grid `sizes`, `selectedRows` and the element

@@ -508,6 +508,59 @@ test('a browser clamp of a camera write reaches the store once and converges', (
   assert.deepEqual(log, ['scroll-chart {"left":4000}']);
 });
 
+test('a native scroll the store clamps is not written back into the scroller that made it; the other targets follow the store', () => {
+  // The store clamps `left` to `_scales.width - _chartWidth` and `top` to its
+  // own content height minus `_chartHeight`; a client size one pixel smaller
+  // than `_chartWidth` leaves the browser one pixel of travel past the
+  // store's maximum (measured on the Planner: 3085 vs 3084).
+  const { api, camera, chart, outer, body, log } = mountCamera();
+  const state = api.getState();
+  const maxLeft = state._scales.width - state._chartWidth;
+  const maxTop =
+    state._scales.height +
+    state._tasks.length * state.cellHeight -
+    state._chartHeight;
+  log.length = 0;
+
+  chart.nativeScroll({ left: maxLeft + 1 });
+  camera.onChartScroll();
+
+  assert.equal(api.getState().scrollLeft, maxLeft);
+  assert.equal(
+    chart.peek().left,
+    maxLeft + 1,
+    'the originating scroller keeps the browser position',
+  );
+  assert.equal(
+    log.filter((entry) => entry.startsWith('chart.scrollLeft=')).length,
+    0,
+  );
+  assert.deepEqual(camera.getPosition(), { left: maxLeft, top: 0 });
+
+  log.length = 0;
+  outer.nativeScroll({ top: maxTop + 3 });
+  camera.onOuterScroll();
+
+  assert.equal(api.getState().scrollTop, maxTop);
+  assert.equal(
+    outer.peek().top,
+    maxTop + 3,
+    'the originating scroller keeps the browser position',
+  );
+  assert.equal(
+    log.filter((entry) => entry.startsWith('outer.scrollTop=')).length,
+    0,
+  );
+  // ...while the chart and the grid body show what the store accepted.
+  assert.equal(chart.peek().top, maxTop);
+  assert.equal(body.peekTop(), `${gridBodyTop(0, maxTop, 0)}px`);
+
+  // The next camera write reconciles the originating scrollers.
+  api.exec('scroll-chart', { left: maxLeft - 50, top: maxTop - 50 });
+  assert.deepEqual(chart.peek(), { left: maxLeft - 50, top: maxTop - 50 });
+  assert.equal(outer.peek().top, maxTop - 50);
+});
+
 test('committed extent: a write into a scale React has not committed yet waits for that commit (SVAR-M31)', () => {
   const { store, api, camera, chart } = mountCamera();
   api.exec('scroll-chart', { left: 1000 });
