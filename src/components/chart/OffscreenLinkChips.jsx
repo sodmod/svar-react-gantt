@@ -1,6 +1,12 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  memo,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 import storeContext from '../../context';
-import { useStore } from '@svar-ui/lib-react';
 import { setID } from '@svar-ui/lib-dom';
 import {
   clampDelta,
@@ -15,6 +21,7 @@ import {
 } from '../../planner-router/offscreenChips.js';
 import { useCanonicalReveal } from './useCanonicalReveal.js';
 import { useRoutedAggregates } from './useRoutedAggregates.js';
+import { useCameraPath, useCameraPosition } from './useCameraPath.js';
 import './OffscreenLinkChips.css';
 
 /*
@@ -212,7 +219,7 @@ function Chip({ chip, basePosition, onReveal }) {
   );
 }
 
-export default function OffscreenLinkChips({
+function OffscreenLinkChips({
   onRevealPartner,
   // SVAR-M50 (Pavel manual acceptance, Phase 4.1G R1 second follow-up):
   // threaded straight to `useRoutedAggregates` (see that hook's
@@ -233,9 +240,19 @@ export default function OffscreenLinkChips({
     tasksCounter,
     getTask,
   } = useRoutedAggregates(linkPresentation);
-  const xArea = useStore(api, 'xArea');
-  const scrollTop = useStore(api, 'scrollTop');
-  const scrollLeft = useStore(api, 'scrollLeft');
+  /*
+   * SVAR-M56 (SVAR Production Planner): the viewport origin is the position
+   * the CAMERA shows, not a store subscription. A chip is anchored to the
+   * viewport edge while the route under it is anchored to the content, and
+   * the content now moves in the task that received the input
+   * (`./cameraPath.js`); a store subscription would render the chip one task
+   * later, so a chip held against the edge would trail it by one Pan step.
+   * `useCameraPosition` is read through `useSyncExternalStore`, which React
+   * renders in the same frame as the camera write. The values are the
+   * store's accepted `scrollLeft`/`scrollTop` as written into the DOM.
+   */
+  const camera = useCameraPath();
+  const { left: scrollLeft, top: scrollTop } = useCameraPosition(camera);
   /*
    * SVAR-M42 (R3-3) / SVAR-M47 (R4-7): the chart's usable size, read from
    * the store and kept CURRENT.
@@ -278,10 +295,9 @@ export default function OffscreenLinkChips({
     });
     return typeof off === 'function' ? off : undefined;
   }, [api]);
-  const chartWidth = useMemo(
-    () => chartSize.width ?? api.getState()?._chartWidth,
-    [api, xArea, scrollLeft, chartSize],
-  );
+  // SVAR-M56: the `resize-chart` mirror above is the source; the store read
+  // is only the first render's answer, before the first resize was heard.
+  const chartWidth = chartSize.width ?? api.getState()?._chartWidth;
   const chartHeight = chartSize.height;
   const scrollSize = chartSize.scrollSize;
 
@@ -531,3 +547,9 @@ export default function OffscreenLinkChips({
     </>
   );
 }
+
+// SVAR-M56 (SVAR Production Planner): memoised on its two props, so a render
+// of `Chart.jsx` for a moved cell window does not re-render the chips. They
+// still render on every camera step — `useCameraPosition` above is their own
+// subscription — and on every change of their routes.
+export default memo(OffscreenLinkChips);

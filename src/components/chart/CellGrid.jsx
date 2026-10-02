@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from 'react';
+import { memo, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import storeContext from '../../context';
 import { context } from '@svar-ui/react-core';
 import { grid } from '@svar-ui/gantt-store';
@@ -53,17 +53,34 @@ function CellGrid() {
     }
   }, [theme]);
 
-  const style = {
-    width: '100%',
-    height: '100%',
-    background:
+  /*
+   * SVAR-M56 (SVAR Production Planner): the lattice image is drawn once per
+   * distinct (cell size, colour, borders) instead of on every render.
+   * `grid()` draws onto a canvas and encodes it with `toDataURL()`, and this
+   * component used to call it on every render of the chart — every Pan step,
+   * measured at 45-49 ms per gesture on the research project (research §16,
+   * CF-5). The image is a pure function of exactly these four values, so the
+   * memo can return nothing stale: SVAR-M22's theme re-read still arrives as
+   * a new `color` and still redraws it.
+   */
+  const background = useMemo(
+    () =>
       cellWidth != null && cellHeight != null
         ? `url(${grid(cellWidth, cellHeight, color, cellBorders)})`
         : undefined,
+    [cellWidth, cellHeight, color, cellBorders],
+  );
+  const style = {
+    width: '100%',
+    height: '100%',
+    background,
     position: 'absolute',
   };
 
   return <div ref={nodeRef} style={style} />;
 }
 
-export default CellGrid;
+// SVAR-M56 (SVAR Production Planner): it takes no props, so a render of
+// `Chart.jsx` reaches it as nothing; it renders when its own store values or
+// the theme change.
+export default memo(CellGrid);

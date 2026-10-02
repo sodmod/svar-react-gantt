@@ -19,6 +19,8 @@ import './Chart.css';
 import TimeScales from './TimeScale.jsx';
 import { createZoomWheelHandler } from '../../helpers/zoom';
 import { useRenderTime } from '../../helpers/debug.js';
+import { sameCellWindow } from './cameraPath.js';
+import { useCameraPath, useStoreValue } from './useCameraPath.js';
 
 function Chart(props) {
   // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
@@ -64,17 +66,29 @@ function Chart(props) {
   } = props;
 
   const api = useContext(storeContext);
+  /*
+   * SVAR-M56 (SVAR Production Planner): the Pan camera path, created by
+   * `Layout.jsx`. This component no longer subscribes to `scrollTop` /
+   * `scrollLeft` at all: it used to re-render — and re-render every bar
+   * template, the scale and the link layers under it — on every Pan step
+   * only so that a layout effect could copy the store's position into
+   * `.wx-chart`, one frame late. The camera writes that offset in the task
+   * that changed it (`./cameraPath.js`), and this component renders when
+   * something it draws actually changes: a cell window, a row window, the
+   * data.
+   */
+  const camera = useCameraPath();
 
   const [selected, selectedCounter] = useStoreWithCounter(api, '_selected');
-  const rScrollTop = useStore(api, 'scrollTop');
-  const rScrollLeft = useStore(api, 'scrollLeft');
   const cellHeight = useStore(api, 'cellHeight');
   const rTasks = useStore(api, '_tasks');
   const resources = useStore(api, 'resources');
   const scales = useStore(api, '_scales');
   const area = useStore(api, 'area');
   const groupBy = useStore(api, 'groupBy');
-  const xArea = useStore(api, 'xArea');
+  // SVAR-M56: by value — the store builds a new `xArea` object on every
+  // `scrollLeft` change, and only a moved cell window changes what is drawn.
+  const xArea = useStoreValue(api, 'xArea', sameCellWindow);
   const zoom = useStore(api, 'zoom');
   const calendars = useStore(api, '_calendars');
   const markers = useStore(api, '_markers');
@@ -82,10 +96,7 @@ function Chart(props) {
 
   const [chartHeight, setChartHeight] = useState();
   const chartRef = useRef(null);
-  const expectedScroll = useRef({ top: null, left: null });
-  const isUserScrollRef = useRef(false);
 
-  const extraRows = 1;
   const selectStyle = useMemo(() => {
     const t = [];
     if (selected && selected.length && cellHeight) {
@@ -101,52 +112,32 @@ function Chart(props) {
     [chartHeight, fullHeight],
   );
 
+  /*
+   * SVAR-M56: `.wx-chart` belongs to the camera, which writes its scroll
+   * offsets. A native scroll of it (a horizontal wheel or trackpad, the
+   * scrollbar) is handed to the camera, which forwards it to the store
+   * judging each axis against what it wrote itself — upstream's shared
+   * `isUserScrollRef`, which skipped BOTH axes when the other scroller moved
+   * in the same frame, is gone with the effect it guarded.
+   */
   useLayoutEffect(() => {
-    const el = chartRef.current;
-    if (!el) return;
+    if (!camera) return undefined;
+    return camera.attachChart(chartRef.current);
+  }, [camera]);
 
-    if (isUserScrollRef.current) {
-      isUserScrollRef.current = false;
-      return;
-    }
+  const onScroll = useCallback(() => {
+    if (camera) camera.onChartScroll();
+  }, [camera]);
 
-    if (typeof rScrollTop === 'number') {
-      expectedScroll.current.top = rScrollTop;
-      el.scrollTop = rScrollTop;
-    }
-    if (typeof rScrollLeft === 'number') {
-      expectedScroll.current.left = rScrollLeft;
-      el.scrollLeft = rScrollLeft;
-    }
-  }, [rScrollTop, rScrollLeft]);
-
-  const onScroll = () => {
-    const el = chartRef.current;
-    if (!el) return;
-    if (el.scrollLeft !== expectedScroll.current.left) {
-      expectedScroll.current.left = el.scrollLeft;
-      isUserScrollRef.current = true;
-      api.exec('scroll-chart', { left: el.scrollLeft });
-    }
-  };
-
-  function dataRequest() {
-    const clientHeightLocal = chartHeight || 0;
-    const num = Math.ceil(clientHeightLocal / (cellHeight || 1)) + 1;
-    const pos = Math.floor((rScrollTop || 0) / (cellHeight || 1));
-    const start = Math.max(0, pos - extraRows);
-    const end = pos + num + extraRows;
-    const from = start * (cellHeight || 0);
-    api.exec('render-data', {
-      start,
-      end,
-      from,
-    });
-  }
-
-  useEffect(() => {
-    dataRequest();
-  }, [rScrollTop, chartHeight, cellHeight]);
+  /*
+   * SVAR-M56: the row window is requested by the camera — from the same
+   * position it has just written, and only when the window changes — so it
+   * needs to know the height the window has to cover. Upstream's own
+   * arithmetic (`dataRequest`) moved there unchanged.
+   */
+  useLayoutEffect(() => {
+    if (camera) camera.setViewportHeight(chartHeight || 0);
+  }, [camera, chartHeight]);
 
   const zoomRef = useRef(zoom);
   zoomRef.current = zoom;

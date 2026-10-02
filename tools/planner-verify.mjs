@@ -186,7 +186,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M48 (the endpoint-symmetric chip over canonical and aggregate routes) and ' +
     'SVAR-M49 (one chip per presentation endpoint) and ' +
     'SVAR-M50 (an aggregate never mixes two links whose resolved presentation differs) and ' +
-    'SVAR-M55 (the gesture companions carried by a bar gesture)',
+    'SVAR-M55 (the gesture companions carried by a bar gesture) and ' +
+    "SVAR-M56 (the Pan camera path's order of one update, its row-window de-duplication, its committed-extent deferral and its per-axis judging of native scrolls)",
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -199,7 +200,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M32 — renders <Links> with the linkPresentation pass-through; ' +
     'SVAR-M33 — Esc cancels a pending link-create draft: a keydown listener attached only while one is pending, calling the existing removeLinkMarker and nothing else; ' +
     'SVAR-M37 — renders <AggregateLinks> right after <Links>, with the same onSelectLink/readonly/linkPresentation pass-through; ' +
-    "SVAR-M55 — asks the new barGestureCompanions prop ONCE per bar gesture, on the step that activates it, carries each returned bar by the same pixel dx through the grabbed bar's own drag-task, resets them on a no-change drop, and lets Esc/blur/pointercancel cancel a bar move/resize with no update-task",
+    "SVAR-M55 — asks the new barGestureCompanions prop ONCE per bar gesture, on the step that activates it, carries each returned bar by the same pixel dx through the grabbed bar's own drag-task, resets them on a no-change drop, and lets Esc/blur/pointercancel cancel a bar move/resize with no update-task; " +
+    'SVAR-M56 — the component is memoised on its props, so a render of Chart.jsx for a moved cell window re-renders no bar template',
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -231,7 +233,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M26 — passes `columnMaxWidth` through to the grid, unread; ' +
     'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread; ' +
     'SVAR-M32 — passes `linkPresentation` through to the chart half only, unread; ' +
-    'SVAR-M55 — passes `barGestureCompanions` through to the chart half only, unread',
+    'SVAR-M55 — passes `barGestureCompanions` through to the chart half only, unread; ' +
+    "SVAR-M56 — creates the chart's Pan camera path (chart/cameraPath.js) and provides it to both halves through chart/useCameraPath.js; the `scrollTop` subscription, the passive pseudo-scroller sync and its `isUserScrollRef` are gone, and the pseudo-scroller and the committed extent are attached to the camera instead",
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through; ' +
@@ -243,7 +246,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M32 — carries linkPresentation down to Bars.jsx, unread; ' +
     'SVAR-M35 — renders <OffscreenLinkChips> inside .wx-area, after <Bars>; ' +
     "SVAR-M50 — also passes linkPresentation to <OffscreenLinkChips>, so its aggregate grouping matches <AggregateLinks>'s; " +
-    'SVAR-M55 — carries barGestureCompanions down to Bars.jsx, unread',
+    'SVAR-M55 — carries barGestureCompanions down to Bars.jsx, unread; ' +
+    "SVAR-M56 — attaches .wx-chart and its height to the Pan camera path, which writes its scroll offsets and requests the row window in the task of the store write (upstream's scroll layout effect, `isUserScrollRef` and `dataRequest` effect are gone); `xArea` is compared by value",
   'src/components/chart/TimeScale.jsx':
     "SVAR-M3 — applies `scaleCellAriaLabel(date, unit, value)` as each scale cell's aria-label; " +
     'SVAR-M28 — each rendered scale cell reports a right click through `onScaleCellContextMenu({ event, date, unit })`, preventing nothing; ' +
@@ -252,7 +256,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M9 — keeps a body-only line out of that lower-row band; ' +
     'SVAR-M12 — asks the split owner with the same reserveTopScaleRow the grid is given; ' +
     'SVAR-M17 — renders the blank reserve band between the top scale row and the lane, and starts the lower-row line band below it; ' +
-    'SVAR-M29 — that reserve band renders the day-column separators from the same owner the lane asks (annotations/ScaleColumnGrid.jsx), and is a positioning context so they fill it',
+    'SVAR-M29 — that reserve band renders the day-column separators from the same owner the lane asks (annotations/ScaleColumnGrid.jsx), and is a positioning context so they fill it; ' +
+    'SVAR-M56 — `xArea` is compared by value, so a horizontal Pan step inside one cell window re-renders no header',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
     'SVAR-M28 — `IScaleCellContextMenu` and the `onScaleCellContextMenu` prop; ' +
@@ -272,7 +277,8 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/chart/Links.jsx':
     "SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store's OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop's `lineStyle` as a stroke-dasharray (never on the arrowhead); " +
     "SVAR-M34 — the router's reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar's own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; " +
-    "SVAR-M36 — the same reverseBypassRoute's source-exit and target-entry runs (src/planner-router/route.js) are long enough for the corridor's corners there to get the router's full rounding radius, not half of it",
+    "SVAR-M36 — the same reverseBypassRoute's source-exit and target-entry runs (src/planner-router/route.js) are long enough for the corridor's corners there to get the router's full rounding radius, not half of it; " +
+    'SVAR-M56 — `xArea` is compared by value, so a horizontal Pan step inside one cell window re-filters no link',
   'src/components/chart/Links.css':
     "SVAR-M32 — draws the router's `<path>` output (was a `<polyline>`), the dash patterns `linkPresentation` selects, and the arrowhead polygon's fill, matching the line's own colour/hover/critical/selected states",
   'src/themes/Willow.css':
@@ -282,7 +288,8 @@ const OWNED_UPSTREAM_FILES = {
   'src/components/Resizer.jsx':
     "SVAR-M25 — the splitter gesture answers to the consumer's own range: `RESIZER_RIGHT_THRESHOLD` and `RESIZER_SIZE` become named exports so the layout can read the two numbers instead of spelling them again, `maxWidth`/`minWidth` clamp the ONE position the store write, the display-mode branch and the drawn splitter all read, and a consumer that declares a range also takes over which side is shown, so a drag can no longer collapse either half into a state where this component refuses the resize cursor and pointerdown",
   'src/components/chart/CellGrid.jsx':
-    'SVAR-M22 — the working-area lattice follows the theme it is being shown in: the colour is read from the live `--wx-gantt-border` whenever the theme context changes, not once at mount, because the lattice is a canvas image and the colour is baked into it when it is drawn',
+    'SVAR-M22 — the working-area lattice follows the theme it is being shown in: the colour is read from the live `--wx-gantt-border` whenever the theme context changes, not once at mount, because the lattice is a canvas image and the colour is baked into it when it is drawn; ' +
+    'SVAR-M56 — that canvas image is drawn again only when one of its four inputs (cell width, cell height, colour, border mode) changes, not on every render, and the component (it takes no props) is memoised',
   'src/themes/ThemeScope.jsx':
     'SVAR-M19 — one theme element whose identity does not depend on which theme it shows: the theme is a prop, not a choice of component, so changing it remounts nothing',
   'src/themes/Willow.jsx':
@@ -308,7 +315,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M23 — a column may align its header label independently of its cells, through a header descriptor the store copies as it is; ' +
     'SVAR-M24 — a grid row carries `wx-row-<type>` from the kind the consumer put on it, so a stylesheet can reach what the diagram already says; ' +
     "SVAR-M26 — and never above the consumer's declared maximum for one column, clamped at the same seam and for the same reason; " +
-    "SVAR-M27 — the action slot renders one level deeper, inside a new sticky anchor wrapper, so its position resolves against the grid's own horizontal scrollport rather than the scrolled column content",
+    "SVAR-M27 — the action slot renders one level deeper, inside a new sticky anchor wrapper, so its position resolves against the grid's own horizontal scrollport rather than the scrolled column content; " +
+    'SVAR-M56 — no `scrollTop` subscription: the body offset is written by the Pan camera path as a direct `top` on the grid body, from the window this component reports it has committed; `sizes`, `selectedRows` and the react-grid element keep their identity while their inputs do',
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +
@@ -321,7 +329,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M8 — the blank top-scale-row band and the header offset that puts both bands above the column headers; ' +
     'SVAR-M12 — the action slot inside that band, bottom-aligned and pointer-taking; ' +
     "SVAR-M27 — the sticky anchor wrapper the action slot now resolves its position against, so it reads the grid's own viewport instead of its scrolled column content; " +
-    "SVAR-M27 (R7.2) — that wrapper is the whole action band's outermost stacking context, so its layer is 11: above the chart timescale (5) and the splitter (10), not merely above the grid's own sticky header (3)",
+    "SVAR-M27 (R7.2) — that wrapper is the whole action band's outermost stacking context, so its layer is 11: above the chart timescale (5) and the splitter (10), not merely above the grid's own sticky header (3); " +
+    "SVAR-M56 — the `.wx-body { top: var(--wx-body-offset) }` rule is removed: the Pan camera path writes the grid body's `top` itself",
   'src/components/chart/TimeScale.css':
     'SVAR-M8 — the lower-scale-row band of the annotation lines, and the stacking rule that keeps every scale label above them',
   '.gitignore':
@@ -366,6 +375,11 @@ const PROJECT_ADDED = [
   // SVAR-M55: the pure owner of the gesture companions' base geometry, step
   // and reset — see the file header.
   'src/components/chart/barGestureCompanions.js',
+  // SVAR-M56: the Pan camera path — the one owner that writes the store's
+  // accepted scroll position into the DOM in the task of the store write —
+  // and its React side (the context and the two consumer hooks).
+  'src/components/chart/cameraPath.js',
+  'src/components/chart/useCameraPath.js',
 ];
 
 /**

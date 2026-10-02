@@ -4,6 +4,8 @@ import AnnotationLane from './annotations/AnnotationLane.jsx';
 import ScaleColumnGrid from './annotations/ScaleColumnGrid.jsx';
 import TimelineLines from './annotations/TimelineLines.jsx';
 import { splitScaleHeaderForLane } from './annotations/timelineAnnotationLayout.js';
+import { sameCellWindow } from './cameraPath.js';
+import { useStoreValue } from './useCameraPath.js';
 import './TimeScale.css';
 
 // Upper-row cells span multiple lowest-row cells. Walk widths so a span
@@ -63,7 +65,12 @@ function TimeScale(props) {
   } = props;
 
   const scales = useStore(api, '_scales');
-  const xArea = useStore(api, 'xArea');
+  // SVAR-M56 (SVAR Production Planner): by value. The store publishes a new
+  // `xArea` object on every `scrollLeft` change, so a plain subscription
+  // re-rendered the whole header on every horizontal Pan step — the header
+  // scrolls natively inside `.wx-chart` and only a moved cell window changes
+  // which cells it renders.
+  const xArea = useStoreValue(api, 'xArea', sameCellWindow);
   const highlightTime = useStore(api, 'highlightTime');
 
   const renderedRows = useMemo(() => {

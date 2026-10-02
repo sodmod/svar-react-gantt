@@ -578,6 +578,9 @@ Two kinds of change, deliberately kept in separate commits:
      - **`SVAR-M22`** (`chart/CellGrid.jsx`): the working-area lattice is a
        canvas image, so its colour is baked in when it is drawn; it now follows
        the theme it is being shown in rather than the one it was mounted in.
+       `SVAR-M56` memoises that image on its four inputs (cell width, cell
+       height, colour, border mode), so a theme change still redraws it and a
+       camera move no longer does.
      - **`SVAR-M23`** (`Grid.jsx`): a column may align its header label
        independently of its cells.
      - **`SVAR-M24`** (`Grid.jsx`): a row carries `wx-row-<type>` from the kind
@@ -805,6 +808,65 @@ Two kinds of change, deliberately kept in separate commits:
      drag. The pure half (`src/components/chart/barGestureCompanions.js`) is
      unit-tested by `npm run test:planner`. The package is told ids and pixels
      only: not why those bars travel, not what a date or a working day is.
+
+   - **`SVAR-M56` — the Pan camera path.** Upstream kept the scroll position
+     in the store and copied it into the DOM only through React: `Chart.jsx`
+     wrote `.wx-chart`'s offsets in a layout effect, `grid/Grid.jsx`
+     re-rendered to recompute an inline `--wx-body-offset`, and `Layout.jsx`
+     synced the outer pseudo-scroller in a passive effect. The store write
+     happened in the input task, React rendered in a later one, so the frame
+     of the input always painted the old position; and every Pan step
+     re-rendered the layout, the whole left grid (twice, through react-grid's
+     `SVAR-M1` re-initialisation) and the chart subtree just to move pixels
+     a scroll offset moves for free. Measured and proved in the consuming
+     application (`docs/research/RENDERER_PAN_SMOOTHNESS_INVESTIGATION.md`
+     there).
+
+     `src/components/chart/cameraPath.js` is now the one owner that turns the
+     store's ACCEPTED `scrollLeft`/`scrollTop` into pixels, from a store
+     subscription, in the task of the store write: `.wx-chart`'s offsets, the
+     outer pseudo-scroller and the grid body's own `top`. One update runs in a
+     fixed order — the accepted position, the DOM camera, the row window
+     evaluated from that position, `render-data` published only when that
+     window actually changed, and the position handed to viewport-anchored
+     overlays (the offscreen chips, which read it through
+     `useSyncExternalStore` and render in the same frame) — inside one
+     re-entrancy-safe `apply()`. `Layout.jsx` creates it and provides it
+     through `chart/useCameraPath.js`; the grid and the chart attach the DOM
+     they own. It holds no position of its own: `scroll-chart` stays the one
+     way to move the chart, for Pan, wheel, reveal and every programmatic
+     caller alike, and `@svar-ui/gantt-store` is not changed.
+
+     The grid body sits at `committed from - scrollTop + lane`, where
+     `committed from` is the window `Grid.jsx` reports from its own layout
+     effect, never the window just requested — so a camera step that runs
+     ahead of React moves the rows on screen to exactly where their bars are,
+     and a new window brings its offset in the same commit (`SVAR-M1` by
+     construction). The offset is a direct `top` on `.wx-body`, compared with
+     the value last written and never read back; the inherited custom property
+     it replaces restyled the whole grid subtree on every write. A camera write
+     into an extent React has not committed yet (a scale change that keeps its
+     centre date, `SVAR-M31`) waits for `Layout.jsx`'s commit of `_scales`,
+     `_tasks` and `cellHeight`, which applies it before paint, so the browser
+     never clamps it. Each native scroll — the horizontal one of `.wx-chart`,
+     the vertical one of the pseudo-scroller — is judged on its own axis
+     against what the camera wrote; upstream's shared `isUserScrollRef`, which
+     let one scroller's echo swallow the other axis' update, is gone.
+
+     Around it, no camera step re-renders what it does not change:
+     `Grid.jsx` hands react-grid `sizes`, `selectedRows` and the element
+     itself with the same identity while their inputs are the same;
+     `Chart.jsx`, `TimeScale.jsx`, `Links.jsx` and `AggregateLinks.jsx`
+     compare `xArea` by value; the cell grid, the bars and the chips are
+     memoised components, so a render of `Chart.jsx` for a moved cell window
+     reaches none of them; `CellGrid.jsx` memoises the lattice image
+     (`SVAR-M22`); and the ribbon read `useRoutedAggregates.js` takes after
+     each new row window (`SVAR-M46` in the consuming application's registry)
+     finds the rendered bars with one query scoped to `.wx-chart` instead of
+     one document-wide query per task. Unit-tested by `npm run test:planner`
+     (`tools/planner-camera-path.test.mjs`) against a real store; what a
+     browser paints is measured by the consuming application in real
+     Chromium.
 
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass

@@ -1,5 +1,6 @@
 import {
   Fragment,
+  memo,
   useCallback,
   useContext,
   useEffect,
@@ -1282,4 +1283,12 @@ function Bars(props) {
   );
 }
 
-export default Bars;
+/*
+ * SVAR-M56 (SVAR Production Planner): memoised on its props. `Chart.jsx`
+ * passes the same seven values from one render to the next, and it now
+ * renders on its own for a moved CELL window (the scale, the holidays) —
+ * which used to re-render every bar template with it. This component still
+ * renders on every change of its own store values: a new row window, new
+ * data, a selection, exactly as before.
+ */
+export default memo(Bars);

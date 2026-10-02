@@ -4,6 +4,7 @@ import { setID } from '@svar-ui/lib-dom';
 import { assignChannels, buildLink } from '../../planner-router/route.js';
 import { buildAggregates } from '../../planner-router/aggregate.js';
 import { useRoutedLinks } from './useRoutedLinks.js';
+import { useCameraPath } from './useCameraPath.js';
 
 /*
  * ADDED BY THE SVAR PRODUCTION PLANNER PROJECT (SVAR-M48).
@@ -100,13 +101,40 @@ function bandOf(rect, band) {
  * which is exactly what "sometimes it does not line up" looks like from
  * outside ("нестыкуется.jpg").
  */
-function applyVisualBands(taskRects, setBandInfo) {
+function applyVisualBands(camera, taskRects, setBandInfo) {
   const next = new Map();
+  const bars = renderedBarsById(camera);
   for (const id of taskRects.keys()) {
-    const band = readVisualBand(id);
+    const band = readVisualBand(bars.get(String(setID(id))));
     if (band) next.set(id, band);
   }
   setBandInfo((current) => (sameBands(current, next) ? current : next));
+}
+
+/*
+ * SVAR-M56 (SVAR Production Planner): the bars this chart has RENDERED, by
+ * their `data-id`, from ONE query scoped to the chart.
+ *
+ * SVAR-M46 as first written asked `document.querySelector` once for every
+ * task in the project — on the 620-row research project, 620 document-wide
+ * attribute queries per read, the single largest item of a vertical Pan step
+ * (research §21) — although only the vertically virtualized slice `Bars.jsx`
+ * draws can ever answer. The same elements, found once: a task without a rendered bar
+ * maps to nothing exactly as its query found nothing, so the band map is the
+ * same map. Scoped to this chart's own element, a second Gantt on the page
+ * can no longer answer for this one. The document is asked only before the
+ * camera has attached `.wx-chart` (the very first commit, which renders no
+ * bars at all).
+ */
+function renderedBarsById(camera) {
+  const bars = new Map();
+  if (typeof document === 'undefined') return bars;
+  const root = (camera && camera.chartElement()) || document;
+  for (const el of root.querySelectorAll('.wx-bar[data-id]')) {
+    const id = el.getAttribute('data-id');
+    if (!bars.has(id)) bars.set(id, el);
+  }
+  return bars;
 }
 
 /*
@@ -132,9 +160,7 @@ function sameBands(a, b) {
   return true;
 }
 
-function readVisualBand(taskId) {
-  if (typeof document === 'undefined') return null;
-  const el = document.querySelector(`.wx-bar[data-id='${setID(taskId)}']`);
+function readVisualBand(el) {
   if (!el) return null;
   // No class check here: `content: none` already answers "does this bar's
   // own `::before` paint anything at all", which is the only question this
@@ -171,6 +197,8 @@ export function useRoutedAggregates(linkPresentation) {
   const { api, taskRects, linksValue, linksCounter, cellHeight } = routed;
   const getTask = useCallback((id) => api.getTask(id), [api]);
   const area = useStore(api, 'area');
+  // SVAR-M56: the chart this read is scoped to (see `renderedBarsById`).
+  const camera = useCameraPath();
 
   const presentationKeyOf = useCallback(
     (link) => {
@@ -214,11 +242,17 @@ export function useRoutedAggregates(linkPresentation) {
    * moves the ribbon without necessarily changing `_tasks`.
    */
   useLayoutEffect(() => {
-    applyVisualBands(taskRects, setBandInfo);
+    applyVisualBands(camera, taskRects, setBandInfo);
     // `area` is what decides WHICH bars are currently rendered — `Bars.jsx`
     // draws the vertically virtualized slice it describes — so it is a real
     // dependency of a measurement taken off those bars, not a proxy for one.
-  }, [taskRects, cellHeight, area]);
+    //
+    // SVAR-M56 (SVAR Production Planner): and since the camera path
+    // publishes `area` only when the row window actually changes, a camera
+    // step inside the rendered window no longer reruns this read. Upstream
+    // republished an unchanged window as a new object on every vertical Pan
+    // step, which made this effect — in both consumers — run per step.
+  }, [camera, taskRects, cellHeight, area]);
 
   const aggregates = useMemo(() => {
     if (!linksValue) return [];

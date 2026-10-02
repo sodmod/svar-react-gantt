@@ -56,9 +56,13 @@
 .wx-table.wx-rHj6070p .wx-grid .wx-scroll {
   overflow: visible !important;
 }
-.wx-table.wx-rHj6070p .wx-grid .wx-scroll .wx-body {
-  top: var(--wx-body-offset, 0);
-}
+/* SVAR-M56 (SVAR Production Planner): the body's vertical offset is no longer
+   a rule here. Upstream set `top: var(--wx-body-offset, 0)` and wrote the
+   custom property inline on `.wx-table`; an inherited property restyles the
+   whole grid subtree on every write, which became the largest vertical Pan
+   cost once nothing re-rendered per step. The camera path
+   (`../chart/cameraPath.js`) writes `top` directly on `.wx-body` itself, the
+   element `position: relative` already makes the offset's owner. */
 .wx-table.wx-rHj6070p .wx-grid .wx-scroll .wx-body,
 .wx-table.wx-rHj6070p .wx-grid .wx-scroll .wx-header {
   width: 100% !important;

@@ -4,6 +4,8 @@ import { useStore } from '@svar-ui/lib-react';
 import { setID } from '@svar-ui/lib-dom';
 import { LINK_TOKENS } from '../../planner-router/route.js';
 import { useRoutedLinks } from './useRoutedLinks.js';
+import { sameCellWindow } from './cameraPath.js';
+import { useStoreValue } from './useCameraPath.js';
 import './Links.css';
 
 /*
@@ -51,7 +53,11 @@ export default function Links({
   const api = useContext(storeContext);
   const { routedLinks, cellHeight } = useRoutedLinks();
   const area = useStore(api, 'area');
-  const xArea = useStore(api, 'xArea');
+  // SVAR-M56 (SVAR Production Planner): by value, so a horizontal Pan step
+  // inside one cell window re-filters and re-reconciles nothing (the routes
+  // themselves were never recomputed by a camera move: they are memoised on
+  // the task/link counters in `useRoutedLinks.js`).
+  const xArea = useStoreValue(api, 'xArea', sameCellWindow);
   const criticalPath = useStore(api, 'criticalPath');
 
   const selectedLineRef = useRef(null);

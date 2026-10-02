@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { useStore } from '@svar-ui/lib-react';
 import { setID } from '@svar-ui/lib-dom';
 import { LINK_TOKENS } from '../../planner-router/route.js';
 import { clampPopoverRect } from '../../planner-router/overlayViewport.js';
@@ -14,6 +13,8 @@ import { useScreenViewportCorrection } from './useScreenViewportCorrection.js';
 import { pickBadgeAnchor } from '../../planner-router/aggregate.js';
 import { useRoutedAggregates } from './useRoutedAggregates.js';
 import { useCanonicalReveal } from './useCanonicalReveal.js';
+import { sameCellWindow } from './cameraPath.js';
+import { useStoreValue } from './useCameraPath.js';
 import './AggregateLinks.css';
 
 /*
@@ -82,23 +83,17 @@ export default function AggregateLinks({
     // `linkPresentation` now reaches the grouping key too — see
     // `useRoutedAggregates.js`'s own comment.
   } = useRoutedAggregates(linkPresentation);
-  const xArea = useStore(api, 'xArea');
-  const scrollTop = useStore(api, 'scrollTop');
-  const scrollLeft = useStore(api, 'scrollLeft');
   /*
-   * SVAR-M45 (R3-6): the chart's own usable width, which `Layout.jsx`
-   * publishes as `ganttWidth - columnsWidth - scrollSize - 4` — the
-   * scrollbar and the resizer are already out of it. Read through
-   * `getState()` rather than `useStore`, for the reason SVAR-M42's own note
-   * in `OffscreenLinkChips.jsx` records: `_chartWidth` is ordinary store
-   * state, not a published reactive value, and it is an input to the store's
-   * own `xArea` reaction — so keying the read on `xArea`/`scrollLeft` keeps
-   * it fresh without asking for a Writable that does not exist.
+   * SVAR-M56 (SVAR Production Planner): `xArea` by value, and no `scrollTop`
+   * / `scrollLeft` subscription at all. Both scroll values were read only by
+   * the reveal below — and to keep `_chartWidth` fresh for it — yet they
+   * re-rendered this layer on every Pan step. The reveal now reads the
+   * store's current state at the moment it runs, which is the freshest value
+   * there is (SVAR-M45 R3-6: `_chartWidth` is the chart's usable width,
+   * `ganttWidth - columnsWidth - scrollSize - 4`, ordinary store state rather
+   * than a published reactive value).
    */
-  const usableWidth = useMemo(
-    () => api.getState()?._chartWidth,
-    [api, xArea, scrollLeft],
-  );
+  const xArea = useStoreValue(api, 'xArea', sameCellWindow);
 
   const [openAggregateId, setOpenAggregateId] = useState(null);
   const popoverRef = useRef(null);
@@ -229,20 +224,20 @@ export default function AggregateLinks({
         onRevealPartner(taskId);
         return true;
       }
-      const viewportWidth = usableWidth;
-      if (!(viewportWidth > 0)) return false;
       const state = api.getState() || {};
+      const viewportWidth = state._chartWidth;
+      if (!(viewportWidth > 0)) return false;
       const viewportHeight = state._chartHeight - (state._scrollSize || 0);
       const left = Math.max(0, rect.x - viewportWidth / 3);
       const top =
         viewportHeight > 0
           ? Math.max(0, Math.round(rect.y - (viewportHeight - rect.h) / 2))
-          : scrollTop;
+          : state.scrollTop;
       api.exec('select-task', { id: taskId, show: false });
       api.exec('scroll-chart', { left, top });
       return true;
     },
-    [taskRects, usableWidth, api, scrollTop, onRevealPartner],
+    [taskRects, api, onRevealPartner],
   );
 
   /*

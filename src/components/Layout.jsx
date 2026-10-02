@@ -1,6 +1,7 @@
 import {
   useState,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useCallback,
@@ -25,6 +26,8 @@ import {
   IDLE_BAR_DRAG_PREVIEW,
   nextBarDragPreviewState,
 } from './chart/annotations/barDragPreviewGate.js';
+import { createCameraPath } from './chart/cameraPath.js';
+import { CameraPathContext } from './chart/useCameraPath.js';
 
 function Layout(props) {
   // SVAR-M3 (SVAR Production Planner): plain prop pass-through, same as
@@ -94,7 +97,11 @@ function Layout(props) {
   const rScales = useStore(api, '_scales');
   const rCellHeight = useStore(api, 'cellHeight');
   const rColumns = useStore(api, 'columns');
-  const rScrollTop = useStore(api, 'scrollTop');
+  // SVAR-M56 (SVAR Production Planner): no `scrollTop` subscription here any
+  // more. It existed only to copy the store's position into the outer
+  // pseudo-scroller after paint, and it re-rendered this whole layout — grid
+  // and chart with it — on every vertical step. The camera path below writes
+  // that offset itself, in the task that changed it.
   const undo = useStore(api, 'undo');
   const columnsWidth = useStore(api, '_columnsWidth');
   // SVAR-M25 (SVAR Production Planner): read for the width limit below, which
@@ -324,19 +331,39 @@ function Layout(props) {
 
   const ganttDivRef = useRef(null);
   const pseudoRowsRef = useRef(null);
-  const expectedScrollTop = useRef(null);
-  const isUserScrollRef = useRef(false);
 
-  const onScroll = useCallback(() => {
-    const el = ganttDivRef.current;
-    if (el && el.scrollTop !== expectedScrollTop.current) {
-      expectedScrollTop.current = el.scrollTop;
-      isUserScrollRef.current = true;
-      api.exec('scroll-chart', {
-        top: el.scrollTop,
-      });
-    }
-  }, [api]);
+  /*
+   * SVAR-M56 (SVAR Production Planner): the Pan camera path — one owner per
+   * chart that writes the store's accepted scroll position into the DOM in
+   * the same task as the store write (`./chart/cameraPath.js`, where the
+   * order of one update and the SVAR-M1 argument are written out).
+   *
+   * Created here because this is the component that owns the outer
+   * pseudo-scroller and is the common parent of the two halves whose DOM the
+   * camera moves; the grid and the chart attach their own elements to it
+   * through `CameraPathContext`. It holds no position of its own: the store
+   * stays the only canonical viewport state.
+   */
+  const camera = useMemo(() => createCameraPath(api), [api]);
+
+  // A native scroll of the pseudo-scroller (the vertical wheel) goes to the
+  // store through the camera, which judges it against what it wrote itself
+  // rather than against a flag shared with the other axis.
+  const onScroll = useCallback(() => camera.onOuterScroll(), [camera]);
+
+  useLayoutEffect(() => camera.attachOuter(ganttDivRef.current), [camera]);
+
+  // The extent React has just committed: a camera write that arrived while
+  // the store already described a larger scale or more rows than the DOM
+  // held was deferred by the camera, and lands here, before paint.
+  useLayoutEffect(() => {
+    camera.commitExtent(rScales, rTasks, rCellHeight);
+  }, [camera, rScales, rTasks, rCellHeight]);
+
+  // Declared after the two effects above, so the first application finds the
+  // pseudo-scroller attached and the extent committed (children's layout
+  // effects — the grid body and `.wx-chart` — have already run by then).
+  useLayoutEffect(() => camera.start(), [camera]);
 
   useEffect(() => {
     const ganttDiv = ganttDivRef.current;
@@ -431,21 +458,9 @@ function Layout(props) {
       : capped;
   }, [gridMaxWidth, gridWidthLimit, resolvedGridMinWidth]);
 
-  useEffect(() => {
-    const ganttDiv = ganttDivRef.current;
-    if (!ganttDiv) return;
-    // change originated from the user's own scroll — don't write it back,
-    // otherwise we re-trigger onScroll and loop (see Layout.svelte FIXME)
-    if (isUserScrollRef.current) {
-      isUserScrollRef.current = false;
-      return;
-    }
-    // only programmatic scrolls (scrollToTask, etc.) reach here
-    if (rScrollTop !== ganttDiv.scrollTop) {
-      expectedScrollTop.current = rScrollTop;
-      ganttDiv.scrollTop = rScrollTop;
-    }
-  }, [rScrollTop]);
+  // SVAR-M56 (SVAR Production Planner): the pseudo-scroller's offset is the
+  // camera path's to write (above); upstream's passive copy of `scrollTop`,
+  // and the `isUserScrollRef` guard it needed, are gone.
 
   const layoutRef = useRef(null);
 
@@ -474,72 +489,78 @@ function Layout(props) {
   }, [undo]);
 
   return (
-    <div className="wx-jlbQoHOz wx-gantt" ref={ganttDivRef} onScroll={onScroll}>
+    <CameraPathContext.Provider value={camera}>
       <div
-        className="wx-jlbQoHOz wx-pseudo-rows"
-        style={{ height: scrollHeight, width: '100%' }}
-        ref={pseudoRowsRef}
+        className="wx-jlbQoHOz wx-gantt"
+        ref={ganttDivRef}
+        onScroll={onScroll}
       >
         <div
-          className="wx-jlbQoHOz wx-stuck"
-          style={{
-            height: ganttHeight,
-            width: innerWidth,
-          }}
+          className="wx-jlbQoHOz wx-pseudo-rows"
+          style={{ height: scrollHeight, width: '100%' }}
+          ref={pseudoRowsRef}
         >
-          <div tabIndex={0} className="wx-jlbQoHOz wx-layout" ref={layoutRef}>
-            {rColumns.length ? (
-              <>
-                <Grid
+          <div
+            className="wx-jlbQoHOz wx-stuck"
+            style={{
+              height: ganttHeight,
+              width: innerWidth,
+            }}
+          >
+            <div tabIndex={0} className="wx-jlbQoHOz wx-layout" ref={layoutRef}>
+              {rColumns.length ? (
+                <>
+                  <Grid
+                    readonly={readonly}
+                    fullHeight={fullHeight}
+                    annotationLaneHeight={laneHeight}
+                    gridActionSlot={gridActionSlot}
+                    reserveTopScaleRow={reserveTopScaleRow}
+                    gridActionSlotMinHeight={slotMinHeight}
+                    consumerOwnsColumnWidths={consumerOwnsColumnWidths}
+                    columnMinWidth={columnMinWidth}
+                    columnMaxWidth={columnMaxWidth}
+                    onTableAPIChange={onTableAPIChange}
+                  />
+                  <Resizer
+                    containerWidth={ganttWidth}
+                    maxWidth={resolvedGridMaxWidth}
+                    minWidth={resolvedGridMinWidth}
+                    api={api}
+                  />
+                </>
+              ) : null}
+
+              <div className="wx-jlbQoHOz wx-content" ref={chartRef}>
+                <Chart
                   readonly={readonly}
+                  barGesturesDisabled={barGesturesDisabled}
+                  barGestureCompanions={barGestureCompanions}
+                  fullWidth={fullWidth}
                   fullHeight={fullHeight}
-                  annotationLaneHeight={laneHeight}
-                  gridActionSlot={gridActionSlot}
+                  taskTemplate={taskTemplate}
+                  scaleCellAriaLabel={scaleCellAriaLabel}
+                  onScaleCellContextMenu={onScaleCellContextMenu}
+                  annotationLayout={annotationLayout}
                   reserveTopScaleRow={reserveTopScaleRow}
                   gridActionSlotMinHeight={slotMinHeight}
-                  consumerOwnsColumnWidths={consumerOwnsColumnWidths}
-                  columnMinWidth={columnMinWidth}
-                  columnMaxWidth={columnMaxWidth}
-                  onTableAPIChange={onTableAPIChange}
+                  onBarDragPreview={onBarDragPreview}
+                  linkPresentation={linkPresentation}
+                  onRevealPartner={onRevealPartner}
                 />
-                <Resizer
-                  containerWidth={ganttWidth}
-                  maxWidth={resolvedGridMaxWidth}
-                  minWidth={resolvedGridMinWidth}
-                  api={api}
-                />
-              </>
-            ) : null}
-
-            <div className="wx-jlbQoHOz wx-content" ref={chartRef}>
-              <Chart
-                readonly={readonly}
-                barGesturesDisabled={barGesturesDisabled}
-                barGestureCompanions={barGestureCompanions}
-                fullWidth={fullWidth}
-                fullHeight={fullHeight}
-                taskTemplate={taskTemplate}
-                scaleCellAriaLabel={scaleCellAriaLabel}
-                onScaleCellContextMenu={onScaleCellContextMenu}
-                annotationLayout={annotationLayout}
-                reserveTopScaleRow={reserveTopScaleRow}
-                gridActionSlotMinHeight={slotMinHeight}
-                onBarDragPreview={onBarDragPreview}
-                linkPresentation={linkPresentation}
-                onRevealPartner={onRevealPartner}
-              />
+              </div>
             </div>
           </div>
         </div>
-      </div>
-      {/* SVAR-M4 (SVAR Production Planner): hidden, zero-height; measures
+        {/* SVAR-M4 (SVAR Production Planner): hidden, zero-height; measures
           chip widths once per label set, never per frame. Renders nothing
           when there are no annotations. */}
-      <AnnotationMeasurer
-        annotations={timelineAnnotations}
-        onMeasured={onAnnotationsMeasured}
-      />
-    </div>
+        <AnnotationMeasurer
+          annotations={timelineAnnotations}
+          onMeasured={onAnnotationsMeasured}
+        />
+      </div>
+    </CameraPathContext.Provider>
   );
 }
 

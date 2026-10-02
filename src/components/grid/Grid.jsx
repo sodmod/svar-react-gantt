@@ -29,6 +29,7 @@ import {
 } from '../../helpers/grid';
 import { useStore } from '@svar-ui/lib-react';
 import { splitScaleHeaderForLane } from '../chart/annotations/timelineAnnotationLayout.js';
+import { useCameraPath } from '../chart/useCameraPath.js';
 import storeContext from '../../context';
 import './Grid.css';
 
@@ -120,8 +121,18 @@ export default function Grid(props) {
   const i18n = useContext(context.i18n);
   const _ = useMemo(() => i18n.getGroup('gantt'), [i18n]);
   const api = useContext(storeContext);
-
-  const scrollTopVal = useStore(api, 'scrollTop');
+  /*
+   * SVAR-M56 (SVAR Production Planner): no `scrollTop` subscription. This
+   * component used to re-render on every vertical Pan step only to recompute
+   * the body offset, and in doing so handed react-grid a new `sizes` object
+   * and a new `selectedRows` array, so react-grid re-initialised its store
+   * (SVAR-M1's layout effect) and re-rendered every visible row and cell —
+   * on a step that changed nothing they show. The offset is now written by
+   * the camera path (`../chart/cameraPath.js`) directly onto the grid body,
+   * and this component renders when its rows, columns, selection or sizes
+   * change.
+   */
+  const camera = useCameraPath();
   const cellHeightVal = useStore(api, 'cellHeight');
   const focusTask = useStore(api, 'focusTask');
   const selectedVal = useStore(api, '_selected');
@@ -459,7 +470,8 @@ export default function Grid(props) {
    * With no lane (`laneSplitsHeader === false`) every one of these collapses
    * back to exactly what this file did before: the header block is the whole
    * scale height, there is nothing above it, and any lane height is reserved
-   * BELOW it through `bodyOffset`, as SVAR-M6 always did.
+   * BELOW it through the body offset, as SVAR-M6 always did (SVAR-M56: the
+   * camera path writes that offset; `laneBelowHeader` is its lane term).
    */
   const headerSplit = useMemo(
     () =>
@@ -520,23 +532,21 @@ export default function Grid(props) {
     ],
   );
 
-  const bodyOffset = useMemo(
-    // SVAR-M6 (SVAR Production Planner): + the lane height still reserved
-    // below the header — the same reservation the chart makes, applied to the
-    // grid body so row N is at the same y on both sides at every scroll
-    // position. SVAR-M8 moved that reservation above the header for every
-    // multi-row scale, and then this term is 0 because `headerOffset` already
-    // carries it.
-    () => (scrollDelta ?? 0) - (scrollTopVal ?? 0) + laneBelowHeader,
-    [scrollDelta, scrollTopVal, laneBelowHeader],
-  );
-
+  /*
+   * SVAR-M56 (SVAR Production Planner): the body offset is no longer computed
+   * here. It is `scrollDelta - scrollTop + laneBelowHeader` exactly as before
+   * — SVAR-M6's lane term included, which is 0 whenever SVAR-M8 has moved the
+   * reservation above the header — but it is written by the camera path, in
+   * the task that moved the store, as a direct `top` on the grid body instead
+   * of an inherited `--wx-body-offset` on this table (which restyled the whole
+   * grid subtree on every write). This component reports the two terms that
+   * are its own: the `from` of the window it has COMMITTED and the lane term.
+   */
   const tableStyle = useMemo(() => {
     const css =
       getGridMinHeight(gridClientHeight, cellHeightVal ?? 0) +
       getGridStyle(displayModeVal, columnWidth, scrollX);
     const style = cssTextToStyle(css);
-    style['--wx-body-offset'] = `${bodyOffset}px`;
     // SVAR-M8 (SVAR Production Planner): how far down the grid's own header
     // starts, so the blank scale/marker bands above it are real vertical room
     // rather than an overlay. Read by Grid.css.
@@ -548,9 +558,36 @@ export default function Grid(props) {
     displayModeVal,
     columnWidth,
     scrollX,
-    bodyOffset,
     headerOffset,
   ]);
+
+  /*
+   * SVAR-M56: the grid body the camera moves. react-grid renders it
+   * unconditionally inside its `.wx-scroll`, so it is found once and found
+   * again only if it was replaced.
+   */
+  const gridBodyRef = useRef(null);
+  const getGridBody = useCallback(() => {
+    const cached = gridBodyRef.current;
+    if (cached && cached.isConnected) return cached;
+    const found =
+      tableRef.current?.querySelector('.wx-grid .wx-scroll > .wx-body') ?? null;
+    gridBodyRef.current = found;
+    return found;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!camera) return undefined;
+    return () => camera.detachGrid(getGridBody);
+  }, [camera, getGridBody]);
+
+  // After every commit of this component: the window it has just committed
+  // and the lane term. In the commit that brings a new window, react-grid's
+  // own layout effect (SVAR-M1) has already asked for the new rows, which
+  // React flushes before paint, so offset and rows land in one painted frame.
+  useLayoutEffect(() => {
+    if (camera) camera.setGrid(getGridBody, scrollDelta, laneBelowHeader);
+  });
 
   // SELECTION
   // --------
@@ -558,6 +595,10 @@ export default function Grid(props) {
     () => (Array.isArray(selectedVal) ? selectedVal.map((o) => o.id) : []),
     [selectedVal],
   );
+  // SVAR-M56 (SVAR Production Planner): the same array for the same
+  // selection. Upstream spread a fresh `[...sel]` on every render, and react-
+  // grid's SVAR-M1 layout effect re-initialises its store on every new array.
+  const selectedRows = useMemo(() => [...sel], [sel]);
 
   const fitColumns = useMemo(
     () => getFitColumns(cols, displayModeVal),
@@ -1026,6 +1067,50 @@ export default function Grid(props) {
     onTableAPIChange && onTableAPIChange(tapi);
   }, []);
 
+  /*
+   * SVAR-M56 (SVAR Production Planner): react-grid re-initialises its store —
+   * and synchronously re-renders every visible row and cell — whenever one of
+   * these props is a new object (SVAR-M1's layout effect keys on them). So
+   * values that did not change keep their identity: `sizes` is memoised on
+   * the two numbers it carries, `selectedRows` on the selection, and the
+   * element itself is cached on all of its props, so a render of this
+   * component for any other reason (its own measured size, a focus request)
+   * reaches react-grid as nothing at all. A real change — new rows, a moved
+   * window, a column, a size, a selection, a sort — still arrives as a new
+   * value and is published exactly as before.
+   */
+  const headerRowHeight = (headerHeight ?? 0) / (headerLengthVal ?? 1);
+  const sizes = useMemo(
+    () => ({ rowHeight: cellHeightVal, headerHeight: headerRowHeight }),
+    [cellHeightVal, headerRowHeight],
+  );
+  const wxGrid = useMemo(
+    () => (
+      <WxGrid
+        init={init}
+        sizes={sizes}
+        rowStyle={rowStyle}
+        columnStyle={getColumnStyle}
+        data={allTasks}
+        columns={fitColumns}
+        selectedRows={selectedRows}
+        sortMarks={sortMarks}
+        filterValues={filters}
+      />
+    ),
+    [
+      init,
+      sizes,
+      rowStyle,
+      getColumnStyle,
+      allTasks,
+      fitColumns,
+      selectedRows,
+      sortMarks,
+      filters,
+    ],
+  );
+
   return (
     <div
       className="wx-rHj6070p wx-table-container"
@@ -1133,20 +1218,7 @@ export default function Grid(props) {
             </div>
           </div>
         ) : null}
-        <WxGrid
-          init={init}
-          sizes={{
-            rowHeight: cellHeightVal,
-            headerHeight: (headerHeight ?? 0) / (headerLengthVal ?? 1),
-          }}
-          rowStyle={rowStyle}
-          columnStyle={getColumnStyle}
-          data={allTasks}
-          columns={fitColumns}
-          selectedRows={[...sel]}
-          sortMarks={sortMarks}
-          filterValues={filters}
-        />
+        {wxGrid}
       </div>
     </div>
   );
