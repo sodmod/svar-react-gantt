@@ -872,6 +872,27 @@ Two kinds of change, deliberately kept in separate commits:
      browser paints is measured by the consuming application in real
      Chromium.
 
+   - **`SVAR-M57` — the chart's centre date, read only.** The public API
+     object (`ref`, `init`) answers two more questions, through the very
+     projection `SVAR-M31` already re-centres a scale change with
+     (`src/components/chart/chartDateProjection.js`): `getChartCentreDate()`,
+     the date under the middle of the chart's own viewport, and
+     `getChartScrollForCentreDate(date)`, the scroll offset that would put
+     `date` there. Both are pure reads of the store's state: neither scrolls,
+     writes the store or changes a prop, an event or an existing method.
+     Moving the chart stays the consumer's public `scroll-chart { left }`,
+     which the store clamps to its own travel. The consuming application
+     needs them to carry the visible central date between the Gantt and a
+     second, separately rendered timeline surface; outside this package the
+     question cannot be asked (`_scaleDate` is the date under the CLAMPED left
+     edge, on a nominal month — see `SVAR-M31`), and computing it from pixels
+     there would make the consumer a second owner of this axis. Typed by a
+     module augmentation of the store's own `IApi` in `types/index.d.ts`;
+     `@svar-ui/gantt-store` is not changed. The projection itself is
+     unit-tested by `npm run test:planner`
+     (`tools/planner-chart-date-projection.test.mjs`); the seam's behaviour is
+     measured by the consuming application in real Chromium.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

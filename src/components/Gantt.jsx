@@ -521,6 +521,38 @@ const Gantt = forwardRef(function Gantt(
         dataStore.getResourceCalendar(resource),
       getTaskResources: (id) => dataStore.getTaskResources(id),
       getResourceTasks: (id) => dataStore.getResourceTasks(id),
+      /*
+       * SVAR-M57 (SVAR Production Planner): the chart's centre date, READ ONLY.
+       *
+       * Two questions about the visible window, answered by the SAME
+       * projection SVAR-M31 already re-centres a scale change with
+       * (`chart/chartDateProjection.js`), and nothing else:
+       *
+       *   getChartCentreDate()            the date under the middle of the
+       *                                   chart's own viewport, or null when
+       *                                   the scale cannot answer yet
+       *   getChartScrollForCentreDate(d)  the scroll offset that would put `d`
+       *                                   under that middle — a NUMBER, not a
+       *                                   scroll: the store's state is not
+       *                                   touched, and moving the chart is
+       *                                   still the consumer's public
+       *                                   `scroll-chart { left }`, which the
+       *                                   store clamps to its own travel
+       *
+       * Why a consumer needs them at all: a second surface that shares the
+       * timeline's central date (the Planner's Resource View) must read it
+       * here and hand one back, and outside this package the question cannot
+       * be asked — `_scaleDate` is the date under the CLAMPED left edge, on a
+       * nominal month (see SVAR-M31), and deriving dates from pixels outside
+       * the package would make the consumer a second owner of this axis.
+       *
+       * Additive: no prop, no event, no state and no existing method changes;
+       * a consumer that never calls them gets the package byte-for-byte as
+       * before at runtime.
+       */
+      getChartCentreDate: () => dateAtChartCentre(dataStore.getState()),
+      getChartScrollForCentreDate: (date) =>
+        chartScrollPuttingDateAtCentre(dataStore.getState(), date),
     }),
     [dataStore, firstInRoute],
   );

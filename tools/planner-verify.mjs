@@ -217,7 +217,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M31 — a scale change re-centres the chart on the date that was under the middle of its viewport instead of keeping the pixel, through the one date <-> pixel projection in chart/chartDateProjection.js, which also normalizes a date-based scroll-chart request to a left before the store converts it from the wrong origin (R2, M-1); ' +
     'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx; ' +
     "SVAR-M47 — the component-facing store API additionally exposes `on`, the public API's own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`; " +
-    'SVAR-M55 — new `barGestureCompanions` prop, threaded through to Layout.jsx',
+    'SVAR-M55 — new `barGestureCompanions` prop, threaded through to Layout.jsx; ' +
+    "SVAR-M57 — the public API object additionally answers two read-only questions through SVAR-M31's own projection: the date under the middle of the chart viewport, and the scroll offset that would put a date there (it does not scroll)",
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -273,7 +274,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M25 — the `gridMaxWidth`/`gridMinWidth` props and the `onGridWidthLimit` report; ' +
     'SVAR-M26 — the `columnMaxWidth` prop; ' +
     'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop; ' +
-    'SVAR-M55 — `IBarGesture` and the `barGestureCompanions` prop',
+    'SVAR-M55 — `IBarGesture` and the `barGestureCompanions` prop; ' +
+    'SVAR-M57 — the two read-only centre-date questions declared on the public `IApi` (a module augmentation of the store\'s own interface; the store itself is untouched)',
   'src/components/chart/Links.jsx':
     "SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store's OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop's `lineStyle` as a stroke-dasharray (never on the arrowhead); " +
     "SVAR-M34 — the router's reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar's own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; " +

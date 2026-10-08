@@ -28,6 +28,19 @@ import type {
 } from '@svar-ui/gantt-store';
 
 export * from '@svar-ui/gantt-store';
+
+// SVAR-M57 (SVAR Production Planner): the chart's centre date, read only. Two
+// additive questions on the public API object (`ref`, `init`): the date under
+// the middle of the chart's viewport, and the scroll offset that would put a
+// date there. Neither moves the chart: scrolling stays `scroll-chart`.
+declare module '@svar-ui/gantt-store' {
+  interface IApi {
+    /** The date under the middle of the chart viewport; null until the scale can answer. */
+    getChartCentreDate(): Date | null;
+    /** The `scrollLeft` that would put `date` under that middle (unclamped); null until the scale can answer. */
+    getChartScrollForCentreDate(date: Date): number | null;
+  }
+}
 export { registerEditorItem } from '@svar-ui/react-editor';
 
 // SVAR-M4 (SVAR Production Planner): one timeline annotation — a vertical
