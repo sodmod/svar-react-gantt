@@ -33,13 +33,19 @@ export * from '@svar-ui/gantt-store';
 // additive questions on the public API object (`ref`, `init`): the date under
 // the middle of the chart's viewport, and the scroll offset that would put a
 // date there. Neither moves the chart: scrolling stays `scroll-chart`.
-declare module '@svar-ui/gantt-store' {
-  interface IApi {
-    /** The date under the middle of the chart viewport; null until the scale can answer. */
-    getChartCentreDate(): Date | null;
-    /** The `scrollLeft` that would put `date` under that middle (unclamped); null until the scale can answer. */
-    getChartScrollForCentreDate(date: Date): number | null;
-  }
+//
+// Declared as an interface of its own, which the API object ALSO satisfies
+// (`IApi & IChartCentreApi`), not as an augmentation of the store's `IApi`:
+// the store publishes `IApi` through a type re-export
+// (`export type { IApi } from "./types"`), and an augmentation of
+// '@svar-ui/gantt-store' does not merge with a re-exported interface — it
+// declares a second `IApi` that hides every member of the store's own from a
+// consumer's type checker.
+export interface IChartCentreApi {
+  /** The date under the middle of the chart viewport; null until the scale can answer. */
+  getChartCentreDate(): Date | null;
+  /** The `scrollLeft` that would put `date` under that middle (unclamped); null until the scale can answer. */
+  getChartScrollForCentreDate(date: Date): number | null;
 }
 export { registerEditorItem } from '@svar-ui/react-editor';
 

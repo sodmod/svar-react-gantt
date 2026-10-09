@@ -886,8 +886,11 @@ Two kinds of change, deliberately kept in separate commits:
      second, separately rendered timeline surface; outside this package the
      question cannot be asked (`_scaleDate` is the date under the CLAMPED left
      edge, on a nominal month — see `SVAR-M31`), and computing it from pixels
-     there would make the consumer a second owner of this axis. Typed by a
-     module augmentation of the store's own `IApi` in `types/index.d.ts`;
+     there would make the consumer a second owner of this axis. Typed as
+     `IChartCentreApi` in `types/index.d.ts`, an interface the API object also
+     satisfies — not as an augmentation of the store's `IApi`, which the store
+     re-exports and which an augmentation would therefore hide rather than
+     extend (corrected in the follow-up commit of this branch);
      `@svar-ui/gantt-store` is not changed. The projection itself is
      unit-tested by `npm run test:planner`
      (`tools/planner-chart-date-projection.test.mjs`); the seam's behaviour is

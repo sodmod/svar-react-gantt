@@ -275,7 +275,7 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M26 — the `columnMaxWidth` prop; ' +
     'SVAR-M32 — `ILinkIdentity`, `ILinkPresentation` and the `linkPresentation` prop; ' +
     'SVAR-M55 — `IBarGesture` and the `barGestureCompanions` prop; ' +
-    'SVAR-M57 — the two read-only centre-date questions declared on the public `IApi` (a module augmentation of the store\'s own interface; the store itself is untouched)',
+    'SVAR-M57 — the two read-only centre-date questions declared as `IChartCentreApi`, which the public API object also satisfies (the store itself is untouched)',
   'src/components/chart/Links.jsx':
     "SVAR-M32 — the deterministic link router (src/planner-router/route.js) replaces the store-computed `link.$p` entirely: reads `_links` (not `_visibleLinks`, whose culling rectangle is computed from the store's OWN route) and the full unsliced `_tasks` for source/target rectangles, assigns deterministic per-link channels so visible fan-in/fan-out never shares a trunk, draws a rounded SVG path plus a separate filled arrowhead polygon, and applies the new `linkPresentation` prop's `lineStyle` as a stroke-dasharray (never on the arrowhead); " +
     "SVAR-M34 — the router's reverseBypassRoute (src/planner-router/route.js) measures its corridor from the target bar's own edge instead of a fixed rowHeight fraction, so the corridor cannot land inside a bar that nearly fills its row; " +
