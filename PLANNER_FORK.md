@@ -896,6 +896,37 @@ Two kinds of change, deliberately kept in separate commits:
      (`tools/planner-chart-date-projection.test.mjs`); the seam's behaviour is
      measured by the consuming application in real Chromium.
 
+   - **`SVAR-M58` — a row that stays in the window keeps its render.** A
+     vertical Pan, a wheel step or a reveal moves the virtual row window by one
+     row for every row height of travel, and upstream then rendered EVERY
+     visible row again, twice: `chart/Bars.jsx` and `grid/Grid.jsx` gave each
+     row of the new window a fresh shallow copy of its task, so every bar
+     template, every grid row and every cell had new props, although one row
+     entered and one left. Measured in the consuming application: about 200
+     and 160 components in the two commits of each shift
+     (`docs/evidence/clean-pan-plan-microstutter-r1/` there).
+
+     `src/components/windowRowCopies.js` keeps, per component instance and for
+     the last window only, the copy each row was given; a row gets its copy
+     back only while the caller's version of the rows is unchanged — `Bars`
+     passes the `_tasks` publication counter, which also moves on
+     `drag-task`'s in-place steps; `Grid` passes the `_tasks` array and its
+     own dragged row — AND the copy is still a shallow snapshot of its source,
+     so a source the store changed in place is copied afresh. Any change of
+     the rows therefore copies every row as upstream did; only a change of the
+     window keeps them. `Bars.jsx` renders the consumer's `taskTemplate`
+     behind a memo boundary (`BarTemplate`) with an `epoch` that is new on
+     every render caused by anything but the row window, so outside a pure
+     window shift every template renders exactly as before. `TimeScale.jsx`
+     is memoised on its props: `Chart.jsx` renders for each new row window,
+     and the header depends on none of it. The pure half is unit-tested by
+     `npm run test:planner` (`tools/planner-window-row-copies.test.mjs`); the
+     consuming application counts what React renders per window shift and
+     checks that edits, Undo/Redo and gestures still reach every row
+     (`e2e/clean-pan-plan-microstutter-r2.spec.ts` there). The react-grid
+     half is `SVAR-M59` in `sodmod/svar-react-grid`. The store is not changed
+     and nothing here knows a date, a duration or a link.
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

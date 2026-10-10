@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useStore } from '@svar-ui/lib-react';
 import AnnotationLane from './annotations/AnnotationLane.jsx';
 import ScaleColumnGrid from './annotations/ScaleColumnGrid.jsx';
@@ -284,4 +284,11 @@ function TimeScale(props) {
   );
 }
 
-export default TimeScale;
+/*
+ * SVAR-M58 (SVAR Production Planner): memoised on its props. `Chart.jsx`
+ * renders for every new row window (it reads `area`), and the header does not
+ * depend on the row window at all: it re-renders on its own subscriptions
+ * (`_scales`, the cell window compared by value, `highlightTime`) and on a
+ * change of any prop, exactly as before, but no longer for a vertical shift.
+ */
+export default memo(TimeScale);

@@ -27,7 +27,35 @@ import {
   companionStep,
 } from './barGestureCompanions.js';
 import Rollups from './Rollups.jsx';
+import { createWindowRowCopies } from '../windowRowCopies.js';
 import './Bars.css';
+
+/*
+ * SVAR-M58 (SVAR Production Planner): the consumer's bar template behind a
+ * memo boundary.
+ *
+ * Upstream rendered `taskTemplate` inline, so every render of this component
+ * rendered every bar's template again. Most of those renders are now the
+ * ones a moved row window causes (a vertical Pan, a wheel step, a reveal),
+ * and there nineteen of twenty bars have the same copy as before
+ * (`../windowRowCopies.js`): their template has nothing new to show.
+ *
+ * The template still renders when its own props change (a new copy of its
+ * task, `api`, `onAction`), and also whenever `epoch` changes: `Bars` makes a
+ * new epoch on every render caused by anything OTHER than the row window — a
+ * selection, the links, the scales, any store value it reads. So outside a
+ * pure window shift every template renders exactly as upstream; the boundary
+ * only lets an unchanged row skip a window shift. A template keeps its own
+ * subscriptions and contexts, which a memo boundary does not block.
+ */
+const BarTemplate = memo(function BarTemplate({
+  template: Template,
+  data,
+  api,
+  onAction,
+}) {
+  return <Template data={data} api={api} onAction={onAction} />;
+});
 
 /*
  * SVAR-M5 (SVAR Production Planner). The ONE expression that turns a bar
@@ -192,12 +220,45 @@ function Bars(props) {
   const summary = useStore(api, 'summary');
   const slack = useStore(api, 'slack');
 
+  // SVAR-M58 (SVAR Production Planner): a row that is still in the window
+  // keeps its copy across a window shift, while `_tasks` has not been
+  // published again and the copy still matches its source — see
+  // `../windowRowCopies.js`. Any publication of `_tasks` (the counter moves on
+  // every one, including drag-task's in-place steps) copies every row afresh,
+  // exactly as upstream did on every change.
+  const windowCopiesRef = useRef(null);
+  if (windowCopiesRef.current === null) {
+    windowCopiesRef.current = createWindowRowCopies();
+  }
   const tasks = useMemo(() => {
     if (!areaValue || !Array.isArray(rTasksValue)) return [];
     const start = areaValue.start ?? 0;
     const end = areaValue.end ?? 0;
-    return rTasksValue.slice(start, end).map((a) => ({ ...a }));
+    return windowCopiesRef.current(
+      rTasksValue.slice(start, end),
+      rTasksCounter,
+    );
   }, [rTasksCounter, areaValue]);
+
+  // SVAR-M58: a new epoch on every render caused by anything but the row
+  // window (`areaValue` is deliberately left out), so a bar template skips a
+  // render only when the window alone moved. The store values this component
+  // reads for the capabilities the Community build resets are not named here:
+  // the PRO boundary forbids new references to them, they never change in a
+  // Community build, and what they draw is this component's own markup, which
+  // renders on every change as before — none of it reaches the template.
+  const templateEpoch = useMemo(
+    () => ({}),
+    [
+      rTasksCounter,
+      rLinksCounter,
+      scalesValue,
+      taskTypesValue,
+      selectedValue,
+      focusTaskStore,
+      tree,
+    ],
+  );
 
   const lengthUnitWidth = useMemo(
     () => scalesValue.lengthUnitWidth,
@@ -1225,7 +1286,13 @@ function Bars(props) {
                       </div>
                     ) : null}
                     {TaskTemplate ? (
-                      <TaskTemplate data={task} api={api} onAction={forward} />
+                      <BarTemplate
+                        template={TaskTemplate}
+                        data={task}
+                        api={api}
+                        onAction={forward}
+                        epoch={templateEpoch}
+                      />
                     ) : splitTasks && task.segments ? (
                       <BarSegments task={task} type={taskTypeCss(task.type)} />
                     ) : (
@@ -1238,7 +1305,13 @@ function Bars(props) {
                   <>
                     <div className="wx-GKbcLEGA wx-content"></div>
                     {TaskTemplate ? (
-                      <TaskTemplate data={task} api={api} onAction={forward} />
+                      <BarTemplate
+                        template={TaskTemplate}
+                        data={task}
+                        api={api}
+                        onAction={forward}
+                        epoch={templateEpoch}
+                      />
                     ) : (
                       <div className="wx-GKbcLEGA wx-text-out">{task.text}</div>
                     )}

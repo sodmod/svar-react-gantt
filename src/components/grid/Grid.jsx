@@ -30,6 +30,7 @@ import {
 import { useStore } from '@svar-ui/lib-react';
 import { splitScaleHeaderForLane } from '../chart/annotations/timelineAnnotationLayout.js';
 import { useCameraPath } from '../chart/useCameraPath.js';
+import { createWindowRowCopies } from '../windowRowCopies.js';
 import storeContext from '../../context';
 import './Grid.css';
 
@@ -219,13 +220,26 @@ export default function Grid(props) {
     return () => ro.disconnect();
   }, []);
 
+  // SVAR-M58 (SVAR Production Planner): a row that is still in the window
+  // keeps its copy across a window shift, so react-grid receives the same
+  // row object for it and its cells skip the shift (SVAR-M59 in react-grid).
+  // The version is the `_tasks` array itself and the dragged row: a new
+  // publication of `_tasks` (this subscription re-renders only on a new
+  // array) or a row drag copies every row afresh, exactly as upstream did on
+  // every change; a copy that no longer matches its source is never reused
+  // either — see `../windowRowCopies.js`.
+  const windowCopiesRef = useRef(null);
+  if (windowCopiesRef.current === null) {
+    windowCopiesRef.current = createWindowRowCopies();
+  }
+  const windowCopiesVersion = useMemo(() => ({}), [rTasksVal, dragTask]);
   const allTasks = useMemo(() => {
     const rows =
       dragTask && !tasks.find((t) => t.id === dragTask.id)
         ? [...tasks, dragTask]
         : tasks;
-    return rows.map((t) => ({ ...t }));
-  }, [tasks, dragTask]);
+    return windowCopiesRef.current(rows, windowCopiesVersion);
+  }, [tasks, dragTask, windowCopiesVersion]);
 
   const allTasksRef = useRef(allTasks);
   useEffect(() => {

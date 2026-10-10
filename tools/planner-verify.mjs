@@ -201,7 +201,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M33 — Esc cancels a pending link-create draft: a keydown listener attached only while one is pending, calling the existing removeLinkMarker and nothing else; ' +
     'SVAR-M37 — renders <AggregateLinks> right after <Links>, with the same onSelectLink/readonly/linkPresentation pass-through; ' +
     "SVAR-M55 — asks the new barGestureCompanions prop ONCE per bar gesture, on the step that activates it, carries each returned bar by the same pixel dx through the grabbed bar's own drag-task, resets them on a no-change drop, and lets Esc/blur/pointercancel cancel a bar move/resize with no update-task; " +
-    'SVAR-M56 — the component is memoised on its props, so a render of Chart.jsx for a moved cell window re-renders no bar template',
+    'SVAR-M56 — the component is memoised on its props, so a render of Chart.jsx for a moved cell window re-renders no bar template; ' +
+    "SVAR-M58 — a row that stays in the window keeps its copy across a window shift (windowRowCopies.js, versioned by the `_tasks` publication counter), and the consumer's bar template renders behind a memo boundary that a new epoch reopens on every render not caused by the row window alone",
   'src/components/Gantt.jsx':
     'SVAR-M3 — new `scaleCellAriaLabel` prop, threaded through to TimeScale.jsx; ' +
     'SVAR-M28 — new `onScaleCellContextMenu` prop, threaded through to TimeScale.jsx beside it; ' +
@@ -258,7 +259,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M12 — asks the split owner with the same reserveTopScaleRow the grid is given; ' +
     'SVAR-M17 — renders the blank reserve band between the top scale row and the lane, and starts the lower-row line band below it; ' +
     'SVAR-M29 — that reserve band renders the day-column separators from the same owner the lane asks (annotations/ScaleColumnGrid.jsx), and is a positioning context so they fill it; ' +
-    'SVAR-M56 — `xArea` is compared by value, so a horizontal Pan step inside one cell window re-renders no header',
+    'SVAR-M56 — `xArea` is compared by value, so a horizontal Pan step inside one cell window re-renders no header; ' +
+    'SVAR-M58 — the component is memoised on its props, so a render of Chart.jsx for a new row window re-renders no header',
   'types/index.d.ts':
     'SVAR-M3 — type declaration for the new `scaleCellAriaLabel` prop; ' +
     'SVAR-M28 — `IScaleCellContextMenu` and the `onScaleCellContextMenu` prop; ' +
@@ -318,7 +320,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M24 — a grid row carries `wx-row-<type>` from the kind the consumer put on it, so a stylesheet can reach what the diagram already says; ' +
     "SVAR-M26 — and never above the consumer's declared maximum for one column, clamped at the same seam and for the same reason; " +
     "SVAR-M27 — the action slot renders one level deeper, inside a new sticky anchor wrapper, so its position resolves against the grid's own horizontal scrollport rather than the scrolled column content; " +
-    'SVAR-M56 — no `scrollTop` subscription: the body offset is written by the Pan camera path as a direct `top` on the grid body, from the window this component reports it has committed; `sizes`, `selectedRows` and the react-grid element keep their identity while their inputs do',
+    'SVAR-M56 — no `scrollTop` subscription: the body offset is written by the Pan camera path as a direct `top` on the grid body, from the window this component reports it has committed; `sizes`, `selectedRows` and the react-grid element keep their identity while their inputs do; ' +
+    'SVAR-M58 — a row that stays in the window keeps its copy across a window shift (windowRowCopies.js, versioned by the `_tasks` array and the dragged row), so react-grid receives the same row object for it',
   'src/helpers/reorder.js':
     'SVAR-M13 — a row\'s middle band means "into this row": the drag can now report a `child` zone, which `move-task` has always accepted; ' +
     'SVAR-M14 — the row a drop would land at carries `data-wx-drop-zone`; ' +
@@ -377,6 +380,9 @@ const PROJECT_ADDED = [
   // SVAR-M55: the pure owner of the gesture companions' base geometry, step
   // and reset — see the file header.
   'src/components/chart/barGestureCompanions.js',
+  // SVAR-M58: the copies a virtual row window hands its rows, kept across a
+  // pure window shift; shared by chart/Bars.jsx and grid/Grid.jsx.
+  'src/components/windowRowCopies.js',
   // SVAR-M56: the Pan camera path — the one owner that writes the store's
   // accepted scroll position into the DOM in the task of the store write —
   // and its React side (the context and the two consumer hooks).
