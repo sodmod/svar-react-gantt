@@ -927,6 +927,39 @@ Two kinds of change, deliberately kept in separate commits:
      half is `SVAR-M59` in `sodmod/svar-react-grid`. The store is not changed
      and nothing here knows a date, a duration or a link.
 
+   - **`SVAR-M60` — the store's vertical position stays inside the travel the
+     chart can show.** `@svar-ui/gantt-store` clamps `scroll-chart { top }` to
+     `_scales.height + rows - _chartHeight`, but `_chartHeight` is the rows
+     band ALONE (`Layout.jsx` publishes the surface height less the header
+     block), so the header is counted twice and a programmatic request may
+     run up to a header height past the last row. The camera path then writes
+     that position into `.wx-chart`, which the browser clamps, and into the
+     grid body's `top`, which nothing clamps, and the two halves part.
+     Measured in the consuming application (Phase 6 CP-7 F1): 11 px after its
+     vertical reveal asked for a safe inset below the last row. `Gantt.jsx`
+     now holds every requested `top` to `src/components/chart/verticalTravel.js`
+     (`rows - band + scrollSize`, exactly the outer pseudo-scroller's own
+     travel) with an interceptor in front of the store, the mechanism
+     `SVAR-M31` uses for a `date`. The store is not changed. Unit-tested by
+     `npm run test:planner` (`tools/planner-vertical-travel.test.mjs`, with the
+     store's own clamp as the negative control).
+
+   - **`SVAR-M61` — the chart height follows the scale rows' own height.**
+     `Layout.jsx` re-published `_chartHeight` on a DOM resize of the chart
+     element or when the marker lane / slot reserve changed height (`SVAR-M4`,
+     `SVAR-M17`), never when the scale rows themselves did. A scale change
+     whose band keeps its height (День 137 px -> Месяц 101 px header in the
+     consuming application) left the store with a rows band 36 px too short,
+     and every bottom-of-list position computed from it ran past the last row:
+     there, the renderer's own scroll-into-view of the first click of a double
+     click moved the last row out from under the second click. The watched
+     value is now the whole header block `latestLayout` publishes. With
+     `SVAR-M60` this is one guarantee — the store never holds a vertical
+     position the two halves cannot both show — and the alignment of the two
+     halves is measured by the consuming application in real Chromium
+     (`e2e/phase-6-cp7-f1-row-geometry.spec.ts`,
+     `e2e/server/cp7-f1-row-geometry.spec.ts` there).
+
 3. **Asset delivery inside upstream components** — the three theme wrappers
    (`src/themes/Willow.jsx`, `WillowDark.jsx`, `Material.jsx`) pass
    `fonts={false}` to `@svar-ui/react-core`, so core no longer injects the CDN

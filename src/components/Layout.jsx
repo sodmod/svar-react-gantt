@@ -321,13 +321,23 @@ function Layout(props) {
   // change and is watched by the same ref — the two move in OPPOSITE
   // directions (a lane appearing eats the shortfall it made), so watching the
   // lane alone would miss the very moment the reserve appears or goes.
-  const publishedHeaderBand = useRef(laneHeight + slotReserveExtraHeight);
+  // SVAR-M61 (SVAR Production Planner, CP-7 F1): and the scale rows' own
+  // height is the third term of the same header block. A scale change
+  // (День 137 px -> Месяц 101 px in the Planner) changes it with no DOM resize
+  // of the chart element and, on a page whose band keeps its height, with no
+  // band change either, so the store kept the OLD rows band: 36 px too short,
+  // and every bottom-of-list position computed from it (a row's
+  // scroll-into-view, a consumer's reveal) ran past the last row. The
+  // ref therefore watches the whole block `latestLayout` publishes, not only
+  // the two bands inside it.
+  const headerBlockHeight =
+    rScales.height + laneHeight + slotReserveExtraHeight;
+  const publishedHeaderBand = useRef(headerBlockHeight);
   useEffect(() => {
-    const band = laneHeight + slotReserveExtraHeight;
-    if (publishedHeaderBand.current === band) return;
-    publishedHeaderBand.current = band;
+    if (publishedHeaderBand.current === headerBlockHeight) return;
+    publishedHeaderBand.current = headerBlockHeight;
     chartResizeHandler();
-  }, [laneHeight, slotReserveExtraHeight, chartResizeHandler]);
+  }, [headerBlockHeight, chartResizeHandler]);
 
   const ganttDivRef = useRef(null);
   const pseudoRowsRef = useRef(null);

@@ -37,6 +37,11 @@ import {
   chartScrollPuttingDateAtCentre,
   dateAtChartCentre,
 } from './chart/chartDateProjection.js';
+/*
+ * SVAR-M60 (SVAR Production Planner): the chart's vertical travel, the one
+ * range every programmatic `scroll-chart { top }` is held to. See the module.
+ */
+import { clampChartTop } from './chart/verticalTravel.js';
 
 // context
 import StoreContext from '../context';
@@ -478,6 +483,23 @@ const Gantt = forwardRef(function Gantt(
       if (left === null) return;
       ev.left = left;
       delete ev.date;
+    });
+
+    /*
+     * SVAR-M60 (CP-7 F1): a requested `top` is held to the travel the chart
+     * can actually show (`chart/verticalTravel.js`), before the store sees it.
+     *
+     * The store's own vertical clamp counts the scale header twice and lets a
+     * request run up to a header height past the last row; the camera then
+     * writes that position into both halves, the browser clamps `.wx-chart`
+     * and nothing clamps the grid body, and the list stands off its bars.
+     * Same mechanism as SVAR-M31 above, for the same reason: the store keeps
+     * its clamp and its contract, and the one range has one owner. A layout
+     * that has not published its rows band yet leaves the payload alone.
+     */
+    firstInRoute.intercept('scroll-chart', (ev) => {
+      if (!ev || typeof ev.top !== 'number') return;
+      ev.top = clampChartTop(dataStore.getState(), ev.top);
     });
   }
 

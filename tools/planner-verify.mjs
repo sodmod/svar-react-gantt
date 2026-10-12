@@ -187,7 +187,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M49 (one chip per presentation endpoint) and ' +
     'SVAR-M50 (an aggregate never mixes two links whose resolved presentation differs) and ' +
     'SVAR-M55 (the gesture companions carried by a bar gesture) and ' +
-    "SVAR-M56 (the Pan camera path's order of one update, its row-window de-duplication, its committed-extent deferral and its per-axis judging of native scrolls)",
+    "SVAR-M56 (the Pan camera path's order of one update, its row-window de-duplication, its committed-extent deferral and its per-axis judging of native scrolls) and " +
+    "SVAR-M60 (the chart's vertical travel, against the store's own clamp as the negative control)",
   'readme.md':
     'says in its first lines that this is a project-owned fork (MIT attribution)',
   'src/index.js':
@@ -219,7 +220,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M32 — new `linkPresentation` prop, threaded through to Layout.jsx; ' +
     "SVAR-M47 — the component-facing store API additionally exposes `on`, the public API's own event subscription, so OffscreenLinkChips.jsx can mirror `resize-chart`; " +
     'SVAR-M55 — new `barGestureCompanions` prop, threaded through to Layout.jsx; ' +
-    "SVAR-M57 — the public API object additionally answers two read-only questions through SVAR-M31's own projection: the date under the middle of the chart viewport, and the scroll offset that would put a date there (it does not scroll)",
+    "SVAR-M57 — the public API object additionally answers two read-only questions through SVAR-M31's own projection: the date under the middle of the chart viewport, and the scroll offset that would put a date there (it does not scroll); " +
+    "SVAR-M60 — a requested scroll-chart `top` is held to the travel the chart can show (chart/verticalTravel.js) by an interceptor in front of the store, the same mechanism as SVAR-M31's date normalization; the store's own clamp counts the scale header twice",
   'src/components/Layout.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through, unread; ' +
@@ -236,7 +238,8 @@ const OWNED_UPSTREAM_FILES = {
     'SVAR-M30 — passes `barGesturesDisabled` through to the chart half only, unread; ' +
     'SVAR-M32 — passes `linkPresentation` through to the chart half only, unread; ' +
     'SVAR-M55 — passes `barGestureCompanions` through to the chart half only, unread; ' +
-    "SVAR-M56 — creates the chart's Pan camera path (chart/cameraPath.js) and provides it to both halves through chart/useCameraPath.js; the `scrollTop` subscription, the passive pseudo-scroller sync and its `isUserScrollRef` are gone, and the pseudo-scroller and the committed extent are attached to the camera instead",
+    "SVAR-M56 — creates the chart's Pan camera path (chart/cameraPath.js) and provides it to both halves through chart/useCameraPath.js; the `scrollTop` subscription, the passive pseudo-scroller sync and its `isUserScrollRef` are gone, and the pseudo-scroller and the committed extent are attached to the camera instead; " +
+    'SVAR-M61 — re-publishes the chart height to the store when the scale rows change height, not only when the lane or the slot reserve does: the watched value is the whole header block',
   'src/components/chart/Chart.jsx':
     'SVAR-M3 — `scaleCellAriaLabel` prop pass-through; ' +
     'SVAR-M28 — `onScaleCellContextMenu` prop pass-through; ' +
@@ -388,6 +391,9 @@ const PROJECT_ADDED = [
   // and its React side (the context and the two consumer hooks).
   'src/components/chart/cameraPath.js',
   'src/components/chart/useCameraPath.js',
+  // SVAR-M60: the chart's vertical travel, the one range every requested
+  // scroll-chart `top` is held to.
+  'src/components/chart/verticalTravel.js',
 ];
 
 /**
